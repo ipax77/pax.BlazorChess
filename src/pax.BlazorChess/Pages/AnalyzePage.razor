@@ -1,0 +1,98 @@
+﻿@page "/analyze"
+@using pax.chess
+@using pax.uciChessEngine
+@implements IDisposable
+
+<PageTitle>Analyze</PageTitle>
+
+<div class="d-flex">
+    <div>
+        <div class="btn-group mt-1">
+            <span class="oi oi-action-undo text-warning pointer ms-1" @onclick="e => Game.Revert()"></span>
+            <span class="oi oi-arrow-thick-left pointer ms-3" @onclick="e => Game.ObserverMoveBackward()"></span>
+            <span class="oi oi-arrow-thick-right pointer ms-2" @onclick="e => Game.ObserverMoveForward()"></span>
+        </div>
+        <BoardContainer Game="Game" OnObserverMoveChanged="ObserverMoveChanged"></BoardContainer>
+    </div>
+    <div>
+        <CascadingValue Value="EngineInfo">
+            <CascadingValue Value="Game">
+                <EvalComponent></EvalComponent>
+            </CascadingValue>
+        </CascadingValue>
+    </div>
+</div>
+
+@code {
+    Game Game = new Game();
+    Engine Engine = new Engine("Stockfish", @"C:\data\stockfish_14.1_win_x64_avx2\stockfish_14.1_win_x64_avx2.exe");
+    List<Option> EngineOptions = new List<Option>();
+    CancellationTokenSource tokenSource = new CancellationTokenSource();
+    EngineInfo? EngineInfo;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _ = InitEngine();
+    }
+
+    private async Task InitEngine()
+    {
+        Engine.Start();
+        await Engine.IsReady();
+        EngineOptions = await Engine.GetOptions();
+        await Engine.IsReady();
+        await SetEngineOption("Threads", 2);
+        await Engine.IsReady();
+        await SetEngineOption("MultiPV", 2);
+        _ = UpdateEngineEval(tokenSource.Token);
+    }
+
+    private async Task SetEngineOption(string name, object value)
+    {
+        var option = EngineOptions.FirstOrDefault(f => f.Name == name);
+        if (option != null)
+        {
+            option.Value = value;
+            Engine.SetOption(option.Name, option.Value);
+            await Engine.IsReady();
+        }
+    }
+
+    private void ObserverMoveChanged(int? move)
+    {
+        if (move != null)
+        {
+            _ = UpdateEngineGame((int)move);
+        }
+    }
+
+    private async Task UpdateEngineGame(int move)
+    {
+        Engine.Send("stop");
+        await Engine.IsReady();
+        Engine.Send($"position startpos moves {String.Join(" ", Game.State.Moves.Take(move).Select(s => s.EngineMove.ToString()))}");
+        await Engine.IsReady();
+        Engine.Send("go");
+    }
+
+    private async Task UpdateEngineEval(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            await Task.Delay(250);
+            EngineInfo = Engine.GetInfo();
+            if (EngineInfo != null)
+            {
+                await InvokeAsync(() => StateHasChanged());
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        tokenSource.Cancel();
+        Engine.Dispose();
+    }
+}
+

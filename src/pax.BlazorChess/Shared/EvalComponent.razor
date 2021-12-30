@@ -1,0 +1,41 @@
+﻿@using pax.chess
+@using pax.uciChessEngine
+
+@if (EngineInfo != null && Game != null)
+{
+    <div class="card" style="width: 30vw;">
+        <div class="card-header">
+            @EngineInfo.EngineName
+        </div>
+        <div class="card-body">
+            <table class="table table-sm table-striped">
+                <thead></thead>
+                <tbody>
+                    @foreach (var pvInfo in EngineInfo.PvInfos)
+                    {
+                        Evaluation eval = new Evaluation(pvInfo.Score, pvInfo.Mate, Game.ObserverState.Info.BlackToMove);
+                        <tr>
+                            <td class="col"><span class="badge @(eval.Score < 0 ? "bg-warning" : "bg-success")">@eval.ToString()</span></td>
+                            <td class="col"><span class="badge bg-light">Depth @pvInfo.Depth</span></td>
+                            <td class="col"><span class="badge bg-info">@pvInfo.Moves[0].ToString()</span></td>
+                            <td>
+                                <span class="d-inline-block text-truncate" style="max-width: 300px;">
+                                    @String.Join(" ", pvInfo.Moves.Select(s => s.ToString()))
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    public EngineInfo? EngineInfo { get; set; }
+
+    [CascadingParameter]
+    public Game? Game { get; set; }
+}
