@@ -1,0 +1,50 @@
+﻿@using System.Globalization
+@using pax.BlazorChess.Models
+
+@if (Annotation.Length == 0)
+{
+    <div class="position-absolute" style="pointer-events: none;">
+
+        <svg height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="@Center" cy="@Center" r="@((Math.Round(SquareSize / 2.4, 2)).ToString(CultureInfo.InvariantCulture))" stroke="@Annotation.Color" stroke-width="3" fill="transparent" />
+        </svg>
+    </div>
+}
+else
+{
+    <div class="position-absolute" style="pointer-events: none; top: @(Center)px; left: @(Center)px; width: @(Width)px; transform-origin: top left; transform: rotate(@(Angle)deg);">
+        <div class="border border-2 w-100" style="border-color: @Annotation.Color !important;">
+        </div>
+    </div>
+    <div class="position-absolute" style="pointer-events: none; top: @(DestinationY)px; left: @(DestinationX)px; width: @(ArrowSize)px;; height: @(ArrowSize)px;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="-50 -100 200 200">
+            <defs>
+                <marker id='@guid.ToString()' orient='@(Angle)' markerWidth='50' markerHeight='80'
+                    refX='0.1' refY='2'>
+                    <path d='M0,0 V4 L2,2 Z' fill='@Annotation.Color' />
+                </marker>
+            </defs>
+            <path marker-end='url(#@guid.ToString())'
+              stroke-width='5' fill='none' stroke='black'
+              d='M0,0 Z' />
+        </svg>
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    public double SquareSize { get; set; }
+
+    [Parameter]
+    [EditorRequired]
+    public Annotation Annotation { get; set; }
+
+    Guid guid = Guid.NewGuid();
+
+    string Center => Math.Round(SquareSize / 2, 2).ToString(CultureInfo.InvariantCulture);
+    string Width => Math.Round(SquareSize * Annotation.Length, 2).ToString(CultureInfo.InvariantCulture);
+    string Angle => Math.Round(Annotation.Angle, 2).ToString(CultureInfo.InvariantCulture);
+    string DestinationX => Annotation.Length == 0 ? "" : Math.Round(SquareSize / 2 + (SquareSize * Annotation.Length * Math.Cos(Annotation.Angle * Math.PI / 180)) - SquareSize, 2).ToString(CultureInfo.InvariantCulture);
+    string DestinationY => Annotation.Length == 0 ? "" : Math.Round(SquareSize / 2 + (SquareSize * Annotation.Length * Math.Sin(Annotation.Angle * Math.PI / 180)) - 2 * SquareSize, 2).ToString(CultureInfo.InvariantCulture);
+    string ArrowSize => Math.Round(SquareSize * 4, 2).ToString(CultureInfo.InvariantCulture);
+}

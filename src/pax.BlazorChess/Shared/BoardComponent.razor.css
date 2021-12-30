@@ -1,0 +1,21 @@
+﻿.white {
+    background-color: lightgray;
+}
+
+.black {
+    background-color: darkgray;
+}
+
+.check {
+    background-color: lightcoral;
+}
+
+.board {
+    width: 100%;
+    height: 100%;
+    cursor: pointer
+}
+
+.boardrow {
+    height: 12.5%;
+}

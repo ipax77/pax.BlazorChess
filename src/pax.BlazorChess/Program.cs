@@ -1,15 +1,33 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using pax.BlazorChess.Data;
+using Microsoft.EntityFrameworkCore;
+using pax.BlazorChess.Models;
+using pax.BlazorChess.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddSingleton<WeatherForecastService>();
+
+builder.Services.AddDbContext<ChessContext>(options =>
+    options.UseSqlite($"Data Source={Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "pax.chess", "chess.db")}",
+       x =>
+       {
+           x.MigrationsAssembly("pax.BlazorChess");
+           x.UseQuerySplittingBehavior(QuerySplittingBehavior.SingleQuery);
+       }
+    )
+//.EnableSensitiveDataLogging()
+//.EnableDetailedErrors()
+);
+
+builder.Services.AddSingleton<ConfigurationService>();
 
 var app = builder.Build();
+
+// warmup
+app.Services.GetRequiredService<ConfigurationService>();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -29,3 +47,8 @@ app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
 app.Run();
+
+public partial class Program
+{
+    public static string ConfigFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "pax.chess", "config.json");
+}

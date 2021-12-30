@@ -1,0 +1,178 @@
+﻿@using pax.chess
+@inject IJSRuntime _js
+
+<div class="d-flex" tabindex="0" @onkeydown="KeyDown" @onmousewheel:preventDefault @onmousewheel="MouseWheel" style="outline: none !important;">
+    <CascadingValue Value="Game">
+        <div>
+            @if (ShowBoard)
+            {
+                <div class="boardcontainer mt-1" style="width: 40vh;">
+                    <BoardComponent @ref="board" ObserverMode="false" OnMoveUpdate="BoardUpdate"></BoardComponent>
+                </div>
+            }
+            @if (ShowObserverBoard)
+            {
+                <div class="boardcontainer mt-4" style="width: 40vh;">
+                    <BoardComponent @ref="boardobs" ObserverMode="true"></BoardComponent>
+                </div>
+            }
+        </div>
+        <div>
+            @if (ShowInfo)
+            {
+                <div class="mx-2">
+                    <table class="table table-sm table-striped">
+                        <tbody>
+                            <tr>
+                                <td colspan="2">@Game.Name</td>
+                            </tr>
+                            @if (Game.Result != Result.None)
+                            {
+                                <tr>
+                                    <td colspan="2">@Game.Result</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">@Game.Termination</td>
+                                </tr>
+                            }
+                            @if (Game.Time != null)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-light">@Game.Time.CurrentWhiteTime.ToString(@"hh\:mm\:ss")</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-dark">@Game.Time.CurrentBlackTime.ToString(@"hh\:mm\:ss")</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+
+                    </table>
+                </div>
+            }
+            @if (ShowMoves)
+            {
+                <div class="mx-2">
+                    <div style="height: 40vh;">
+                        <MovesComponent GotoMove="GotoBoardMove"></MovesComponent>
+                    </div>
+                </div>
+            }
+        </div>
+    </CascadingValue>
+</div>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public Game Game { get; set; }
+
+    [Parameter]
+    public bool ShowBoard { get; set; } = true;
+
+    [Parameter]
+    public bool ShowObserverBoard { get; set; } = true;
+
+    [Parameter]
+    public bool ShowMoves { get; set; } = true;
+
+    [Parameter]
+    public bool ShowInfo { get; set; } = true;
+
+    [Parameter]
+    public EventCallback<int?> OnObserverMoveChanged { get; set; }
+
+    BoardComponent? board;
+    BoardComponent? boardobs;
+
+    private Game? KeyBoardGame;
+
+    List<BoardComponent?> Boards = new List<BoardComponent?>();
+
+    double squareSize;
+    private DotNetObjectReference<BoardContainer>? objRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var size = await _js.InvokeAsync<double[]>("getElementSize", "board");
+            Boards.Add(board);
+            Boards.Add(boardobs);
+            ResizeEvent(size);
+            objRef = DotNetObjectReference.Create(this);
+            await _js.InvokeVoidAsync("resizeEvents", objRef, true);
+            KeyBoardGame = Game;
+        }
+    }
+
+    [JSInvokable]
+    public void ResizeEvent(double[]? size)
+    {
+        if (size != null)
+        {
+            squareSize = size[2] / 8.0;
+            Boards.ForEach(f => f?.Update(squareSize));
+        }
+    }
+
+    public void DrawHints(List<KeyValuePair<Position, Position>> hints, bool ObserverBoard)
+    {
+        var dboard = ObserverBoard ? boardobs : board;
+        if (dboard != null)
+        {
+            dboard.DrawHints(hints);
+        }
+    }
+
+    public void DrawLastMove(Position start, Position end, bool ObserverBoard, string color = "lightgrey")
+    {
+        var dboard = ObserverBoard ? boardobs : board;
+        if (dboard != null)
+        {
+            dboard.DrawLastMove(start, end, color);
+        }
+    }
+
+    private void KeyDown(KeyboardEventArgs e)
+    {
+        if (e.Code == "ArrowRight")
+        {
+            KeyBoardGame?.ObserverMoveForward();
+            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+        }
+        else if (e.Code == "ArrowLeft")
+        {
+            KeyBoardGame?.ObserverMoveBackward();
+            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+        }
+    }
+
+    private void MouseWheel(WheelEventArgs e)
+    {
+        if (e.DeltaY > 0)
+        {
+            KeyBoardGame?.ObserverMoveForward();
+            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+        }
+        else if (e.DeltaY < 0)
+        {
+            KeyBoardGame?.ObserverMoveBackward();
+            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+        }
+    }
+
+    private void BoardUpdate()
+    {
+        StateHasChanged();
+        KeyBoardGame = Game;
+    }
+
+    private void GotoBoardMove(KeyValuePair<Guid, int> move)
+    {
+        Game.ObserverMoveTo(move.Value + 1);
+        KeyBoardGame = Game;
+        OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+    }
+}
