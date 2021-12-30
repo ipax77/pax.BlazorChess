@@ -6,13 +6,13 @@
         <div>
             @if (ShowBoard)
             {
-                <div class="boardcontainer mt-1" style="width: 40vh;">
+                <div class="boardcontainer mt-1 mb-4" style="width: 40vh;">
                     <BoardComponent @ref="board" ObserverMode="false" OnMoveUpdate="BoardUpdate"></BoardComponent>
                 </div>
             }
             @if (ShowObserverBoard)
             {
-                <div class="boardcontainer mt-4" style="width: 40vh;">
+                <div class="boardcontainer mt-1" style="width: 40vh;">
                     <BoardComponent @ref="boardobs" ObserverMode="true"></BoardComponent>
                 </div>
             }
@@ -117,7 +117,7 @@
         }
     }
 
-    public void DrawHints(List<KeyValuePair<Position, Position>> hints, bool ObserverBoard)
+    public void DrawHints(List<EngineMove> hints, bool ObserverBoard)
     {
         var dboard = ObserverBoard ? boardobs : board;
         if (dboard != null)

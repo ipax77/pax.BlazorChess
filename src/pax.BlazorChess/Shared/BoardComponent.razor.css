@@ -10,6 +10,14 @@
     background-color: lightcoral;
 }
 
+.lastmovewhite {
+    background-color: #c3d887;
+}
+
+.lastmoveblack {
+    background-color: #b2bf94;
+}
+
 .board {
     width: 100%;
     height: 100%;

@@ -15,6 +15,7 @@
                     {
                         Evaluation eval = new Evaluation(pvInfo.Score, pvInfo.Mate, Game.ObserverState.Info.BlackToMove);
                         <tr>
+                            <td class="col"><span class="oi oi-external-link text-light pointer" @onclick="e => OnPvInfoSelected.InvokeAsync(new KeyValuePair<string, PvInfo>(EngineInfo.EngineName, pvInfo))"></span></td>
                             <td class="col"><span class="badge @(eval.Score < 0 ? "bg-warning" : "bg-success")">@eval.ToString()</span></td>
                             <td class="col"><span class="badge bg-light">Depth @pvInfo.Depth</span></td>
                             <td class="col"><span class="badge bg-info">@pvInfo.Moves[0].ToString()</span></td>
@@ -38,4 +39,7 @@
 
     [CascadingParameter]
     public Game? Game { get; set; }
+
+    [Parameter]
+    public EventCallback<KeyValuePair<string, PvInfo>> OnPvInfoSelected { get; set; }
 }

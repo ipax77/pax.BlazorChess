@@ -22,12 +22,21 @@ builder.Services.AddDbContext<ChessContext>(options =>
 //.EnableDetailedErrors()
 );
 
+builder.Services.AddScoped<DbService>();
 builder.Services.AddSingleton<ConfigurationService>();
 
 var app = builder.Build();
 
 // warmup
 app.Services.GetRequiredService<ConfigurationService>();
+
+using (var scope = app.Services.CreateScope())
+{
+    // var context = scope.ServiceProvider.GetService<ChessContext>();
+    // context?.Database.Migrate();
+
+    // var dbService = scope.ServiceProvider.GetService<DbService>();
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

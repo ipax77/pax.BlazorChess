@@ -1,0 +1,102 @@
+﻿@using pax.chess
+@inject IJSRuntime _js
+@inject NavigationManager _nav
+
+<!-- Modal -->
+<div class="modal fade" id="loadModal" tabindex="-1" aria-labelledby="loadModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-xxl-down">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">
+                    Load Game
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+
+@*              <div class="form-group d-flex align-items-center">
+                    <label for="fen" class="col col-form-label">Fen</label>
+                    <div class="col-sm-8 ms-2">
+                        <input type="text" disabled="disabled" class="form-control" id="fen" value="@Game.FEN">
+                    </div>
+                </div>*@
+                <div class="form-group d-flex align-items-center">
+                    <label for="fen" class="col col-form-label">Fen</label>
+                    <div class="col-10 ms-2">
+                        <input type="text" class="form-control" id="fen" @bind-value="fenString">
+                    </div>
+                    <div class="col-auto ms-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="LoadFen">Load Fen</button>
+                    </div>
+                </div>
+                <div class="form-group d-flex align-items-center mt-2">
+                    <label for="pgn" class="form-label">Pgn</label>
+                    <textarea class="form-control ms-2" id="pgn" rows="5" @bind="pgnString"></textarea>
+                    <div class="col-auto ms-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="LoadPgn">Load Pgn</button>
+                    </div>
+                </div>
+                <div class="form-group d-flex align-items-center mt-2">
+                    <label for="pgnfile" class="form-label">Pgn File</label>
+                    <InputFile class="ms-2" OnChange="@LoadFiles" id="pgnfile"></InputFile>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    public Game Game = new Game();
+
+    [Parameter]
+    public EventCallback<Game> Loaded { get; set; }
+
+    string pgnString = String.Empty;
+    string fenString = String.Empty;
+
+    private async void Close()
+    {
+        await _js.InvokeVoidAsync("modalClose");
+    }
+
+    public async void Show()
+    {
+        await _js.InvokeVoidAsync("modalOpen", "loadModal");
+        StateHasChanged();
+    }
+
+    private void LoadFen()
+    {
+        Game.LoadFen(fenString);
+        Loaded.InvokeAsync(Game);
+        Close();
+    }
+
+    private void LoadPgn()
+    {
+        Game.LoadPgn(pgnString);
+        Loaded.InvokeAsync(Game);
+        Close();
+    }
+
+    private async void LoadFiles(InputFileChangeEventArgs e)
+    {
+        string? pgn = String.Empty;
+        foreach (var file in e.GetMultipleFiles(1))
+        {
+            pgn = await new StreamReader(file.OpenReadStream()).ReadToEndAsync();
+
+        }
+        if (!String.IsNullOrEmpty(pgn))
+        {
+            Game.LoadPgn(pgn);
+            await Loaded.InvokeAsync(Game);
+            Close();
+        }
+    }
+}

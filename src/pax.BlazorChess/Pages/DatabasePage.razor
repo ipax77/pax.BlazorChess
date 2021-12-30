@@ -1,0 +1,155 @@
+﻿@page "/database"
+@using pax.BlazorChess.Models
+@using pax.BlazorChess.Services
+@using pax.chess
+@using pax.BlazorChess.Shared.Helpers
+@inject DbService dbService
+@inject NavigationManager _nav
+
+<div>
+    # @totalGames
+</div>
+<div style="height: 80vh;overflow-y:scroll">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th class="pointer" @onclick="@(e => Sort(e, "Event"))">
+                    <div class="d-flex justify-content-start">
+                        Event
+                        <ArrowHelper Interest="Event" SortOrders="Request.SortOrders"></ArrowHelper>
+                    </div>
+                </th>
+                <th class="pointer" @onclick="@(e => Sort(e, "UTCDate"))">
+                    <div class="d-flex justify-content-start">
+                        Time
+                        <ArrowHelper Interest="UTCDate" SortOrders="Request.SortOrders"></ArrowHelper>
+                    </div>
+                </th>
+                <th class="pointer" @onclick="@(e => Sort(e, "White"))">
+                    <div class="d-flex justify-content-start">
+                        White
+                        <ArrowHelper Interest="White" SortOrders="Request.SortOrders"></ArrowHelper>
+                    </div>
+                </th>
+                <th class="pointer" @onclick="@(e => Sort(e, "Black"))">
+                    <div class="d-flex justify-content-start">
+                        Black
+                        <ArrowHelper Interest="Black" SortOrders="Request.SortOrders"></ArrowHelper>
+                    </div>
+                </th>
+                <th class="pointer" @onclick="@(e => Sort(e, "TimeControl"))">
+                    <div class="d-flex justify-content-start">
+                        TimeControl
+                        <ArrowHelper Interest="TimeControl" SortOrders="Request.SortOrders"></ArrowHelper>
+                    </div>
+                </th>
+                <th class="pointer" @onclick="@(e => Sort(e, "HalfMoves"))">
+                    <div class="d-flex justify-content-start">
+                        Moves
+                        <ArrowHelper Interest="HalfMoves" SortOrders="Request.SortOrders"></ArrowHelper>
+                    </div>
+                </th>
+                <th class="pointer" @onclick="@(e => Sort(e, "Result"))">
+                    <div class="d-flex justify-content-start">
+                        Result
+                        <ArrowHelper Interest="Result" SortOrders="Request.SortOrders"></ArrowHelper>
+                    </div>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            <Virtualize @ref="virtualTable" Context="game" ItemsProvider="@LoadGames">
+                <ItemContent>
+                    <tr @onclick="e => Click(e, game)">
+                        <td>@game.Event</td>
+                        <td>@game.UTCDate @game.UTCTime</td>
+                        <td>@game.White (@game.WhiteElo)</td>
+                        <td>@game.Black (@game.BlackElo)</td>
+                        <td>@game.TimeControl</td>
+                        <td>@(game.HalfMoves / 2)</td>
+                        <td>@game.Result</td>
+                    </tr>
+                </ItemContent>
+                <Placeholder>
+                    <tr>
+                        <td>Loading ...</td>
+                    </tr>
+                </Placeholder>
+            </Virtualize>
+        </tbody>
+    </table>
+</div>
+
+
+@code {
+    int totalGames;
+    GameRequest Request = new GameRequest();
+    Virtualize<DbGame>? virtualTable;
+
+    protected override async Task OnInitializedAsync()
+    {
+        totalGames = await dbService.GetGamesCountAsync(Request);
+    }
+
+    private async ValueTask<ItemsProviderResult<DbGame>> LoadGames(ItemsProviderRequest request)
+    {
+        Request.StartIndex = request.StartIndex;
+        Request.Count = Math.Min(request.Count, totalGames - request.StartIndex);
+        var games = await dbService.GetGamesAsync(Request, request.CancellationToken);
+
+        return new ItemsProviderResult<DbGame>(games, totalGames);
+    }
+
+    private async Task Reload()
+    {
+        totalGames = await dbService.GetGamesCountAsync(Request);
+        await InvokeAsync(async () =>
+        {
+            if (virtualTable != null)
+            {
+                await virtualTable.RefreshDataAsync();
+            }
+            StateHasChanged();
+        });
+    }
+
+    void Sort(MouseEventArgs e, string sort)
+    {
+        var sortOrder = Request.SortOrders.FirstOrDefault(f => f.Sort == sort);
+
+        if (sortOrder != null)
+        {
+            if (e.ShiftKey)
+            {
+                if (sortOrder.Order)
+                    sortOrder.Order = !sortOrder.Order;
+                else
+                    Request.SortOrders.Remove(sortOrder);
+            }
+            else
+            {
+                Request.SortOrders = new List<SortOrder>() { new SortOrder(sort, !sortOrder.Order) };
+            }
+        } else
+        {
+            if (e.ShiftKey)
+            {
+                Request.SortOrders.Add(new SortOrder(sort, true));
+            } else
+            {
+                Request.SortOrders = new List<SortOrder>() { new SortOrder(sort, true) };
+            }      
+        }
+        _ = Reload();
+    }
+
+    void Click(MouseEventArgs e, DbGame game)
+    {
+        IReadOnlyDictionary<string, object?> dict = new Dictionary<string, object?>() { { "GameID", game.Id } };
+        string uristart = "analyzes";
+        var bab = _nav.GetUriWithQueryParameter("GameId", game.Id);
+        bab = bab.Replace("database", uristart);
+        Console.WriteLine($"uri: {bab}");
+        _nav.NavigateTo(bab);
+    }
+}
