@@ -1,4 +1,5 @@
 ﻿using pax.BlazorChess.Models;
+using pax.uciChessEngine;
 using System.Text.Json;
 
 namespace pax.BlazorChess.Services;
@@ -64,6 +65,11 @@ public class ConfigurationService
                 }
             }
             File.WriteAllText(Program.ConfigFile, JsonSerializer.Serialize(UserConfig, new JsonSerializerOptions() { WriteIndented = true }));
+            using (var scope = scopeFactory.CreateScope())
+            {
+                var engineService = scope.ServiceProvider.GetRequiredService<EngineService>();
+                engineService.UpdateEngines();
+            }
         }
     }
 }

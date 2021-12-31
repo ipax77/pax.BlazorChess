@@ -1,0 +1,180 @@
+﻿@page "/enginevsengine"
+@using pax.chess
+@using pax.uciChessEngine
+@inject EngineService engineService
+@implements IDisposable
+
+<PageTitle>EngineVsEngine</PageTitle>
+@if (EngineGames.Count > 0)
+{
+    <ul class="nav nav-tabs">
+        @foreach (var game in EngineGames)
+        {
+            if (EngineGame == game)
+            {
+                <li class="nav-item">
+                    <a class="nav-link active pointer" data-bs-toggle="tab" href="#home">@game.Game.Guid.ToString().Substring(0, 5)</a>
+                </li>
+            }
+            else
+            {
+                <li class="nav-item">
+                    <span class="nav-link text-white-50 pointer" data-bs-toggle="tab" href="#home" @onclick="e => SwitchGame(game)">@game.Game.Guid.ToString().Substring(0, 5)</span>
+                </li>
+            }
+        }
+    </ul>
+}
+<div class="tab-content">
+    <div class="tab-pane fade" id="home">
+    </div>
+</div>
+
+@if (EngineGame != null)
+{
+    <div class="d-flex">
+        <div>
+            <div style="width: 40vw;">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-sm btn-outline-success" @onclick="Start">Start</button>
+                    <button type="button" class="btn btn-sm btn-outline-warning" @onclick="Stop">Stop</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="Delete">Delete</button>
+                </div>
+                @if (BlackEvent != null)
+                {
+                    <div class="d-flex justify-content-between mt-1">
+                        @if (EngineGame.Game.State.Info.BlackToMove)
+                        {
+                            <span class="col-sm-3 badge bg-primary"><span class="oi oi-arrow-circle-right text-black"></span> @BlackEvent.EngineName</span>
+                        }
+                        else
+                        {
+                            <span class="col-sm-3 badge bg-primary">@BlackEvent.EngineName</span>
+                        }
+                        <span class="col-sm-3 badge bg-info">Eval @BlackEval.ToString()</span>
+                        <span class="badge bg-dark">@EngineGame.Game.Time.CurrentBlackTime.ToString(@"hh\:mm\:ss")</span>
+                    </div>
+                }
+                @if (WhiteEvent != null)
+                {
+                    <div class="d-flex justify-content-between">
+                        @if (!EngineGame.Game.State.Info.BlackToMove)
+                        {
+                            <span class="col-sm-3 badge bg-primary"><span class="oi oi-arrow-circle-right text-white"></span> @WhiteEvent.EngineName</span>
+                        }
+                        else
+                        {
+                            <span class="col-sm-3 badge bg-primary">@WhiteEvent.EngineName</span>
+                        }
+                        <span class="col-sm-3 badge bg-info">Eval @WhiteEval.ToString()</span>
+                        <span class="badge bg-light">@EngineGame.Game.Time.CurrentWhiteTime.ToString(@"hh\:mm\:ss")</span>
+                    </div>
+                }
+            </div>
+            <div>
+                <BoardContainer @ref="boardContainer" Game="EngineGame.Game"></BoardContainer>
+            </div>
+        </div>
+        <div>
+@*            <EvalComponent Status="eve.WhiteEngine.Status"></EvalComponent>
+            <EvalComponent Status="eve.BlackEngine.Status"></EvalComponent>*@
+        </div>
+    </div>
+}
+else
+{
+    <p>Start new Engine vs Engine game ...</p>
+}
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public Guid? GameId { get; set; }
+
+    List<EngineGame> EngineGames = new List<EngineGame>();
+    EngineGame? EngineGame;
+
+    EngineMoveEventArgs? WhiteEvent;
+    EngineMoveEventArgs? BlackEvent;
+    Evaluation WhiteEval = new Evaluation(0, 0, false);
+    Evaluation BlackEval = new Evaluation(0, 0, true);
+
+    BoardContainer? boardContainer;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        EngineGames = engineService.GetEngineGames();
+
+        if (GameId != null)
+        {
+            EngineGame = EngineGames.SingleOrDefault(s => s.Guid == GameId);
+        }
+        else
+        {
+            EngineGame = EngineGames.FirstOrDefault();
+        }
+        if (EngineGame != null)
+        {
+            EngineGame.EngineMoved += EngineMoved;
+        }
+    }
+
+    private void SwitchGame(EngineGame engineGame)
+    {
+        EngineGame = engineGame;
+    }
+
+    void EngineMoved(object? sender, EngineMoveEventArgs e)
+    {
+        if (EngineGame != null)
+        {
+            if (e.GameOver)
+            {
+                Console.WriteLine($"GameOver - Result: {EngineGame.Game.Result} | {EngineGame.Game.Termination}");
+                InvokeAsync(() => StateHasChanged());
+                return;
+            }
+
+            if (EngineGame.Game.State.Info.BlackToMove)
+            {
+                WhiteEvent = e;
+                WhiteEval = new Evaluation(e.EngineInfo.Evaluation, e.EngineInfo.Mate, false);
+            }
+            else
+            {
+                BlackEvent = e;
+                BlackEval = new Evaluation(e.EngineInfo.Evaluation, e.EngineInfo.Mate, true);
+            }
+            InvokeAsync(() => StateHasChanged());
+        }
+    }
+
+    public void Start()
+    {
+        EngineGame?.Start();
+    }
+
+    public void Stop()
+    {
+        if (EngineGame != null)
+        {
+        }
+    }
+
+    public void Delete()
+    {
+        if (EngineGame != null)
+        {
+            engineService.DeleteEngineGame(EngineGame);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (EngineGame != null)
+        {
+            EngineGame.EngineMoved -= EngineMoved;
+        }
+    }
+}
