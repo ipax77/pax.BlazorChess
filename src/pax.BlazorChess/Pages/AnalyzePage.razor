@@ -3,12 +3,17 @@
 @using pax.chess
 @using pax.uciChessEngine
 @inject DbService dbService
+@inject EngineService engineService
 @implements IDisposable
 
 <PageTitle>Analyze</PageTitle>
 
 <div class="btn-group">
     <button type="button" class="btn btn-outline-light" @onclick="e => loadModal?.Show()">Import</button>
+    @if (Analyzes == null)
+    {
+        <button type="button" class="btn btn-outline-info" @onclick="CreateNewAnalyzes">Start analyzing</button>
+    }
 </div>
 
 <div class="d-flex">
@@ -21,12 +26,26 @@
         <BoardContainer @ref="mainBoard" Game="Game" OnObserverMoveChanged="ObserverMoveChanged"></BoardContainer>
     </div>
     <div>
+        @if (Analyzes != null)
+        {
+            <div class="d-flex justify-content-center align-items-start">
+                <div>
+                    <button type="button" class="btn btn-sm btn-primary" @onclick="e => enginesModal?.Show()">Add Engine</button>
+                </div>
+                @foreach (var engine in Analyzes.Engines)
+                {
+                    <div>
+                        <span class="badge bg-info">@engine.Name <span class="oi oi-x pointer text-danger" @onclick="e => Analyzes.RemoveEngine(engine)"></span></span>
+                    </div>
+                }
+            </div>
+        }
         <div>
             <CascadingValue Value="Game">
                 <div class="row">
                     @foreach (var engineInfo in EngineInfos)
                     {
-                        <CascadingValue Value="engineInfo.Value">
+                        <CascadingValue Value="engineInfo">
                             <EvalComponent OnPvInfoSelected="PvInfoSelected"></EvalComponent>
                         </CascadingValue>
                     }
@@ -52,27 +71,27 @@
     </div>
 </div>
 <LoadModal @ref="loadModal" Loaded="GameImport"></LoadModal>
-
+<EnginesModal @ref="enginesModal" EngineSelected="LoadEngine"></EnginesModal>
 @code {
     [Parameter]
     [SupplyParameterFromQuery]
     public int? GameId { get; set; }
 
     Game Game = new Game();
-    List<Engine> Engines = new List<Engine>();
+    Analyzes? Analyzes;
 
     CancellationTokenSource tokenSource = new CancellationTokenSource();
-    Dictionary<Guid, EngineInfo> EngineInfos = new Dictionary<Guid, EngineInfo>();
+    List<EngineInfo> EngineInfos = new List<EngineInfo>();
 
     List<Game> PvGames = new List<Game>();
 
     BoardContainer? mainBoard;
     LoadModal? loadModal;
+    EnginesModal? enginesModal;
 
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
-
 
         if (GameId != null)
         {
@@ -80,29 +99,37 @@
             if (game != null)
             {
                 Game = game;
+                Analyzes = new Analyzes(game, tokenSource.Token);
             }
-        }
-
-        if (!Engines.Any())
+        } else
         {
-            Engines.Add(new Engine("Stockfish", @"C:\data\stockfish_14.1_win_x64_avx2\stockfish_14.1_win_x64_avx2.exe"));
-            Engines.Add(new Engine("Lc0", @"C:\data\lc0-v0.28.0-windows-gpu-nvidia-cuda-nodll\lc0.exe"));
-            Engines.Add(new Engine("Houdini", @"C:\Program Files\Houdini 3 Chess\Houdini_3_Pro_x64.exe"));
-            _ = InitEngines();
+            Analyzes = engineService.Analyzes.FirstOrDefault();
+        }
+        if (Analyzes != null)
+        {
+            Analyzes.EngineInfoAvailable += InfoAvailable;
         }
     }
 
-    private async Task InitEngines()
+    private void CreateNewAnalyzes()
     {
-        foreach (var engine in Engines)
+        if (Analyzes != null)
         {
-            engine.Start();
-            await engine.IsReady();
-            await engine.GetOptions();
-            await SetEngineOption(engine, "Threads", 2);
-            await SetEngineOption(engine, "MultiPV", 2);
+            Analyzes.EngineInfoAvailable += InfoAvailable;
         }
-        _ = UpdateEngineEval(tokenSource.Token);
+        Analyzes = new Analyzes(Game, tokenSource.Token);
+        Analyzes.EngineInfoAvailable += InfoAvailable;
+    }
+
+    private void InfoAvailable(object? sender, List<EngineInfo> infos)
+    {
+        EngineInfos = infos;
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    private void LoadEngine(string engineName)
+    {
+        Analyzes?.AddEngine(new Engine(engineName, engineService.AvailableEngines[engineName]));
     }
 
     private async Task SetEngineOption(Engine engine, string name, object value)
@@ -111,45 +138,11 @@
         await engine.IsReady();
     }
 
-    private void ObserverMoveChanged(int? move)
+    private async void ObserverMoveChanged()
     {
-        if (move != null)
+        if (Analyzes != null)
         {
-            _ = UpdateEngineGame((int)move);
-        }
-    }
-
-    private async Task UpdateEngineGame(int move)
-    {
-        var moves = Game.State.Moves.Take(move).Select(s => s.EngineMove.ToString());
-        foreach (var engine in Engines)
-        {
-            engine.Send("stop");
-            await engine.IsReady();
-            engine.Send($"position startpos moves {String.Join(" ", moves)}");
-            await engine.IsReady();
-            engine.Send("go");
-        }
-    }
-
-    private async Task UpdateEngineEval(CancellationToken token)
-    {
-        while (!token.IsCancellationRequested)
-        {
-            await Task.Delay(250);
-            HashSet<EngineMove> hints = new HashSet<EngineMove>();
-            foreach (var engine in Engines)
-            {
-                var engineInfo = engine.GetInfo();
-                if (engineInfo != null)
-                {
-                    EngineInfos[engine.Guid] = engineInfo;
-                    hints.UnionWith(engineInfo.PvInfos.Select(s => s.Moves[0]));
-
-                }
-            }
-            mainBoard?.DrawHints(hints.ToList(), true);
-            await InvokeAsync(() => StateHasChanged());
+            await Analyzes.UpdateEngineGame();
         }
     }
 
@@ -164,14 +157,16 @@
     async void GameImport(Game game)
     {
         Game = new Game(game);
-        await UpdateEngineGame(0);
         await InvokeAsync(() => StateHasChanged());
     }
 
     public void Dispose()
     {
-        tokenSource.Cancel();
-        Engines.ForEach(f => f.Dispose());
+        if (Analyzes != null)
+        {
+            Analyzes.EngineInfoAvailable -= InfoAvailable;
+            Analyzes.Pause();
+        }
     }
 }
 

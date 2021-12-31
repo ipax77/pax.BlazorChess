@@ -21,7 +21,7 @@ public class ConfigurationService
 
         if (String.IsNullOrEmpty(configDir))
         {
-            throw new ArgumentException($"config file invale: {Program.ConfigFile}");
+            throw new ArgumentException($"config file invalid: {Program.ConfigFile}");
         }
 
         UserConfig = new UserConfig();

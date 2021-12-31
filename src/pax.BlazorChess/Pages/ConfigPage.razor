@@ -1,0 +1,97 @@
+﻿@page "/config"
+@using pax.BlazorChess.Models
+@using pax.BlazorChess.Services
+@inject ConfigurationService configurationService
+
+<div>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>
+                    Name
+                </th>
+                <th>
+                    Path
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ent in configurationService.UserConfig.ChessEngines)
+            {
+                <tr>
+                    <td>@ent.Key</td>
+                    <td>@ent.Value</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div>
+    <h3>Engine Configuration</h3>
+    <EditForm EditContext="editContext" OnValidSubmit="Save">
+        @foreach (var config in configHelpers)
+        {
+            <div class="d-flex justify-content-start align-items-center" style="min-width: 700px;">
+                <div class="form-group col-2">
+                    <label for="name" class="col-sm-2 col-form-label">Name</label>
+                    <div class="col-sm-10">
+                        <InputText id="name" class="form-control" @bind-Value="config.Name"></InputText>
+                    </div>
+                </div>
+                <div class="form-group col-6">
+                    <label for="path" class="col-sm-6 col-form-label">Binary Path</label>
+                    <div>
+                        <InputText id="path" class="form-control" @bind-Value="config.Path"></InputText>
+                    </div>
+                </div>
+                <div class="align-self-center ms-2">
+                    <span class="oi oi-x text-danger" @onclick="e => RemoveEngine(config)"></span>
+                </div>
+            </div>
+        }
+        <div class="mt-2">
+            <span class="oi oi-plus text-success" @onclick="AddEngine"></span>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3">Save</button>
+    </EditForm>
+
+</div>
+
+@code {
+    List<ConfigHelper> configHelpers = new List<ConfigHelper>();
+    EditContext editContext;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        foreach (var ent in configurationService.UserConfig.ChessEngines)
+        {
+            configHelpers.Add(new ConfigHelper()
+                {
+                    Name = ent.Key,
+                    Path = ent.Value
+                });
+        }
+        configHelpers.Add(new ConfigHelper());
+        editContext = new EditContext(configHelpers);
+    }
+
+    public void AddEngine()
+    {
+        configHelpers.Add(new ConfigHelper());
+    }
+
+    public void RemoveEngine(ConfigHelper helper)
+    {
+        configHelpers.Remove(helper);
+    }
+
+    public void Save()
+    {
+        configurationService.SaveConfig(configHelpers);
+        StateHasChanged();
+    }
+
+
+}

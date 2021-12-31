@@ -3,8 +3,15 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.EntityFrameworkCore;
 using pax.BlazorChess.Models;
 using pax.BlazorChess.Services;
+using pax.uciChessEngine;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
+{
+    // config.Sources.Clear();
+    config.AddJsonFile(ConfigFile, optional: true, reloadOnChange: true);
+});
 
 // Add services to the container.
 builder.Services.AddRazorPages();
@@ -24,6 +31,7 @@ builder.Services.AddDbContext<ChessContext>(options =>
 
 builder.Services.AddScoped<DbService>();
 builder.Services.AddSingleton<ConfigurationService>();
+builder.Services.AddSingleton<EngineService>();
 
 var app = builder.Build();
 

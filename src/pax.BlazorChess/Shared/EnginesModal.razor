@@ -1,0 +1,76 @@
+﻿@using pax.chess
+@using pax.uciChessEngine
+@inject EngineService engineService
+@inject IJSRuntime _js
+@inject NavigationManager _nav
+
+<!-- Modal -->
+<div class="modal fade" id="enginesModal" tabindex="-1" aria-labelledby="engineModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">
+                    Load Engine
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Engine</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var engine in engineService.AvailableEngines)
+                        {
+                            <tr>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-primary" @onclick="e => Load(engine.Key)">Load</button>
+                                </td>
+                                <td>
+                                    @engine.Key
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    public Game Game = new Game();
+
+    [Parameter]
+    public EventCallback<string> EngineSelected { get; set; }
+
+    string pgnString = String.Empty;
+    string fenString = String.Empty;
+
+    private async void Close()
+    {
+        await _js.InvokeVoidAsync("modalClose");
+    }
+
+    public async void Show()
+    {
+        await _js.InvokeVoidAsync("modalOpen", "enginesModal");
+        StateHasChanged();
+    }
+
+    public void Load(string name)
+    {
+        EngineSelected.InvokeAsync(name);
+        Close();
+    }
+
+}
