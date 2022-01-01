@@ -1,0 +1,172 @@
+﻿@page "/review"
+@using pax.BlazorChess.Services
+@using pax.chess
+@using pax.uciChessEngine
+@inject EngineService engineService
+@inject DbService dbService
+
+<div class="btn-group">
+    <button type="button" class="btn btn-primary" @onclick="@( async() => _ = Analyse())">Analyse</button>
+    <button type="button" class="btn btn-danger" @onclick="Stop">Stop</button>
+
+</div>
+<div class="d-flex">
+    @if (Analysis != null)
+    {
+        <div>
+            <div>
+                @if (CurrentInfo != null)
+                {
+                    <div class="d-flex justify-content-start mt-3">
+                        @if (NextInfo != null)
+                        {
+                            <div class="border rounded p-1">
+                                <h4><span class="badge bg-secondary">Game: @Analysis.Game.State.Moves[CurrentInfo.HalfMoveNumber].PgnMove</span></h4>
+                                <h4><span class="badge bg-info">Game Eval @NextInfo.Eval</span></h4>
+                            </div>
+                        }
+                        <div class="border rounded p-1">
+                            <h4><span class="badge bg-primary">Bestmove: @CurrentInfo.BestPgnMove</span></h4>
+                            <h4><span class="badge bg-info">Eval @CurrentInfo.Eval</span></h4>
+                        </div>
+                        <div class="border rounded p-1">
+                            <h4><span class="badge bg-secondary">2nd Best: @CurrentInfo.RunnerPgnMove</span></h4>
+                            <h4><span class="badge bg-info">Runner Eval @CurrentInfo.RunnerEval</span></h4>
+                        </div>
+                    </div>
+                }
+            </div>
+            <BoardContainer @ref="boardContainer" Game="Analysis.Game" ShowBoard="false" OnObserverMoveChanged="ObserverMoveChanged"></BoardContainer>
+
+        </div>
+    }
+    else
+    {
+        <div>
+            <p>
+                Loading ...
+            </p>
+        </div>
+    }
+    <div class="ms-4">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>BestMove</th>
+                    <th>Eval</th>
+                    <th>Ponder</th>
+                    <th>PonderEval</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var info in Infos.OrderBy(o => o.HalfMoveNumber))
+                {
+                    <tr>
+                        <td>@info.HalfMoveNumber</td>
+                        <td>@info.BestMove</td>
+                        <td>@info.Eval</td>
+                        <td>@info.RunnerMove</td>
+                        <td>@info.RunnerEval</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public int? GameId { get; set; }
+
+    GameAnalysis? Analysis;
+    BoardContainer? boardContainer;
+    CancellationTokenSource cts = new CancellationTokenSource();
+
+    List<InfoHelper> Infos = new List<InfoHelper>();
+    private int ObserverMove;
+    private InfoHelper? CurrentInfo => Infos.FirstOrDefault(f => f.HalfMoveNumber == ObserverMove - 1);
+    private InfoHelper? NextInfo => Infos.FirstOrDefault(f => f.HalfMoveNumber == ObserverMove);
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _ = Init();
+    }
+
+    private async Task Init()
+    {
+        if (Analysis == null)
+        {
+            if (GameId == null)
+            {
+                var game = await dbService.GetGameFromIdAsync(2);
+                if (game != null)
+                {
+                    Analysis = engineService.CreateGameAnalyzes(game, "Stockfish");
+                }
+            }
+            else
+            {
+                var game = await dbService.GetGameFromIdAsync((int)GameId);
+                if (game != null)
+                {
+                    Analysis = engineService.CreateGameAnalyzes(game, "Stockfish");
+                }
+            }
+            await InvokeAsync(() => StateHasChanged());
+        }
+    }
+
+    private void ObserverMoveChanged(int? i)
+    {
+        if (i != null)
+        {
+            ObserverMove = (int)i;
+            if (CurrentInfo != null)
+            {
+                var move = Map.GetEngineMove(CurrentInfo.BestMove);
+                var runnermove = Map.GetEngineMove(CurrentInfo.RunnerMove);
+                if (move != null && runnermove != null)
+                {
+                    boardContainer?.DrawHints(new List<EngineMove>() { move, runnermove }, true);
+                }
+                if (Analysis != null)
+                {
+                    var pgnState = new State(Analysis.Game.ObserverState);
+                    if (pgnState.Moves.Any())
+                    {
+                        pgnState.RevertMove();
+                    }
+                    CurrentInfo.BestPgnMove = Pgn.GetPgnMove(Map.GetValidEngineMove(CurrentInfo.BestMove), pgnState);
+                    CurrentInfo.RunnerPgnMove = Pgn.GetPgnMove(Map.GetValidEngineMove(CurrentInfo.RunnerMove), pgnState);
+                }
+                InvokeAsync(() => StateHasChanged());
+            }
+        }
+    }
+
+    private async Task Analyse()
+    {
+        int i = 0;
+        if (Analysis != null)
+        {
+            await foreach (var info in Analysis.Analyse(cts.Token))
+            {
+                i++;
+                Infos.Add(info);
+                if (i % 10 == 0)
+                {
+                    await InvokeAsync(() => StateHasChanged());
+                }
+            }
+            await InvokeAsync(() => StateHasChanged());
+        }
+    }
+
+    private void Stop()
+    {
+        cts.Cancel();
+    }
+}
