@@ -7,16 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\pax.chess\src\pax.chess\pax.chess.csproj" />
-    <ProjectReference Include="..\..\..\pax.uciChessEngine\src\pax.uciChessEngine\pax.uciChessEngine.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="6.0.1">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="6.0.1" />
+    <PackageReference Include="pax.chess" Version="0.5.1" />
+    <PackageReference Include="pax.uciChessEngine" Version="0.5.1" />
   </ItemGroup>
 
 </Project>
