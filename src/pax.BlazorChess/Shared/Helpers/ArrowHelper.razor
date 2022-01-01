@@ -1,0 +1,44 @@
+﻿@using pax.BlazorChess.Models
+@if (sortOrder != null)
+{
+    @if (!sortOrder.Order)
+    {
+        <span class="oi oi-arrow-top text-muted m-1"></span>
+        @if (index >= 0)
+        {
+            <div class="position-relative"><span class="sortnumber">@(index + 1)</span></div>
+        }
+    }
+    else
+    {
+        <span class="oi oi-arrow-bottom text-muted m-1"></span>
+        @if (index >= 0)
+        {
+            <div class="position-relative"><span class="sortnumber">@(index + 1)</span></div>
+        }
+    }
+}
+else
+{
+    <span class="d-inline-block" style="width: 12px;"></span>
+}
+
+@code {
+
+    SortOrder? sortOrder;
+    int index;
+
+    protected override void OnParametersSet()
+    {
+        sortOrder = SortOrders == null || !SortOrders.Any() ? null : SortOrders.FirstOrDefault(f => f.Sort == Interest);
+        index = SortOrders == null ? 0 : sortOrder == null || SortOrders.Count == 1 ? -1 : SortOrders.IndexOf(sortOrder);
+        base.OnParametersSet();
+    }
+
+    [Parameter]
+    public string? Interest { get; set; }
+
+    [Parameter]
+    public List<SortOrder>? SortOrders { get; set; }
+
+}

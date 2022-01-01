@@ -1,0 +1,348 @@
+﻿@using System.Globalization
+@using pax.BlazorChess.Models
+@using pax.BlazorChess.Services
+@using pax.chess
+
+<div class="d-flex h-100">
+    <div>
+        @for (int i = 8; i > 0; i--)
+        {
+            <div class="boardrow">
+                @i
+            </div>
+        }
+    </div>
+    <CascadingValue Value="SquareSize">
+        <div id="board" class="position-relative col-auto board">
+            @for (int y = 7; y >= 0; y--)
+            {
+                int Y = y;
+                <div class="d-flex boardrow">
+                    @for (int x = 0; x <= 7; x++)
+                    {
+                        int X = x;
+                        Position position = new Position(X, Y);
+                        string color = (Y % 2 == 0, X % 2 == 0) switch
+                        {
+                            (true, true) => "black",
+                            (true, false) => "white",
+                            (false, true) => "white",
+                            (false, false) => "black"
+                        };
+                        Piece? piece = State.Pieces.FirstOrDefault(f => f.Position == position);
+                        @if (State.Info.IsCheck
+                            && piece != null && piece.Type == PieceType.King
+                            && ((State.Info.BlackToMove && piece.IsBlack) || (!State.Info.BlackToMove && !piece.IsBlack)))
+                        {
+                            color = "check";
+                        }
+                        @if (State.CurrentMove != null)
+                        {
+                            @if (State.CurrentMove.OldPosition == position || State.CurrentMove.NewPosition == position)
+                            {
+                                if (color == "black")
+                                {
+                                    color = "lastmoveblack";
+                                }
+                                else if (color == "white")
+                                {
+                                    color = "lastmovewhite";
+                                }
+                            }
+                        }
+                        var annotations = Annotations.Where(f => f.X == X && f.Y == Y);
+                        var hints = HintAnnotations.Where(f => f.X == X && f.Y == Y);
+
+                        <div class="d-flex square @color justify-content-center align-items-center w-100"
+                             oncontextmenu="return false;"
+                             draggable="true"
+                             dropzone="all"
+                             ondragover="event.preventDefault();"
+                             ondragleave="event.preventDefault();"
+                             @onmousedown="e => AnnotateStart(e, X, Y)"
+                             @ondragstart="e => DragStart(e, X, Y)"
+                             @ondragend="DragEnd"
+                             @onclick="e => Move(e, piece, X, Y)"
+                             @onmouseup="e => Annotate(e, X, Y)">
+                            <div class="position-relative w-100 h-100">
+                                @if (annotations.Any())
+                                {
+                                    @foreach (var annotation in annotations)
+                                    {
+                                        <AnnotationComponent Annotation="annotation"></AnnotationComponent>
+                                    }
+                                }
+                                @if (hints.Any())
+                                {
+                                    @foreach (var hint in hints)
+                                    {
+                                        <AnnotationComponent Annotation="hint"></AnnotationComponent>
+                                    }
+                                }
+                                @if (piece != null)
+                                {
+                                    <div class="position-absolute w-100 h-100">
+                                        <img class="img-fluid " src="@GuiService.GetImage(piece)" alt="@piece.Type" />
+                                    </div>
+                                }
+                                else if (possiblePosition.Contains(new Position(x, y)))
+                                {
+                                    <div class="position-absolute w-100 h-100" style="top: 50%; left: 50%; transform: translate(-20%, -20%);">
+                                        <span class="oi oi-target text-secondary"></span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span></span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            <div class="d-flex boardrow">
+                @for (int z = 0; z < 8; z++)
+                {
+                    int Z = z;
+                    <div class="d-flex justify-content-center align-items-start w-100 h-100">
+                        @Map.GetCharColumn(Z)
+                    </div>
+                }
+            </div>
+        </div>
+    </CascadingValue>
+</div>
+
+<PromoteModal @ref="promoteModal" OnPicked="Picked"></PromoteModal>
+
+@code {
+    [CascadingParameter]
+    [EditorRequired]
+    public Game Game { get; set; }
+
+    [Parameter]
+    [EditorRequired]
+    public bool ObserverMode { get; set; }
+
+    [Parameter]
+    public EventCallback OnMoveUpdate { get; set; }
+
+    private double SquareSize;
+
+    private Piece? PieceToMove = null;
+    private List<Position> possiblePosition = new List<Position>();
+    private ClickPosition? DragStartPostion = null;
+
+    private Position? AnnotationStartPosition;
+    private List<Annotation> Annotations = new List<Annotation>();
+    private List<Annotation> HintAnnotations = new List<Annotation>();
+    private Annotation? LastMoveAnnotaion;
+
+    State State => ObserverMode ? Game.ObserverState : Game.State;
+
+    PromoteModal? promoteModal;
+    PendingMove? pendingMove;
+
+    private void DragStart(DragEventArgs e, int x, int y)
+    {
+        PieceToMove = Game.State.Pieces.FirstOrDefault(f => f.Position.X == x && f.Position.Y == y);
+        if (PieceToMove != null)
+        {
+            DragStartPostion = new ClickPosition(e.PageX, e.PageY);
+            possiblePosition = Game.ValidPositions(PieceToMove);
+        }
+    }
+
+    private void DragEnd(DragEventArgs e)
+    {
+        if (PieceToMove != null && DragStartPostion != null)
+        {
+            if (ObserverMode)
+            {
+                PieceToMove = null;
+                possiblePosition.Clear();
+                StateHasChanged();
+                return;
+            }
+
+            double deltaX = e.PageX - DragStartPostion.X;
+            double deltaY = e.PageY - DragStartPostion.Y;
+            deltaX = deltaX / SquareSize;
+            deltaY = deltaY / SquareSize;
+
+            int x = PieceToMove.Position.X + Convert.ToInt32(deltaX);
+            int y = PieceToMove.Position.Y - Convert.ToInt32(deltaY);
+
+            if (PieceToMove.Type == PieceType.Pawn
+                && ((PieceToMove.IsBlack && y == 0) || (!PieceToMove.IsBlack && y == 7)))
+            {
+                pendingMove = new PendingMove(PieceToMove, x, y);
+                promoteModal?.Show(PieceToMove.IsBlack);
+            }
+            else
+            {
+                ExecuteMove(PieceToMove, x, y);
+            }
+        }
+    }
+
+    private void Move(MouseEventArgs e, Piece? piece, int x, int y)
+    {
+        Annotations.Clear();
+        if (PieceToMove == null)
+        {
+            if (piece != null)
+            {
+                PieceToMove = piece;
+                possiblePosition = Game.ValidPositions(PieceToMove);
+            }
+        }
+        else
+        {
+            if (ObserverMode)
+            {
+                PieceToMove = null;
+                possiblePosition.Clear();
+                StateHasChanged();
+                return;
+            }
+
+            if (PieceToMove.Type == PieceType.Pawn
+                && ((PieceToMove.IsBlack && y == 0) || (!PieceToMove.IsBlack && y == 7)))
+            {
+                pendingMove = new PendingMove(PieceToMove, x, y);
+                promoteModal?.Show(PieceToMove.IsBlack);
+            }
+            else
+            {
+                ExecuteMove(PieceToMove, x, y);
+            }
+        }
+    }
+
+    private void ExecuteMove(Piece piece, int x, int y, PieceType? transformation = null)
+    {
+        // DrawLastMove(piece.Position, new Position(x, y));
+        var moveState = Game.Move(piece, x, y, transformation);
+        if (moveState != MoveState.Ok)
+        {
+            // todo feedback
+            if (LastMoveAnnotaion != null)
+            {
+                Annotations.Remove(LastMoveAnnotaion);
+                LastMoveAnnotaion = null;
+            }
+        }
+        possiblePosition.Clear();
+        PieceToMove = null;
+        DragStartPostion = null;
+        OnMoveUpdate.InvokeAsync();
+        StateHasChanged();
+    }
+
+    private void AnnotateStart(MouseEventArgs e, int x, int y)
+    {
+        if (e.Button == 2)
+        {
+            AnnotationStartPosition = new Position(x, y);
+        }
+    }
+
+    private void Annotate(MouseEventArgs e, int x, int y)
+    {
+        if (e.Button == 2)
+        {
+            string color = "green";
+            if (e.ShiftKey && e.AltKey)
+            {
+                color = "purple";
+            } 
+            else if (e.ShiftKey)
+            {
+                color = "blue";
+            }
+            else if (e.AltKey)
+            {
+                color = "red";
+            } 
+            else if (e.CtrlKey)
+            {
+                color = "yellow";
+            }
+            Position annotationPos = new Position(x, y);
+            if (AnnotationStartPosition == null || AnnotationStartPosition == annotationPos)
+            {
+                var annotation = Annotations.FirstOrDefault(f => f.X == annotationPos.X && f.Y == annotationPos.Y);
+                if (annotation != null)
+                {
+                    Annotations.Remove(annotation);
+                }
+                else
+                {
+                    annotation = new Annotation(annotationPos, color);
+                    Annotations.Add(annotation);
+                }
+            }
+            else
+            {
+                Annotations.Add(new Annotation(AnnotationStartPosition, color, annotationPos));
+            }
+            AnnotationStartPosition = null;
+            StateHasChanged();
+        }
+    }
+
+    public void Picked(PieceType? pieceType)
+    {
+        if (pendingMove != null)
+        {
+            if (pieceType == null)
+            {
+                pieceType = PieceType.Queen;
+            }
+            ExecuteMove(pendingMove.Piece, pendingMove.X, pendingMove.Y, pieceType);
+        }
+    }
+
+    public void Update(double squareSize)
+    {
+        SquareSize = squareSize;
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    public void DrawHints(List<EngineMove> hints)
+    {
+        HintAnnotations.Clear();
+
+        for (int i = 0; i < hints.Count; i++)
+        {
+            HintAnnotations.Add(new Annotation(hints[i].OldPosition, GuiService.GetHintColor(i), hints[i].NewPosition));
+        }
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    public void DrawLastMove(Position start, Position end, string color = "lightgrey")
+    {
+        if (LastMoveAnnotaion != null)
+        {
+            Annotations.Remove(LastMoveAnnotaion);
+        }
+        LastMoveAnnotaion = new Annotation(start, color, end);
+        Annotations.Add(LastMoveAnnotaion);
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    public record PendingMove
+    {
+        public Piece Piece { get; init; }
+        public int X { get; init; }
+        public int Y { get; init; }
+
+        public PendingMove(Piece piece, int x, int y)
+        {
+            Piece = piece;
+            X = x;
+            Y = y;
+        }
+    }
+}

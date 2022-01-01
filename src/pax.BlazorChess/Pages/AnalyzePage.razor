@@ -1,0 +1,266 @@
+﻿@page "/analyzes"
+@using pax.BlazorChess.Services
+@using pax.chess
+@using pax.uciChessEngine
+@inject DbService dbService
+@inject EngineService engineService
+@inject NavigationManager navigationManager
+@implements IDisposable
+
+<PageTitle>Analyze</PageTitle>
+@if (AvailableAnalyzes.Count > 0)
+{
+    <ul class="nav nav-tabs">
+        @foreach (var analyzes in AvailableAnalyzes)
+        {
+            if (Analyzes == analyzes)
+            {
+                <li class="nav-item">
+                    <a class="nav-link active pointer" data-bs-toggle="tab" href="#home">@analyzes.Game.Guid.ToString().Substring(0, 5)</a>
+                </li>
+            }
+            else
+            {
+                <li class="nav-item">
+                    <span class="nav-link text-white-50 pointer" data-bs-toggle="tab" href="#home" @onclick="e => SwitchAnalyzes(analyzes)">@analyzes.Game.Guid.ToString().Substring(0, 5)</span>
+                </li>
+            }
+        }
+    </ul>
+}
+<div class="tab-content">
+    <div class="tab-pane fade" id="home">
+    </div>
+</div>
+
+
+<div class="d-flex">
+    <div>
+        <div class="btn-group mt-1">
+            <span class="oi oi-action-undo text-warning pointer ms-1" @onclick="e => Game.Revert()"></span>
+            <span class="oi oi-arrow-thick-left pointer ms-3" @onclick="e => Game.ObserverMoveBackward()"></span>
+            <span class="oi oi-arrow-thick-right pointer ms-2" @onclick="e => Game.ObserverMoveForward()"></span>
+        </div>
+        <BoardContainer @ref="mainBoard" Game="Game" OnObserverMoveChanged="ObserverMoveChanged"></BoardContainer>
+    </div>
+    <div>
+        <div class="btn-group mt-1">
+            <button type="button" class="btn btn-outline-light" @onclick="e => loadModal?.Show()">Import</button>
+            @if (Analyzes == null)
+            {
+                <button type="button" class="btn btn-outline-info" @onclick="CreateNewAnalyzes">Start analyzing</button>
+            }
+            else
+            {
+                <button type="button" class="btn btn-outline-warning" @onclick="e => Analyzes.Pause()">Pause</button>
+                <button type="button" class="btn btn-outline-warning" @onclick="e => Analyzes.Resume()">Resume</button>
+                <button type="button" class="btn btn-outline-danger" @onclick="DeleteAnalyzes">Delete</button>
+                <button type="button" class="btn btn-outline-light ms-1" @onclick="CreateEngineGame">EngineVsEngine</button>
+            }
+        </div>
+        @if (Analyzes != null)
+        {
+            <div class="d-flex justify-content-start align-items-center mt-1">
+                <div>
+                    <button type="button" class="btn btn-sm btn-primary" @onclick="e => enginesModal?.Show()">Add Engine</button>
+                </div>
+                @foreach (var engine in Analyzes.Engines)
+                {
+                    <div>
+                        <span class="badge bg-info ms-1">@engine.Name <span class="oi oi-x pointer text-danger" @onclick="e => Analyzes.RemoveEngine(engine)"></span></span>
+                    </div>
+                }
+            </div>
+        }
+        <div>
+            <CascadingValue Value="Game">
+                <div class="row ms-1">
+                    @foreach (var engineInfo in EngineInfos.OrderBy(o => o.EngineName))
+                    {
+                        <CascadingValue Value="engineInfo">
+                            <EvalComponent OnPvInfoSelected="PvInfoSelected"></EvalComponent>
+                        </CascadingValue>
+                    }
+                </div>
+            </CascadingValue>
+        </div>
+        <div>
+            <div class="row">
+                @foreach (var pvGame in PvGames)
+                {
+                    <div>
+                        <div class="btn-group mt-2">
+                            <span class="oi oi-x text-danger pointer" @onclick="e => PvGames.Remove(pvGame)"></span>
+                            <span class="badge bg-info">@pvGame.Name</span>
+                            <span class="oi oi-arrow-thick-left pointer ms-3" @onclick="e => pvGame.ObserverMoveBackward()"></span>
+                            <span class="oi oi-arrow-thick-right pointer ms-2" @onclick="e => pvGame.ObserverMoveForward()"></span>
+                        </div>
+                        <BoardContainer Game="pvGame" ShowBoard="false"></BoardContainer>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+<LoadModal @ref="loadModal" Loaded="GameImport"></LoadModal>
+<EnginesModal @ref="enginesModal" EngineSelected="LoadEngine"></EnginesModal>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public int? GameId { get; set; }
+
+    List<Analyzes> AvailableAnalyzes = new List<Analyzes>();
+
+    Game Game = new Game();
+    Analyzes? Analyzes;
+
+    CancellationTokenSource tokenSource = new CancellationTokenSource();
+    List<EngineInfo> EngineInfos = new List<EngineInfo>();
+
+    List<Game> PvGames = new List<Game>();
+
+    BoardContainer? mainBoard;
+    LoadModal? loadModal;
+    EnginesModal? enginesModal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        if (GameId != null)
+        {
+            var game = await dbService.GetGameFromIdAsync((int)GameId);
+            if (game != null)
+            {
+                Game = game;
+                Analyzes = await engineService.CreateAnalyzes(game);
+            }
+        }
+        else
+        {
+            Analyzes = engineService.GetAnalyzes().FirstOrDefault();
+        }
+        if (Analyzes != null)
+        {
+            Game = Analyzes.Game;
+            Analyzes.EngineInfoAvailable += InfoAvailable;
+        }
+        else
+        {
+            await CreateNewAnalyzes();
+        }
+        AvailableAnalyzes = engineService.GetAnalyzes();
+    }
+
+    private async Task CreateNewAnalyzes()
+    {
+        if (Analyzes != null)
+        {
+            Analyzes.EngineInfoAvailable -= InfoAvailable;
+        }
+        Analyzes = await engineService.CreateAnalyzes(Game);
+        Analyzes.EngineInfoAvailable += InfoAvailable;
+        AvailableAnalyzes = engineService.GetAnalyzes();
+    }
+
+    private void InfoAvailable(object? sender, List<EngineInfo> infos)
+    {
+        EngineInfos = infos;
+
+        if (infos.Any())
+        {
+            HashSet<EngineMove> hints = new HashSet<EngineMove>();
+            infos.ForEach(f => f.PvInfos.ForEach(g => hints.Add(g.Moves[0])));
+            if (hints.Any())
+            {
+                mainBoard?.DrawHints(hints.ToList(), true);
+            }
+        }
+
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    private void LoadEngine(string engineName)
+    {
+        Analyzes?.AddEngine(new Engine(engineName, engineService.AvailableEngines[engineName]));
+    }
+
+    private async Task SetEngineOption(Engine engine, string name, object value)
+    {
+        engine.SetOption(name, value);
+        await engine.IsReady();
+    }
+
+    private async void ObserverMoveChanged()
+    {
+        if (Analyzes != null)
+        {
+            await Analyzes.UpdateEngineGame();
+        }
+    }
+
+    void PvInfoSelected(KeyValuePair<string, PvInfo> info)
+    {
+        Game game = DbMap.GetGame(String.Concat(String.Concat(Game.ObserverState.Moves.Select(s => s.EngineMove.ToString())), String.Concat(info.Value.Moves.Select(s => s.ToString()))));
+        game.ObserverMoveTo(game.State.Moves.Count);
+        game.Name = $"{info.Key} PV{info.Value.MultiPv}";
+        PvGames.Add(game);
+    }
+
+    async void GameImport(Game game)
+    {
+        Game = new Game(game);
+        await InvokeAsync(() => StateHasChanged());
+    }
+
+    private void SwitchAnalyzes(Analyzes analyzes)
+    {
+        Analyzes?.Pause();
+        Game = analyzes.Game;
+        Analyzes = analyzes;
+        Analyzes.Resume();
+    }
+
+    private void DeleteAnalyzes()
+    {
+        if (Analyzes != null)
+        {
+            Analyzes.EngineInfoAvailable -= InfoAvailable;
+            engineService.DeleteAnalyzes(Analyzes);
+            AvailableAnalyzes = engineService.GetAnalyzes();
+            Analyzes = AvailableAnalyzes.FirstOrDefault();
+            if (Analyzes != null)
+            {
+                Game = Analyzes.Game;
+            }
+        }
+    }
+
+    private void CreateEngineGame()
+    {
+        Game game = new Game();
+        for (int i = 0; i < Game.ObserverMove; i++)
+        {
+            game.Move(Game.State.Moves[i]);
+        }
+        var eve = engineService.CreateEngineGame(game, "Analyzes");
+        if (eve != null)
+        {
+            var bab = navigationManager.GetUriWithQueryParameter("GameId", eve.Guid);
+            string uristart = "enginevsengine";
+            bab = bab.Replace("analyzes", uristart);
+            navigationManager.NavigateTo(bab);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (Analyzes != null)
+        {
+            Analyzes.EngineInfoAvailable -= InfoAvailable;
+            Analyzes.Pause();
+        }
+    }
+}
+

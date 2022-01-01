@@ -1,0 +1,52 @@
+﻿@using pax.chess
+
+<div style="height: 100%; overflow: auto">
+    @if (Game != null)
+    {
+        <table class="table table-dark table-striped">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    @if (Game.State.Info.BlackToMove)
+                    {
+                        <th><span class="badge bg-light text-black-50">&emsp;white</span></th>
+                        <th><span class="badge bg-dark text-while-50"><span class="oi oi-play-circle" style="font-size: 10px;"></span> black</span></th>
+                    }
+                    else
+                    {
+                        <th><span class="badge bg-light text-black-50"><span class="oi oi-play-circle" style="font-size: 10px;"></span> white</span></th>
+                        <th><span class="badge bg-dark text-while-50">&emsp;black</span></th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < Game.State.Moves.Count; i += 2)
+                {
+                    int I = i;
+                    <tr>
+                        <td>@(((int)I/2) + 1)</td>
+                        <td class="pointer @(Game.ObserverMove == I + 1 ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I))">@Game.State.Moves[I].PgnMove</td>
+                        @if (Game.State.Moves.Count > I + 1)
+                        {
+                            <td class="pointer @(Game.ObserverMove == I + 2 ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I + 1))">
+                                @Game.State.Moves[I + 1].PgnMove
+                            </td>
+                        }
+
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code
+{
+    [CascadingParameter]
+    public Game? Game { get; set; }
+
+    [Parameter]
+    public EventCallback<KeyValuePair<Guid, int>> GotoMove { get; set; }
+
+
+}

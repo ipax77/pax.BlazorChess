@@ -1,0 +1,69 @@
+﻿@using pax.BlazorChess.Services
+@using pax.chess
+@inject IJSRuntime _js
+@inject NavigationManager _nav
+
+<!-- Modal -->
+<div class="modal fade" id="promoteModal" tabindex="-1" aria-labelledby="promoteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="btn-group">
+                    <button type="button" @onclick="e => Picked(PieceType.Queen)">
+                        <img src="@GuiService.GetImage(new Piece(PieceType.Queen, IsBlack, 0, 0))" />
+                    </button>
+                    <button type="button" @onclick="e => Picked(PieceType.Rook)">
+                        <img src="@GuiService.GetImage(new Piece(PieceType.Rook, IsBlack, 0, 0))" />
+                    </button>
+                    <button type="button" @onclick="e => Picked(PieceType.Knight)">
+                        <img src="@GuiService.GetImage(new Piece(PieceType.Knight, IsBlack, 0, 0))" />
+                    </button>
+                    <button type="button" @onclick="e => Picked(PieceType.Bishop)">
+                        <img src="@GuiService.GetImage(new Piece(PieceType.Bishop, IsBlack, 0, 0))" />
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    [Parameter]
+    public EventCallback<PieceType?> OnPicked { get; set; }
+
+    DotNetObjectReference<PromoteModal>? promoteRef;
+
+    bool IsBlack = false;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        promoteRef = DotNetObjectReference.Create(this);
+    }
+
+    private async void Close()
+    {
+        await _js.InvokeVoidAsync("modalClose");
+    }
+
+    [JSInvokable]
+    public void PromoteClose()
+    {
+        OnPicked.InvokeAsync(PieceType.Queen);
+    }
+
+
+    public async void Show(bool isBlack)
+    {
+        IsBlack = isBlack;
+        await _js.InvokeVoidAsync("promoteModalOpen", promoteRef);
+        StateHasChanged();
+    }
+
+    private void Picked(PieceType pieceType)
+    {
+        OnPicked.InvokeAsync(pieceType);
+        Close();
+    }
+}
