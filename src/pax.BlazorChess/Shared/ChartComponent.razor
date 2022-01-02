@@ -1,0 +1,50 @@
+﻿@using System.Globalization
+@using pax.uciChessEngine
+@inject IJSRuntime _js
+@inject ILogger<ChartComponent> logger
+@implements IDisposable
+
+<canvas id="myChart"></canvas>
+
+@code {
+    [Parameter]
+    public List<InfoHelper> Infos { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnChartClicked { get; set; }
+
+    private DotNetObjectReference<ChartComponent>? objRef;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+        if (firstRender)
+        {
+            CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+            CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture; 
+            objRef = DotNetObjectReference.Create(this);
+            _js.InvokeVoidAsync("drawChart", Infos.OrderBy(o => o.HalfMoveNumber).Select(s => s.HalfMoveNumber.ToString()).ToArray(), Infos.OrderBy(o => o.HalfMoveNumber).Select(s => s.ChartScore()).ToArray(), objRef);
+        }
+    }
+
+    [JSInvokable]
+    public void ChartClick(string point)
+    {
+        logger.LogInformation($"chartclick: {point}");
+        int p;
+        if (int.TryParse(point, out p))
+        {
+            OnChartClicked.InvokeAsync(p);
+        }
+    }
+
+    public void DrawHorizontalLine(int x)
+    {
+        _js.InvokeVoidAsync("drawHorizontalLine", x);
+    }
+
+    public void Dispose()
+    {
+        objRef?.Dispose();
+    }
+}

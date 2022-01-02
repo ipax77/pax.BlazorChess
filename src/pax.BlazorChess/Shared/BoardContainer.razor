@@ -1,7 +1,7 @@
 ﻿@using pax.chess
 @inject IJSRuntime _js
 
-<div class="d-flex" tabindex="0" @onkeydown="KeyDown" @onmousewheel:preventDefault @onmousewheel="MouseWheel" style="outline: none !important;">
+<div class="d-flex" tabindex="0" @ref="boardcontainer" @onkeydown="KeyDown" @onmousewheel:preventDefault @onmousewheel="MouseWheel" style="outline: none !important;">
     <CascadingValue Value="Game">
         <div>
             @if (ShowBoard)
@@ -83,6 +83,7 @@
     [Parameter]
     public EventCallback<int?> OnObserverMoveChanged { get; set; }
 
+    ElementReference? boardcontainer;
     BoardComponent? board;
     BoardComponent? boardobs;
 
@@ -174,5 +175,11 @@
         Game.ObserverMoveTo(move.Value + 1);
         KeyBoardGame = Game;
         OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+    }
+
+    public void Focus()
+    {
+        KeyBoardGame = Game;
+        _js.InvokeVoidAsync("SetFocusToElement", boardcontainer);
     }
 }

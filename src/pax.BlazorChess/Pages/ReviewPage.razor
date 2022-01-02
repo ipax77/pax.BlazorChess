@@ -2,6 +2,7 @@
 @using pax.BlazorChess.Services
 @using pax.chess
 @using pax.uciChessEngine
+@using System.Text.Json
 @inject EngineService engineService
 @inject DbService dbService
 
@@ -49,7 +50,10 @@
         </div>
     }
     <div class="ms-4">
-        <table class="table table-striped">
+        <div style="width: 40vw;">
+            <ChartComponent @ref="chart" Infos="Infos" OnChartClicked="ChartClicked"></ChartComponent>
+        </div>
+@*        <table class="table table-striped">
             <thead>
                 <tr>
                     <th>#</th>
@@ -71,17 +75,18 @@
                     </tr>
                 }
             </tbody>
-        </table>
+        </table>*@
     </div>
 </div>
 
 @code {
     [Parameter]
     [SupplyParameterFromQuery]
-    public int? GameId { get; set; }
+    public int? GameId { get; set; } = 22;
 
     GameAnalysis? Analysis;
     BoardContainer? boardContainer;
+    ChartComponent? chart;
     CancellationTokenSource cts = new CancellationTokenSource();
 
     List<InfoHelper> Infos = new List<InfoHelper>();
@@ -92,6 +97,11 @@
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        var infos = JsonSerializer.Deserialize<List<InfoHelper>>(File.ReadAllText("/data/reviewinfos.json"));
+        if (infos != null && infos.Any())
+        {
+            Infos = infos;
+        }
         _ = Init();
     }
 
@@ -116,6 +126,16 @@
                 }
             }
             await InvokeAsync(() => StateHasChanged());
+        }
+    }
+
+    private void ChartClicked(int i)
+    {
+        if (Analysis != null)
+        {
+            Analysis.Game.ObserverMoveTo(i);
+            ObserverMoveChanged(i);
+            boardContainer?.Focus();
         }
     }
 
@@ -144,6 +164,7 @@
                 }
                 InvokeAsync(() => StateHasChanged());
             }
+            chart?.DrawHorizontalLine((int)i);
         }
     }
 
@@ -162,6 +183,8 @@
                 }
             }
             await InvokeAsync(() => StateHasChanged());
+            var json = JsonSerializer.Serialize(Analysis.Infos);
+            File.WriteAllText("/data/reviewinfos.json", json);
         }
     }
 
