@@ -59,7 +59,7 @@ function promoteModalOpen(ref) {
     });
 }
 
-function drawChart(labels, data, ref) {
+function drawChart(id, chart, ref) {
     window.DotNetRef = ref;
 
     const arbitraryLine = {
@@ -81,10 +81,63 @@ function drawChart(labels, data, ref) {
 
             ctx.restore();
         }
-        
     }
 
-    const ctx = document.getElementById('myChart').getContext('2d');
+    const config = {
+        type: chart.type,
+        data: chart.data,
+        options: chart.options,
+        plugins: [arbitraryLine]
+    };
+
+    config.options.onClick = (e) => {
+        const points = window.myChart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
+
+        if (points.length) {
+            const firstPoint = points[0];
+            const label = window.myChart.data.labels[firstPoint.index];
+            const value = window.myChart.data.datasets[firstPoint.datasetIndex].data[firstPoint.index];
+            reportChartClick(label);
+        }
+    }
+    if (window.myChart) {
+        window.myChart.clear();
+    }
+    window.myChart = new Chart(document.getElementById(id), config);
+    console.log(window.myChart.type);
+}
+
+function updateChartDataset(dataset) {
+    window.myChart.config.data.datasets[0] = dataset;
+    window.myChart.update();
+}
+
+function drawChart2(id, labels, data, ref) {
+    window.DotNetRef = ref;
+
+    const arbitraryLine = {
+        id: 'arbitraryLine',
+        // beforeDraw(chart, args, options) {
+        afterDraw(chart, args, options) {
+            const { ctx, chartArea: { top, right, bottom, left, width, height }, scales: { x, y } } = chart;
+
+            ctx.save();
+
+            ctx.fillStyle = options.arbitraryLineColor;
+            const xWidth = options.xWidth;
+            x0 = x.getPixelForValue(options.xPosition) - (xWidth / 2);
+            y0 = top;
+            x1 = xWidth;
+            y1 = height;
+
+            ctx.fillRect(x0, y0, x1, y1);
+
+            ctx.restore();
+        }
+
+    }
+
+    const ctx = document.getElementById(id).getContext('2d');
     window.myChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -168,6 +221,10 @@ function drawChart(labels, data, ref) {
         },
         plugins: [arbitraryLine]
     });
+
+    var config = JSON.stringify(myChart.config, undefined, 2);
+    console.log(config);
+
 }
 
 function drawHorizontalLine(x) {

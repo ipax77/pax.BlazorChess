@@ -1,18 +1,21 @@
 ﻿@using System.Globalization
+@using pax.BlazorChess.Models
 @using pax.uciChessEngine
 @inject IJSRuntime _js
 @inject ILogger<ChartComponent> logger
 @implements IDisposable
 
-<canvas id="myChart"></canvas>
+<canvas id="@guid.ToString()"></canvas>
 
 @code {
     [Parameter]
-    public List<InfoHelper> Infos { get; set; }
+    [EditorRequired]
+    public Chart Chart { get; set; }
 
     [Parameter]
-    public EventCallback<int> OnChartClicked { get; set; }
+    public EventCallback<string> OnChartClicked { get; set; }
 
+    public Guid guid { get; private set; } = Guid.NewGuid();
     private DotNetObjectReference<ChartComponent>? objRef;
 
     protected override void OnAfterRender(bool firstRender)
@@ -20,22 +23,30 @@
         base.OnAfterRender(firstRender);
         if (firstRender)
         {
-            CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
-            CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture; 
             objRef = DotNetObjectReference.Create(this);
-            _js.InvokeVoidAsync("drawChart", Infos.OrderBy(o => o.HalfMoveNumber).Select(s => s.HalfMoveNumber.ToString()).ToArray(), Infos.OrderBy(o => o.HalfMoveNumber).Select(s => s.ChartScore()).ToArray(), objRef);
+            DrawChart(Chart);
         }
     }
 
-    [JSInvokable]
-    public void ChartClick(string point)
+    public void DrawChart(Chart chart)
     {
-        logger.LogInformation($"chartclick: {point}");
-        int p;
-        if (int.TryParse(point, out p))
-        {
-            OnChartClicked.InvokeAsync(p);
-        }
+        Chart = chart;
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+        CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+        // _js.InvokeVoidAsync("drawChart2", guid.ToString(), new List<string>() { "1", "2", "3"}, new List<double>() { 2, 4, 6 }, objRef);
+        _js.InvokeVoidAsync("drawChart", guid.ToString(), Chart, objRef);
+    }
+
+    public void UpdateDataset(Dataset dataset)
+    {
+        _js.InvokeVoidAsync("updateChartDataset", dataset);
+    }
+
+    [JSInvokable]
+    public void ChartClick(string label)
+    {
+        logger.LogInformation($"chartclick: {label}");
+        OnChartClicked.InvokeAsync(label);
     }
 
     public void DrawHorizontalLine(int x)
