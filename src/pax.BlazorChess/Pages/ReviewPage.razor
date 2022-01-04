@@ -9,9 +9,19 @@
 @inject ILogger<ReviewPage> logger
 
 <div class="btn-group">
-    <button type="button" class="btn btn-primary" @onclick="@( async() => _ = Analyse())">Analyse</button>
-    <button type="button" class="btn btn-danger" @onclick="Stop">Stop</button>
-
+    <button type="button" class="btn btn-outline-light" @onclick="e => loadModal?.Show()">Import</button>
+    @if (!Analyzing)
+    {
+        <button type="button" class="btn btn-outline-warning" @onclick="@( async() => _ = Analyse())">Analyze</button>
+    }
+    else
+    {
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <button type="button" class="btn btn-danger ms-2" @onclick="Stop">Stop</button>
+    }
+    <span class="oi oi-cog pointer ms-5" @onclick="e => settingModal?.Show(reviewSettings)"></span>
 </div>
 <div class="d-flex">
     @if (Analysis != null)
@@ -48,17 +58,9 @@
     }
     else
     {
-        <div>
-            <p>
-                Loading ...
-            </p>
-        </div>
+
     }
     <div class="ms-4">
-        <div class="btn-group">
-            <button type="button" class="btn btn-primary" @onclick="e => chart?.DrawChart(_chart)">Redraw</button>
-            <button type="button" class="btn btn-primary" @onclick="UpdateChart">Update</button>
-        </div>
         <div style="width: 40vw;">
             <ChartComponent @ref="chart" Chart="_chart" OnChartClicked="ChartClicked"></ChartComponent>
         </div>
@@ -87,6 +89,8 @@
             </table>*@
     </div>
 </div>
+<LoadModal @ref="loadModal" Loaded="GameImport"></LoadModal>
+<SettingsModal @ref="settingModal" Setting="SettingsModal.PageSetting.Review" OnSettingsChoosen="SettingsChoosen"></SettingsModal>
 
 @code {
     [Parameter]
@@ -97,6 +101,9 @@
     GameAnalyzes? Analysis;
     BoardContainer? boardContainer;
     ChartComponent? chart;
+    LoadModal? loadModal;
+    SettingsModal? settingModal;
+
     CancellationTokenSource cts = new CancellationTokenSource();
 
     List<Rating> Infos = new List<Rating>();
@@ -105,10 +112,14 @@
     private Rating? NextInfo;
 
     private Chart _chart = ChartService.GetRatingChart();
+    private bool Analyzing = false;
+
+    private ReviewSettings reviewSettings = new ReviewSettings();
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        reviewSettings.EngineString = engineService.AvailableEngines.First().Key;
         _ = Init();
     }
 
@@ -117,20 +128,35 @@
         GameAnalyzis = engineService.GetGameAnalyses();
         if (GameId == null)
         {
-            Analysis = GameAnalyzis.FirstOrDefault();   
+            Analysis = GameAnalyzis.FirstOrDefault();
         }
         else
         {
             var game = await dbService.GetGameFromIdAsync((int)GameId);
             if (game != null)
             {
-                Analysis = engineService.CreateGameAnalyzes(game, "Stockfish");
+                Analysis = engineService.CreateGameAnalyzes(game, reviewSettings.EngineString);
             }
         }
         await InvokeAsync(() => StateHasChanged());
         if (Analysis != null)
         {
             _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
+        }
+    }
+
+    private void GameImport(Game game)
+    {
+        Analysis = engineService.CreateGameAnalyzes(game, reviewSettings.EngineString);
+
+    }
+
+    private void SettingsChoosen()
+    {
+        if (Analysis != null)
+        {
+            engineService.DeleteGameAnalyzes(Analysis);
+            Analysis = engineService.CreateGameAnalyzes(Analysis.Game, reviewSettings.EngineString);
         }
     }
 
@@ -180,28 +206,40 @@
         int i = 0;
         if (Analysis != null)
         {
+            _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
+            chart?.UpdateLabels(_chart.data.labels);
+            Analyzing = true;
+            await InvokeAsync(() => StateHasChanged());
             Infos.Clear();
-            await foreach (var info in Analysis.Analyze(cts.Token))
+            try
             {
-                i++;
-                Infos.Add(info);
-                if (i % 10 == 0)
+                await foreach (var info in Analysis.Analyze(cts.Token, TimeSpan.FromMilliseconds(reviewSettings.MsPerMove), 2, reviewSettings.Threads))
                 {
-                    List<string> labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
-                    List<double> data = Enumerable.Repeat(0.0, Analysis.Game.State.Moves.Count).ToList();
-                    for (int j = 0; j < Infos.Count; j++)
+                    i++;
+                    Infos.Add(info);
+                    if (i % 10 == 0)
                     {
-                        var bestmove = Infos[j].BestMove;
-                        data[bestmove.HalfMoveNumber] = bestmove.Evaluation != null ? bestmove.Evaluation.ChartScore() : 0;
+                        List<string> labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
+                        List<double> data = Enumerable.Repeat(0.0, Analysis.Game.State.Moves.Count).ToList();
+                        for (int j = 0; j < Infos.Count; j++)
+                        {
+                            var bestmove = Infos[j].BestMove;
+                            data[bestmove.HalfMoveNumber] = bestmove.Evaluation != null ? bestmove.Evaluation.ChartScore() : 0;
+                        }
+                        _chart.data.datasets[0].data = data;
+                        chart?.UpdateDataset(_chart.data.datasets[0]);
+                        await InvokeAsync(() => StateHasChanged());
                     }
-                    _chart.data.datasets[0].data = data;
-                    chart?.UpdateDataset(_chart.data.datasets[0]);
-                    await InvokeAsync(() => StateHasChanged());
                 }
             }
-            _chart.data.datasets[0].data = Infos.OrderBy(o => o.BestMove.HalfMoveNumber).Select(s => s.BestMove.Evaluation != null ? s.BestMove.Evaluation.ChartScore() : 0).ToList();
-            chart?.UpdateDataset(_chart.data.datasets[0]);
-            await InvokeAsync(() => StateHasChanged());
+            catch (OperationCanceledException) { }
+            finally
+            {
+                _chart.data.datasets[0].data = Infos.OrderBy(o => o.BestMove.HalfMoveNumber).Select(s => s.BestMove.Evaluation != null ? s.BestMove.Evaluation.ChartScore() : 0).ToList();
+                chart?.UpdateDataset(_chart.data.datasets[0]);
+                Analyzing = false;
+                await InvokeAsync(() => StateHasChanged());
+            }
         }
     }
 

@@ -1,0 +1,66 @@
+﻿@using pax.BlazorChess.Models
+@using pax.chess
+@using pax.uciChessEngine
+@inject EngineService engineService
+@inject IJSRuntime _js
+@inject NavigationManager _nav
+
+<!-- Modal -->
+<div class="modal fade" id="settingModal" tabindex="-1" aria-labelledby="settingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">
+                    Load Engine
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                @if (Setting == PageSetting.Review)
+                {
+                    <ReviewSettingsComponent reviewSettings="ReviewSettings" OnSettingsChoosen="Set"></ReviewSettingsComponent>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public PageSetting Setting { get; set; }
+
+    [Parameter]
+    public EventCallback OnSettingsChoosen { get; set; }
+
+    private ReviewSettings ReviewSettings = new ReviewSettings();
+
+    private async void Close()
+    {
+        await _js.InvokeVoidAsync("modalClose");
+    }
+
+    public async void Show(ReviewSettings settings)
+    {
+        ReviewSettings = settings;
+        await _js.InvokeVoidAsync("modalOpen", "settingModal");
+        StateHasChanged();
+    }
+
+    public void Set()
+    {
+        OnSettingsChoosen.InvokeAsync();
+        Close();
+    }
+
+    public enum PageSetting
+    {
+        Analyze,
+        Review,
+        EngineVsEngine
+    }
+}

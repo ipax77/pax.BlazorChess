@@ -107,6 +107,11 @@ function drawChart(id, chart, ref) {
     console.log(window.myChart.type);
 }
 
+function updateChartLables(labels) {
+    window.myChart.config.data.labels = labels;
+    window.myChart.update();
+}
+
 function updateChartDataset(dataset) {
     window.myChart.config.data.datasets[0] = dataset;
     window.myChart.update();

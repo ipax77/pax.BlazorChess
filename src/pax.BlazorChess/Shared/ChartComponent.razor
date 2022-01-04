@@ -37,6 +37,11 @@
         _js.InvokeVoidAsync("drawChart", guid.ToString(), Chart, objRef);
     }
 
+    public void UpdateLabels(List<string> labels)
+    {
+        _js.InvokeVoidAsync("updateChartLables", labels);
+    }
+
     public void UpdateDataset(Dataset dataset)
     {
         _js.InvokeVoidAsync("updateChartDataset", dataset);

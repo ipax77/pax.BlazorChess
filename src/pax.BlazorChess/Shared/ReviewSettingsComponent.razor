@@ -1,0 +1,54 @@
+﻿@using pax.BlazorChess.Models
+@using pax.uciChessEngine
+@inject EngineService engineService
+
+<div>
+    <EditForm EditContext="editContext" OnValidSubmit="Submit">
+        <div class="form-group">
+            <label for="engineSelect" class="form-label mt-4">Engine</label>
+            <select class="form-select" id="engineSelect" @bind="reviewSettings.EngineString">
+                @foreach (var engine in engineService.AvailableEngines)
+                {
+                    <option value="@engine.Key">@engine.Key</option>
+                }
+            </select>
+        </div>
+        <div class="mt-2">
+            <label for="timespan" class="form-label">Ms per move @reviewSettings.MsPerMove</label>
+            <input type="range" min="500" max="10000" step="100" class="form-range" id="timespan" @bind="reviewSettings.MsPerMove">
+        </div>
+        <div>
+            <label for="threads" class="form-label">Threads @reviewSettings.Threads</label>
+            <input type="range" min="2" max="@maxThreads" class="form-range" id="threads" @bind="reviewSettings.Threads">
+        </div>
+        <div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+    </EditForm>
+</div>
+
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public ReviewSettings reviewSettings { get; set; } = new ReviewSettings();
+
+    [Parameter]
+    public EventCallback OnSettingsChoosen { get; set; }
+
+    private EditContext? editContext;
+
+    private int maxThreads => Math.Max(Environment.ProcessorCount / 2, 2);
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        reviewSettings.EngineString = engineService.AvailableEngines.First().Key;
+        editContext = new EditContext(reviewSettings);
+    }
+
+    private void Submit()
+    {
+        OnSettingsChoosen.InvokeAsync();
+    }
+}
