@@ -23,17 +23,69 @@
                 @for (int i = 0; i < Game.State.Moves.Count; i += 2)
                 {
                     int I = i;
-                    <tr>
-                        <td>@(((int)I/2) + 1)</td>
-                        <td class="pointer @(Game.ObserverMove == I + 1 ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I))">@Game.State.Moves[I].PgnMove</td>
-                        @if (Game.State.Moves.Count > I + 1)
-                        {
-                            <td class="pointer @(Game.ObserverMove == I + 2 ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I + 1))">
-                                @Game.State.Moves[I + 1].PgnMove
-                            </td>
-                        }
+                    Move whitemove = Game.State.Moves[I];
+                    Move? blackmove = Game.State.Moves.Count > I + 1 ? Game.State.Moves[I + 1] : null;
 
-                    </tr>
+                    @if (whitemove.Variations.Any())
+                    {
+                        <tr>
+                            <td>@(((int)I/2) + 1)</td>
+                            <td class="pointer @(Game.ObserverMove == I + 1 ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I))">@whitemove.PgnMove</td>
+                        </tr>
+                        @foreach (var variation in whitemove.Variations)
+                        {
+                            <tr>
+                                <td colspan="2">
+                                    [
+                                    @foreach (var move in variation.Moves)
+                                    {
+                                        <span class="ms-1">@move.PgnMove </span>
+                                    }
+                                    ]
+                                </td>
+                            </tr>
+                        }
+                        @if (blackmove != null)
+                        {
+                            <tr>
+                                <td>@(((int)I/2) + 1)</td>
+                                <td>...</td>
+                                <td class="pointer @(Game.ObserverMove == I + 2 ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I + 1))">
+                                    @Game.State.Moves[I + 1].PgnMove
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td>@(((int)I/2) + 1)</td>
+                            <td class="pointer @(Game.ObserverMove == I + 1 ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I))">@Game.State.Moves[I].PgnMove</td>
+                            @if (blackmove != null)
+                            {
+                                <td class="pointer @(Game.ObserverMove == I + 2 ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I + 1))">
+                                    @blackmove.PgnMove
+                                </td>
+                            }
+
+                        </tr>
+                    }
+                    @if (blackmove != null && blackmove.Variations.Any())
+                    {
+                        @foreach (var variation in blackmove.Variations)
+                        {
+                            <tr>
+                                <td colspan="2">
+                                    [
+                                    @foreach (var move in variation.Moves)
+                                    {
+                                        <span class="ms-1">@move.PgnMove </span>
+                                    }
+                                    ]
+                                </td>
+                            </tr>
+                        }
+                    }
                 }
             </tbody>
         </table>

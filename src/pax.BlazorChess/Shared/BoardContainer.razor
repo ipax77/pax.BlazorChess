@@ -127,15 +127,6 @@
         }
     }
 
-    public void DrawLastMove(Position start, Position end, bool ObserverBoard, string color = "lightgrey")
-    {
-        var dboard = ObserverBoard ? boardobs : board;
-        if (dboard != null)
-        {
-            dboard.DrawLastMove(start, end, color);
-        }
-    }
-
     private void KeyDown(KeyboardEventArgs e)
     {
         if (e.Code == "ArrowRight")
