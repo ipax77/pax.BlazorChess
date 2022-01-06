@@ -25,33 +25,22 @@
                     int I = i;
                     Move whitemove = Game.State.Moves[I];
                     Move? blackmove = Game.State.Moves.Count > I + 1 ? Game.State.Moves[I + 1] : null;
-
-                    @if (whitemove.Variations.Any())
+                    bool whiteIsCurrent = Game.ObserverState.IsCurrentMove(whitemove);
+                    bool blackIsCurrent = Game.ObserverState.IsCurrentMove(blackmove);
+                    @if (Game.Variations.ContainsKey(whitemove))
                     {
                         <tr>
                             <td>@(((int)I/2) + 1)</td>
-                            <td class="pointer @(Game.ObserverMove == I + 1 ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I))">@whitemove.PgnMove</td>
+                            <td class="pointer @(whiteIsCurrent ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(whitemove)">@whitemove.PgnMove</td>
                         </tr>
-                        @foreach (var variation in whitemove.Variations)
-                        {
-                            <tr>
-                                <td colspan="2">
-                                    [
-                                    @foreach (var move in variation.Moves)
-                                    {
-                                        <span class="ms-1">@move.PgnMove </span>
-                                    }
-                                    ]
-                                </td>
-                            </tr>
-                        }
+                        <MovesVariationComponent Variations="Game.Variations[whitemove]" Game="Game" GotoMove="GotoMove"></MovesVariationComponent>
                         @if (blackmove != null)
                         {
                             <tr>
                                 <td>@(((int)I/2) + 1)</td>
                                 <td>...</td>
-                                <td class="pointer @(Game.ObserverMove == I + 2 ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I + 1))">
-                                    @Game.State.Moves[I + 1].PgnMove
+                                <td class="pointer @(blackIsCurrent ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(blackmove)">
+                                    @blackmove.PgnMove
                                 </td>
                             </tr>
                         }
@@ -60,31 +49,19 @@
                     {
                         <tr>
                             <td>@(((int)I/2) + 1)</td>
-                            <td class="pointer @(Game.ObserverMove == I + 1 ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I))">@Game.State.Moves[I].PgnMove</td>
+                            <td class="pointer @(whiteIsCurrent ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(whitemove)">@whitemove.PgnMove</td>
                             @if (blackmove != null)
                             {
-                                <td class="pointer @(Game.ObserverMove == I + 2 ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I + 1))">
+                                <td class="pointer @(blackIsCurrent ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(blackmove)">
                                     @blackmove.PgnMove
                                 </td>
                             }
 
                         </tr>
                     }
-                    @if (blackmove != null && blackmove.Variations.Any())
+                    @if (blackmove != null && Game.Variations.ContainsKey(blackmove))
                     {
-                        @foreach (var variation in blackmove.Variations)
-                        {
-                            <tr>
-                                <td colspan="2">
-                                    [
-                                    @foreach (var move in variation.Moves)
-                                    {
-                                        <span class="ms-1">@move.PgnMove </span>
-                                    }
-                                    ]
-                                </td>
-                            </tr>
-                        }
+                        <MovesVariationComponent Variations="Game.Variations[blackmove]" Game="Game" GotoMove="GotoMove"></MovesVariationComponent>
                     }
                 }
             </tbody>
@@ -98,7 +75,10 @@
     public Game? Game { get; set; }
 
     [Parameter]
-    public EventCallback<KeyValuePair<Guid, int>> GotoMove { get; set; }
+    public EventCallback<Move> GotoMove { get; set; }
 
-
+    public void Update()
+    {
+        InvokeAsync(() => StateHasChanged());
+    }
 }

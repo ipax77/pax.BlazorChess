@@ -1,0 +1,66 @@
+﻿@using pax.chess
+
+@if (RootVariation == null)
+{
+    @foreach (var variation in Variations.Where(x => x.RootVariation == null))
+    {
+        <tr>
+            <td colspan="3">
+                <span class="d-inline">
+                    [
+                    @for (int i = 0; i < variation.Moves.Count; i++)
+                    {
+                        int I = i;
+                        var move = variation.Moves[I];
+                        var subVariations = variation.ChildVariations.Where(x => x.RootStartMove == I);
+                        bool isCurrent = Game.ObserverState.IsCurrentMove(move);
+                        <span class="ms-1 pointer @(isCurrent ? "bg-info" : "")" @onclick="e => GotoMove.InvokeAsync(move)">@move.PgnMove </span>
+                        @if (subVariations.Any())
+                        {
+                            <MovesVariationComponent Variations="subVariations.ToList()" Game="Game" RootVariation="variation" GotoMove="GotoMove"></MovesVariationComponent>
+                        }
+                    }
+                    ]
+                </span>
+            </td>
+        </tr>
+    }
+}
+else
+{
+    @foreach (var variation in Variations)
+    {
+        <span class="d-inline">
+            (
+            @for (int i = 0; i < variation.Moves.Count; i++)
+            {
+                int I = i;
+                var move = variation.Moves[I];
+                var subsubVariations = variation.ChildVariations.Where(x => x.RootStartMove == I);
+                bool isCurrent = Game.ObserverState.IsCurrentMove(move);
+                <span class="ms-1 pointer @(isCurrent ? "bg-info" : "")" @onclick="e => GotoMove.InvokeAsync(move)">@move.PgnMove </span>
+                @if (subsubVariations.Any())
+                {
+                    <MovesVariationComponent Variations="subsubVariations.ToList()" Game="Game" RootVariation="variation" GotoMove="GotoMove"></MovesVariationComponent>
+                }
+            }
+            )
+        </span>
+    }
+}
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public List<Variation> Variations { get; set; } = new List<Variation>();
+
+    [Parameter]
+    [EditorRequired]
+    public Game Game { get; set; } = new Game();
+
+    [Parameter]
+    public Variation? RootVariation { get; set; } = null;
+
+    [Parameter]
+    public EventCallback<Move> GotoMove { get; set; }
+}

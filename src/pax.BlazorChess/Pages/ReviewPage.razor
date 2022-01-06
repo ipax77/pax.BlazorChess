@@ -36,6 +36,7 @@
                             <div class="border rounded p-1">
                                 <h4><span class="badge bg-secondary">Game: @CurrentInfo.GameMove.PgnMove</span></h4>
                                 <h4><span class="badge bg-info">Game Eval @NextInfo.BestMove.Evaluation</span></h4>
+                                <button type="button" class="btn btn-sm btn-outline-light" @onclick="ShowBestLine">Show Line</button>
                             </div>
                         }
                         <div class="border rounded p-1">
@@ -107,7 +108,6 @@
     CancellationTokenSource cts = new CancellationTokenSource();
 
     List<Rating> Infos = new List<Rating>();
-    private int ObserverMove;
     private Rating? CurrentInfo;
     private Rating? NextInfo;
 
@@ -168,7 +168,7 @@
             if (int.TryParse(label, out i))
             {
                 Analysis.Game.ObserverMoveTo(i);
-                ObserverMoveChanged(i);
+                ObserverMoveChanged();
                 boardContainer?.Focus();
             }
         }
@@ -180,13 +180,12 @@
         chart?.UpdateDataset(_chart.data.datasets[0]);
     }
 
-    private void ObserverMoveChanged(int? i)
+    private void ObserverMoveChanged()
     {
-        if (i != null)
+        if (Analysis != null && Analysis.Game.ObserverState.CurrentMove != null && Analysis.Game.ObserverState.CurrentMove.Variation == null)
         {
-            ObserverMove = (int)i;
-            CurrentInfo = Infos.FirstOrDefault(f => f.BestMove.HalfMoveNumber == ObserverMove - 1);
-            NextInfo = Infos.FirstOrDefault(f => f.BestMove.HalfMoveNumber == ObserverMove);
+            CurrentInfo = Infos.FirstOrDefault(f => f.BestMove.HalfMoveNumber == Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber);
+            NextInfo = Infos.FirstOrDefault(f => f.BestMove.HalfMoveNumber == Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber + 1);
             if (CurrentInfo != null)
             {
                 var move = CurrentInfo.BestMove;
@@ -197,7 +196,7 @@
                 }
                 InvokeAsync(() => StateHasChanged());
             }
-            chart?.DrawHorizontalLine((int)i);
+            chart?.DrawHorizontalLine(Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber);
         }
     }
 
@@ -239,6 +238,20 @@
                 chart?.UpdateDataset(_chart.data.datasets[0]);
                 Analyzing = false;
                 await InvokeAsync(() => StateHasChanged());
+            }
+        }
+    }
+
+    private void ShowBestLine()
+    {
+        if (CurrentInfo != null && Analysis != null)
+        {
+            Analysis.Game.ObserverMoveBackward();
+            Analysis.Game.ObserverMoveBackward();
+
+            for (int i = 0; i < CurrentInfo.BestLine.Count; i++)
+            {
+                Analysis.Game.VariationMove(CurrentInfo.BestLine[i]);
             }
         }
     }

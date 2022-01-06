@@ -240,7 +240,8 @@
     private void CreateEngineGame()
     {
         Game game = new Game();
-        for (int i = 0; i < Game.ObserverMove; i++)
+        int obsMove = Game.ObserverState.CurrentMove == null ? 0 : Game.ObserverState.CurrentMove.HalfMoveNumber;
+        for (int i = 0; i < obsMove; i++)
         {
             game.Move(Game.State.Moves[i]);
         }

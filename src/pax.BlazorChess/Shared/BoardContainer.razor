@@ -13,7 +13,7 @@
             @if (ShowObserverBoard)
             {
                 <div class="boardcontainer mt-1" style="width: 40vh;">
-                    <BoardComponent @ref="boardobs" ObserverMode="true"></BoardComponent>
+                    <BoardComponent @ref="boardobs" ObserverMode="true" OnMoveUpdate="ObserverBoardUpdate"></BoardComponent>
                 </div>
             }
         </div>
@@ -55,7 +55,7 @@
             {
                 <div class="mx-2">
                     <div style="height: 40vh;">
-                        <MovesComponent GotoMove="GotoBoardMove"></MovesComponent>
+                        <MovesComponent @ref="movesComponent" GotoMove="GotoBoardMove"></MovesComponent>
                     </div>
                 </div>
             }
@@ -66,7 +66,7 @@
 @code {
     [Parameter]
     [EditorRequired]
-    public Game Game { get; set; }
+    public Game Game { get; set; } = new Game();
 
     [Parameter]
     public bool ShowBoard { get; set; } = true;
@@ -81,11 +81,12 @@
     public bool ShowInfo { get; set; } = true;
 
     [Parameter]
-    public EventCallback<int?> OnObserverMoveChanged { get; set; }
+    public EventCallback OnObserverMoveChanged { get; set; }
 
     ElementReference? boardcontainer;
     BoardComponent? board;
     BoardComponent? boardobs;
+    MovesComponent? movesComponent;
 
     private Game? KeyBoardGame;
 
@@ -132,12 +133,12 @@
         if (e.Code == "ArrowRight")
         {
             KeyBoardGame?.ObserverMoveForward();
-            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+            OnObserverMoveChanged.InvokeAsync();
         }
         else if (e.Code == "ArrowLeft")
         {
             KeyBoardGame?.ObserverMoveBackward();
-            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+            OnObserverMoveChanged.InvokeAsync();
         }
     }
 
@@ -146,12 +147,12 @@
         if (e.DeltaY > 0)
         {
             KeyBoardGame?.ObserverMoveForward();
-            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+            OnObserverMoveChanged.InvokeAsync();
         }
         else if (e.DeltaY < 0)
         {
             KeyBoardGame?.ObserverMoveBackward();
-            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+            OnObserverMoveChanged.InvokeAsync();
         }
     }
 
@@ -161,11 +162,17 @@
         KeyBoardGame = Game;
     }
 
-    private void GotoBoardMove(KeyValuePair<Guid, int> move)
+    private void ObserverBoardUpdate()
     {
-        Game.ObserverMoveTo(move.Value + 1);
+        StateHasChanged();
+        KeyBoardGame = Game;        
+    }
+
+    private void GotoBoardMove(Move move)
+    {
+        Game.ObserverMoveTo(move);
         KeyBoardGame = Game;
-        OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+        OnObserverMoveChanged.InvokeAsync();
     }
 
     public void Focus()
