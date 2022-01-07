@@ -15,9 +15,25 @@ public class DbService
         this.logger = logger;
     }
 
+    public async Task SaveGame(Game game, int gameId)
+    {
+        var dbGame = await context.Games.FirstOrDefaultAsync(f => f.Id == gameId);
+        if (dbGame == null) return;
+
+        DbMap.SetGameInfo(dbGame, game);
+        dbGame.HalfMoves = game.State.Moves.Count;
+        dbGame.EngineMoves = String.Concat(game.State.Moves.Select(s => Map.GetEngineMoveString(s)));
+        dbGame.Variations = DbMap.GetVariations(game);
+        await context.SaveChangesAsync();
+    }
+
     public async Task<Game?> GetGameFromIdAsync(int gameId)
     {
-        var dbGame = await context.Games.AsNoTracking().FirstOrDefaultAsync(f => f.Id == gameId);
+        var dbGame = await context.Games
+            .Include(i => i.Variations)
+                .ThenInclude(i => i.Evaluation)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Id == gameId);
         if (dbGame == null) return null;
         var game = DbMap.GetGame(dbGame);
         return game;

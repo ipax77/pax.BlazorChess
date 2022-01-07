@@ -5,9 +5,13 @@
     @foreach (var variation in Variations.Where(x => x.RootVariation == null))
     {
         <tr>
-            <td colspan="3">
-                <span class="d-inline">
-                    [
+            <td colspan="3" style="max-width: 20vw; word-wrap: break-word;">
+                <span>
+                    @if (variation.Evaluation != null)
+                    {
+                        <span class="badge bg-info">Eval @variation.Evaluation </span>
+                    }
+                    <span>[</span>
                     @for (int i = 0; i < variation.Moves.Count; i++)
                     {
                         int I = i;
@@ -20,7 +24,7 @@
                             <MovesVariationComponent Variations="subVariations.ToList()" Game="Game" RootVariation="variation" GotoMove="GotoMove"></MovesVariationComponent>
                         }
                     }
-                    ]
+                    <span> ]</span>
                 </span>
             </td>
         </tr>

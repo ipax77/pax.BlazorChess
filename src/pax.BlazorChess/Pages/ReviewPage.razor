@@ -13,10 +13,11 @@
     @if (!Analyzing)
     {
         <button type="button" class="btn btn-outline-warning" @onclick="@( async() => _ = Analyse())">Analyze</button>
+        <button type="button" class="btn btn-success ms-2" @onclick="Save">Save</button>
     }
     else
     {
-        <div class="spinner-border" role="status">
+        <div class="spinner-border mx-2" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
         <button type="button" class="btn btn-danger ms-2" @onclick="Stop">Stop</button>
@@ -36,18 +37,19 @@
                             <div class="border rounded p-1">
                                 <h4><span class="badge bg-secondary">Game: @CurrentInfo.GameMove.PgnMove</span></h4>
                                 <h4><span class="badge bg-info">Game Eval @NextInfo.BestMove.Evaluation</span></h4>
-                                <button type="button" class="btn btn-sm btn-outline-light" @onclick="ShowBestLine">Show Line</button>
                             </div>
                         }
                         <div class="border rounded p-1">
                             <h4><span class="badge bg-primary">Bestmove: @CurrentInfo.BestMove.PgnMove</span></h4>
                             <h4><span class="badge bg-info">Eval @CurrentInfo.BestMove.Evaluation</span></h4>
+                            <button type="button" class="btn btn-sm btn-outline-light" @onclick="ShowBestLine">Show Line</button>
                         </div>
                         @if (CurrentInfo.RunnerMoves.Any())
                         {
                             <div class="border rounded p-1">
                                 <h4><span class="badge bg-secondary">2nd Best: @CurrentInfo.RunnerMoves[0].PgnMove</span></h4>
                                 <h4><span class="badge bg-info">Runner Eval @CurrentInfo.RunnerMoves[0].Evaluation</span></h4>
+                                <button type="button" class="btn btn-sm btn-outline-light" @onclick="Show2ndBestLine">Show Line</button>
                             </div>
                         }
                     </div>
@@ -65,29 +67,6 @@
         <div style="width: 40vw;">
             <ChartComponent @ref="chart" Chart="_chart" OnChartClicked="ChartClicked"></ChartComponent>
         </div>
-        @*        <table class="table table-striped">
-            <thead>
-            <tr>
-            <th>#</th>
-            <th>BestMove</th>
-            <th>Eval</th>
-            <th>Ponder</th>
-            <th>PonderEval</th>
-            </tr>
-            </thead>
-            <tbody>
-            @foreach (var info in Infos.OrderBy(o => o.HalfMoveNumber))
-            {
-            <tr>
-            <td>@info.HalfMoveNumber</td>
-            <td>@info.BestMove</td>
-            <td>@info.Eval</td>
-            <td>@info.RunnerMove</td>
-            <td>@info.RunnerEval</td>
-            </tr>
-            }
-            </tbody>
-            </table>*@
     </div>
 </div>
 <LoadModal @ref="loadModal" Loaded="GameImport"></LoadModal>
@@ -246,14 +225,22 @@
     {
         if (CurrentInfo != null && Analysis != null)
         {
-            Analysis.Game.ObserverMoveBackward();
-            Analysis.Game.ObserverMoveBackward();
-
-            for (int i = 0; i < CurrentInfo.BestLine.Count; i++)
-            {
-                Analysis.Game.VariationMove(CurrentInfo.BestLine[i]);
-            }
+            int startMoveId = Analysis.Game.ObserverState.CurrentMove == null ? 0 : Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber;
+            Analysis.Game.CreateVariation(startMoveId, CurrentInfo.BestLine, CurrentInfo.BestMove.Evaluation);
         }
+    }
+
+    private async void Save()
+    {
+        if (GameId != null && Analysis != null)
+        {
+            await dbService.SaveGame(Analysis.Game, (int)GameId);
+        }
+    }
+
+    private void Show2ndBestLine()
+    {
+        
     }
 
     private void Stop()
