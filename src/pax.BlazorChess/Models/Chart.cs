@@ -16,7 +16,7 @@ public class Dataset
     public List<double> data { get; set; }
     public string backgroundColor { get; set; }
     public string borderColor { get; set; }
-    public bool fill { get; set; }
+    public bool fill { get; set; } = true;
     public string pointBackgroundColor { get; set; }
     public string pointBorderColor { get; set; }
     public int pointRadius { get; set; }
@@ -154,4 +154,11 @@ public class Options
     public bool responsive { get; set; } = true;
     public Plugins plugins { get; set; } = new Plugins();
     public Scales scales { get; set; } = new Scales();
+}
+
+public class Fill
+{
+    public object target { get; set; } = 0;
+    public string above { get; set; } = "rgb(255, 0, 0)";
+    public string below { get; set; } = "rgb(0, 0, 255)";
 }

@@ -1,4 +1,7 @@
-﻿@using pax.chess
+﻿@using System.Text
+@using pax.chess
+@inject IJSRuntime _js
+@inject ILogger<MovesComponent> logger
 
 <div style="height: 100%; overflow-y: auto; overflow-x: hidden;">
     @if (Game != null)
@@ -31,7 +34,7 @@
                     {
                         <tr>
                             <td>@(((int)I/2) + 1)</td>
-                            <td class="pointer @(whiteIsCurrent ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(whitemove)">@whitemove.PgnMove</td>
+                            <td id="@MoveId(whitemove)" class="pointer @(whiteIsCurrent ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(whitemove)">@whitemove.PgnMove</td>
                         </tr>
                         <MovesVariationComponent Variations="Game.Variations[whitemove]" Game="Game" GotoMove="GotoMove"></MovesVariationComponent>
                         @if (blackmove != null)
@@ -39,7 +42,7 @@
                             <tr>
                                 <td>@(((int)I/2) + 1)</td>
                                 <td>...</td>
-                                <td class="pointer @(blackIsCurrent ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(blackmove)">
+                                <td id="@MoveId(blackmove)" class="pointer @(blackIsCurrent ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(blackmove)">
                                     @blackmove.PgnMove
                                 </td>
                             </tr>
@@ -49,10 +52,10 @@
                     {
                         <tr>
                             <td>@(((int)I/2) + 1)</td>
-                            <td class="pointer @(whiteIsCurrent ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(whitemove)">@whitemove.PgnMove</td>
+                            <td id="@MoveId(whitemove)" class="pointer @(whiteIsCurrent ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(whitemove)">@whitemove.PgnMove</td>
                             @if (blackmove != null)
                             {
-                                <td class="pointer @(blackIsCurrent ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(blackmove)">
+                                <td id="@MoveId(whitemove)" class="pointer @(blackIsCurrent ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(blackmove)">
                                     @blackmove.PgnMove
                                 </td>
                             }
@@ -72,10 +75,36 @@
 @code
 {
     [CascadingParameter]
-    public Game? Game { get; set; }
+    [EditorRequired]
+    public Game Game { get; set; } = new Game();
 
     [Parameter]
     public EventCallback<Move> GotoMove { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        logger.LogInformation("parameter set");
+        _js.InvokeVoidAsync("scrollToElement", MoveId(Game.ObserverState.CurrentMove));
+    }
+
+    public string MoveId(Move? move)
+    {
+        if (move == null)
+        {
+            return "0";
+        }
+        else
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append(move.Variation == null ? "0|0" : $"{move.Variation.StartMove}|{move.Variation.RootStartMove}");
+            sb.Append("|");
+            sb.Append(move.HalfMoveNumber);
+            sb.Append("|");
+            sb.Append(Game.Guid.ToString().Substring(0, 5));
+            return sb.ToString();
+        }
+    }
 
     public void Update()
     {

@@ -7,6 +7,7 @@
 @inject EngineService engineService
 @inject DbService dbService
 @inject ILogger<ReviewPage> logger
+@implements IDisposable
 
 <div class="btn-group">
     <button type="button" class="btn btn-outline-light" @onclick="e => loadModal?.Show()">Import</button>
@@ -49,13 +50,13 @@
                             <div class="border rounded p-1">
                                 <h4><span class="badge bg-secondary">2nd Best: @CurrentInfo.RunnerMoves[0].PgnMove</span></h4>
                                 <h4><span class="badge bg-info">Runner Eval @CurrentInfo.RunnerMoves[0].Evaluation</span></h4>
-                                <button type="button" class="btn btn-sm btn-outline-light" @onclick="Show2ndBestLine">Show Line</button>
+                                <button type="button" class="btn btn-sm btn-outline-light" @onclick="e => Show2ndBestLine(0)">Show Line</button>
                             </div>
                         }
                     </div>
                 }
             </div>
-            <BoardContainer @ref="boardContainer" Game="Analysis.Game" ShowBoard="false" OnObserverMoveChanged="ObserverMoveChanged"></BoardContainer>
+            <BoardContainer @ref="boardContainer" Game="Analysis.Game" ShowBoard="false" OnObserverMoveChanged="ObserverMoveChanged" OnMoveRequested="MoveRequested"></BoardContainer>
 
         </div>
     }
@@ -63,8 +64,14 @@
     {
 
     }
-    <div class="ms-4">
-        <div style="width: 40vw;">
+    <div class="ms-4"  style="width: 40vw;">
+        @if (Analysis != null)
+        {
+        <div>
+            <EngineComponent @ref="engineComponent" Game="Analysis.Game" mainBoard="boardContainer"></EngineComponent>
+        </div>
+        }
+        <div>
             <ChartComponent @ref="chart" Chart="_chart" OnChartClicked="ChartClicked"></ChartComponent>
         </div>
     </div>
@@ -83,6 +90,7 @@
     ChartComponent? chart;
     LoadModal? loadModal;
     SettingsModal? settingModal;
+    EngineComponent? engineComponent;
 
     CancellationTokenSource cts = new CancellationTokenSource();
 
@@ -161,6 +169,7 @@
 
     private void ObserverMoveChanged()
     {
+        _ = engineComponent?.Update();
         if (Analysis != null && Analysis.Game.ObserverState.CurrentMove != null && Analysis.Game.ObserverState.CurrentMove.Variation == null)
         {
             CurrentInfo = Infos.FirstOrDefault(f => f.BestMove.HalfMoveNumber == Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber);
@@ -176,6 +185,9 @@
                 InvokeAsync(() => StateHasChanged());
             }
             chart?.DrawHorizontalLine(Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber);
+        } else if (Analysis != null && Analysis.Game.ObserverState.CurrentMove != null)
+        {
+            boardContainer?.DrawHints(new List<EngineMove>(), true);
         }
     }
 
@@ -189,6 +201,7 @@
             Analyzing = true;
             await InvokeAsync(() => StateHasChanged());
             Infos.Clear();
+            cts = new CancellationTokenSource();
             try
             {
                 await foreach (var info in Analysis.Analyze(cts.Token, TimeSpan.FromMilliseconds(reviewSettings.MsPerMove), 2, reviewSettings.Threads))
@@ -238,12 +251,35 @@
         }
     }
 
-    private void Show2ndBestLine()
+    private void Show2ndBestLine(int i)
     {
-        
+        if (CurrentInfo != null && Analysis != null && CurrentInfo.RunnerLines.Count > i)
+        {
+            int startMoveId = Analysis.Game.ObserverState.CurrentMove == null ? 0 : Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber;
+            Analysis.Game.CreateVariation(startMoveId, CurrentInfo.RunnerLines[i], CurrentInfo.BestMove.Evaluation);
+        }
+    }
+
+    private async Task MoveRequested()
+    {
+        if (engineComponent != null)
+        {
+            var move = await engineComponent.ExecuteBestMove();
+            if (move != null)
+            {
+                boardContainer?.DrawHints(new List<EngineMove>(), true);
+                boardContainer?.DrawOtherHints(new List<EngineMove>(), true);
+                await InvokeAsync(() => StateHasChanged());
+            }
+        }
     }
 
     private void Stop()
+    {
+        cts.Cancel();
+    }
+
+    public void Dispose()
     {
         cts.Cancel();
     }

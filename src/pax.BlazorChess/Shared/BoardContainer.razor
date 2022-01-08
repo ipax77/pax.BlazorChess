@@ -1,8 +1,14 @@
 ﻿@using pax.chess
 @inject IJSRuntime _js
 
-<div class="d-flex" tabindex="0" @ref="boardcontainer" @onkeydown="KeyDown" @onmousewheel:preventDefault @onmousewheel="MouseWheel" style="outline: none !important;">
+<div class="d-flex" tabindex="0" @ref="boardcontainer" @onkeydown="KeyDown" @onmousewheel="MouseWheel" style="outline: none !important; touch-action: none;">
     <CascadingValue Value="Game">
+        @if (ShowInfo)
+        {
+            <div class="mx-2">
+                <GameInfoComponent></GameInfoComponent>
+            </div>
+        }
         <div>
             @if (ShowBoard)
             {
@@ -18,39 +24,6 @@
             }
         </div>
         <div>
-            @if (ShowInfo)
-            {
-                <div class="mx-2">
-                    <table class="table table-sm table-striped">
-                        <tbody>
-                            <tr>
-                                <td colspan="2">@Game.Name</td>
-                            </tr>
-                            @if (Game.Result != Result.None)
-                            {
-                                <tr>
-                                    <td colspan="2">@Game.Result</td>
-                                </tr>
-                                <tr>
-                                    <td colspan="2">@Game.Termination</td>
-                                </tr>
-                            }
-                            @if (Game.Time != null)
-                            {
-                                <tr>
-                                    <td>
-                                        <span class="badge bg-light">@Game.Time.CurrentWhiteTime.ToString(@"hh\:mm\:ss")</span>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-dark">@Game.Time.CurrentBlackTime.ToString(@"hh\:mm\:ss")</span>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-
-                    </table>
-                </div>
-            }
             @if (ShowMoves)
             {
                 <div class="mx-2">
@@ -82,6 +55,9 @@
 
     [Parameter]
     public EventCallback OnObserverMoveChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnMoveRequested { get; set; }
 
     ElementReference? boardcontainer;
     BoardComponent? board;
@@ -128,6 +104,15 @@
         }
     }
 
+    public void DrawOtherHints(List<EngineMove> hints, bool ObserverBoard)
+    {
+        var dboard = ObserverBoard ? boardobs : board;
+        if (dboard != null)
+        {
+            dboard.DrawOtherHints(hints);
+        }
+    }
+
     private void KeyDown(KeyboardEventArgs e)
     {
         if (e.Code == "ArrowRight")
@@ -139,6 +124,10 @@
         {
             KeyBoardGame?.ObserverMoveBackward();
             OnObserverMoveChanged.InvokeAsync();
+        }
+        else if (e.Code == "Space")
+        {
+            OnMoveRequested.InvokeAsync();
         }
     }
 
@@ -165,7 +154,7 @@
     private void ObserverBoardUpdate()
     {
         StateHasChanged();
-        KeyBoardGame = Game;        
+        KeyBoardGame = Game;
     }
 
     private void GotoBoardMove(Move move)

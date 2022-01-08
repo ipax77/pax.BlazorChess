@@ -104,7 +104,6 @@ function drawChart(id, chart, ref) {
         window.myChart.clear();
     }
     window.myChart = new Chart(document.getElementById(id), config);
-    console.log(window.myChart.type);
 }
 
 function updateChartLables(labels) {
@@ -246,5 +245,12 @@ function reportChartClick(point) {
 window.SetFocusToElement = (element) => {
     if (element) {
         element.focus();
+    }
+}
+
+function scrollToElement(id) {
+    let element = document.getElementById(id);
+    if (element) {
+        element.scrollIntoViewIfNeeded();
     }
 }

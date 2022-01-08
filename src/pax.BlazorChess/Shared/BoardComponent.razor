@@ -52,6 +52,7 @@
                         }
                         var annotations = Annotations.Where(f => f.X == X && f.Y == Y);
                         var hints = HintAnnotations.Where(f => f.X == X && f.Y == Y);
+                        var otherhints = OtherHintAnnotations.Where(f => f.X == X && f.Y == Y);
 
                         <div class="d-flex square @color justify-content-center align-items-center w-100"
                              oncontextmenu="return false;"
@@ -75,6 +76,13 @@
                                 @if (hints.Any())
                                 {
                                     @foreach (var hint in hints)
+                                    {
+                                        <AnnotationComponent Annotation="hint"></AnnotationComponent>
+                                    }
+                                }
+                                @if (otherhints.Any())
+                                {
+                                    @foreach (var hint in otherhints)
                                     {
                                         <AnnotationComponent Annotation="hint"></AnnotationComponent>
                                     }
@@ -136,6 +144,7 @@
     private Position? AnnotationStartPosition;
     private List<Annotation> Annotations = new List<Annotation>();
     private List<Annotation> HintAnnotations = new List<Annotation>();
+    private List<Annotation> OtherHintAnnotations = new List<Annotation>();
 
     State State => ObserverMode ? Game.ObserverState : Game.State;
 
@@ -347,6 +356,17 @@
         for (int i = 0; i < hints.Count; i++)
         {
             HintAnnotations.Add(new Annotation(hints[i].OldPosition, GuiService.GetHintColor(i), hints[i].NewPosition));
+        }
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    public void DrawOtherHints(List<EngineMove> hints)
+    {
+        OtherHintAnnotations.Clear();
+
+        for (int i = 0; i < hints.Count; i++)
+        {
+            OtherHintAnnotations.Add(new Annotation(hints[i].OldPosition, GuiService.GetOtherHintColor(i), hints[i].NewPosition));
         }
         InvokeAsync(() => StateHasChanged());
     }
