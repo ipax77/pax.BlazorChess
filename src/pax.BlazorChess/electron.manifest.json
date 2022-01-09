@@ -1,0 +1,35 @@
+{
+  "executable": "pax.BlazorChess",
+  "splashscreen": {
+    "imageFile": ""
+  },
+  "name": "pax.BlazorChess",
+  "author": "",
+  "singleInstance": false,
+  "environment": "Production",
+  "build": {
+    "appId": "com.pax.BlazorChess.app",
+    "productName": "pax.BlazorChess",
+    "copyright": "Copyright © 2022",
+    "buildVersion": "0.5.3",
+    "compression": "maximum",
+    "directories": {
+      "output": "../../../bin/Desktop"
+    },
+    "extraResources": [
+      {
+        "from": "./bin",
+        "to": "bin",
+        "filter": [ "**/*" ]
+      }
+    ],
+    "files": [
+      {
+        "from": "./ElectronHostHook/node_modules",
+        "to": "ElectronHostHook/node_modules",
+        "filter": [ "**/*" ]
+      },
+      "**/*"
+    ]
+  }
+}

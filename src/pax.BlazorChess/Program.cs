@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using pax.BlazorChess.Models;
 using pax.BlazorChess.Services;
 using pax.uciChessEngine;
+using ElectronNET.API;
+using ElectronNET.API.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +13,13 @@ builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
 {
     // config.Sources.Clear();
     config.AddJsonFile(ConfigFile, optional: true, reloadOnChange: true);
+});
+
+builder.WebHost.UseElectron(args);
+
+builder.Host.ConfigureHostConfiguration((host) =>
+{
+
 });
 
 // Add services to the container.
@@ -63,6 +72,14 @@ app.UseRouting();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
+Task.Run(async () => await Electron.WindowManager.CreateWindowAsync(new BrowserWindowOptions()
+{
+    AutoHideMenuBar = true,
+    Width = 1920,
+    Height = 1080,
+    X = 0,
+    Y = 0
+}));
 app.Run();
 
 public partial class Program
