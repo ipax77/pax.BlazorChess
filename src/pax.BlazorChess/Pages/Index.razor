@@ -1,6 +1,8 @@
 ﻿@page "/"
 @using pax.chess
 @using pax.uciChessEngine
+@inject NavigationManager _nav;
+@inject EngineService engineService;
 
 <PageTitle>Index</PageTitle>
 
@@ -23,5 +25,21 @@
 @code {
     // Game Game = new Game();
     Game Game = DbMap.GetGame("d2d4g8f6c1f4d7d5e2e3c7c5g1f3b8c6c2c3f6h5d4c5h5f4e3f4e7e6b2b4d8f6d1d2h7h6a2a3g7g5f4g5h6g5d2g5f6g5f3g5a7a5b4b5c6e5f1e2f8c5a3a4c8d7g5f3e5f3e2f3a8c8g2g3e8e7e1f1f7f5f1g2d7e8a1a2b7b6f3d1e6e5d1b3e8f7h2h4e5e4h1d1c8d8b1d2d8g8a2a1f5f4d2f1h8h4b3d5f7h5d1d3e4d3d5g8f4f3g2g1h4e4g8h7e4e2h7d3c5f2g1h1h5f7h1h2f7e6g3g4e6g4f1g3e2e6g3f5e7f6a1a2f2e1f5d4e6e8a2c2f6g5h2g1g5f4d3g6e8e3c2f2e1f2g1f2e3c3d4c2c3b3g6h7b3b2h7d3g4h3d3h7h3e6f2f1e6b3c2e1b2d2h7g6b3c4g6d3c4d3e1d3d2d3f1f2d3d2f2f1f4g3f1e1d2d4e1f1d4d1");
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+        if (firstRender)
+        {
+            if (!engineService.AvailableEngines.Any())
+            {
+                _nav.NavigateTo("config");
+            }
+            else
+            {
+                _nav.NavigateTo("review");
+            }
+        }
+    }
 }
 

@@ -146,7 +146,7 @@
     void Click(MouseEventArgs e, DbGame game)
     {
         IReadOnlyDictionary<string, object?> dict = new Dictionary<string, object?>() { { "GameID", game.Id } };
-        string uristart = "analyzes";
+        string uristart = "review";
         var bab = _nav.GetUriWithQueryParameter("GameId", game.Id);
         bab = bab.Replace("database", uristart);
         Console.WriteLine($"uri: {bab}");

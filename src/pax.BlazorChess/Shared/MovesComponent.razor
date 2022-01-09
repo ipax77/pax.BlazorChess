@@ -1,7 +1,7 @@
 ﻿@using System.Text
 @using pax.chess
 @inject IJSRuntime _js
-@inject ILogger<MovesComponent> logger
+@implements IDisposable
 
 <div style="height: 100%; overflow-y: auto; overflow-x: hidden;">
     @if (Game != null)
@@ -81,11 +81,10 @@
     [Parameter]
     public EventCallback<Move> GotoMove { get; set; }
 
-    protected override void OnParametersSet()
+    protected override void OnInitialized()
     {
-        base.OnParametersSet();
-        logger.LogInformation("parameter set");
-        _js.InvokeVoidAsync("scrollToElement", MoveId(Game.ObserverState.CurrentMove));
+        base.OnInitialized();
+        Game.ObserverMoved += Update;
     }
 
     public string MoveId(Move? move)
@@ -106,8 +105,18 @@
         }
     }
 
-    public void Update()
+    public void Update(object? sender, EventArgs e)
     {
-        InvokeAsync(() => StateHasChanged());
+        _js.InvokeVoidAsync("scrollToElement", MoveId(Game.ObserverState.CurrentMove));
+        if (Game.ObserverState.CurrentMove?.Variation != null)
+        {
+            InvokeAsync(() => StateHasChanged());
+        }
+
+    }
+
+    public void Dispose()
+    {
+        Game.ObserverMoved -= Update;
     }
 }
