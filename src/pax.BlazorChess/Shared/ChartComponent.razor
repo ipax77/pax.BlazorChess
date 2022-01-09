@@ -1,0 +1,66 @@
+﻿@using System.Globalization
+@using pax.BlazorChess.Models
+@using pax.uciChessEngine
+@inject IJSRuntime _js
+@inject ILogger<ChartComponent> logger
+@implements IDisposable
+
+<canvas id="@guid.ToString()"></canvas>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public Chart Chart { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnChartClicked { get; set; }
+
+    public Guid guid { get; private set; } = Guid.NewGuid();
+    private DotNetObjectReference<ChartComponent>? objRef;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+        if (firstRender)
+        {
+            objRef = DotNetObjectReference.Create(this);
+            DrawChart(Chart);
+        }
+    }
+
+    public void DrawChart(Chart chart)
+    {
+        Chart = chart;
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+        CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+        // _js.InvokeVoidAsync("drawChart2", guid.ToString(), new List<string>() { "1", "2", "3"}, new List<double>() { 2, 4, 6 }, objRef);
+        _js.InvokeVoidAsync("drawChart", guid.ToString(), Chart, objRef);
+    }
+
+    public void UpdateLabels(List<string> labels)
+    {
+        _js.InvokeVoidAsync("updateChartLables", labels);
+    }
+
+    public void UpdateDataset(Dataset dataset)
+    {
+        _js.InvokeVoidAsync("updateChartDataset", dataset);
+    }
+
+    [JSInvokable]
+    public void ChartClick(string label)
+    {
+        logger.LogInformation($"chartclick: {label}");
+        OnChartClicked.InvokeAsync(label);
+    }
+
+    public void DrawHorizontalLine(int x)
+    {
+        _js.InvokeVoidAsync("drawHorizontalLine", x);
+    }
+
+    public void Dispose()
+    {
+        objRef?.Dispose();
+    }
+}

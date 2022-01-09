@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using pax.BlazorChess.Models;
 
@@ -10,9 +11,10 @@ using pax.BlazorChess.Models;
 namespace pax.BlazorChess.Migrations
 {
     [DbContext(typeof(ChessContext))]
-    partial class ChessContextModelSnapshot : ModelSnapshot
+    [Migration("20220107063440_Variations")]
+    partial class Variations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "6.0.1");

@@ -1,6 +1,9 @@
-﻿@using pax.chess
+﻿@using System.Text
+@using pax.chess
+@inject IJSRuntime _js
+@implements IDisposable
 
-<div style="height: 100%; overflow: auto">
+<div style="height: 100%; overflow-y: auto; overflow-x: hidden;">
     @if (Game != null)
     {
         <table class="table table-dark table-striped">
@@ -23,17 +26,46 @@
                 @for (int i = 0; i < Game.State.Moves.Count; i += 2)
                 {
                     int I = i;
-                    <tr>
-                        <td>@(((int)I/2) + 1)</td>
-                        <td class="pointer @(Game.ObserverMove == I + 1 ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I))">@Game.State.Moves[I].PgnMove</td>
-                        @if (Game.State.Moves.Count > I + 1)
+                    Move whitemove = Game.State.Moves[I];
+                    Move? blackmove = Game.State.Moves.Count > I + 1 ? Game.State.Moves[I + 1] : null;
+                    bool whiteIsCurrent = Game.ObserverState.IsCurrentMove(whitemove);
+                    bool blackIsCurrent = Game.ObserverState.IsCurrentMove(blackmove);
+                    @if (Game.Variations.ContainsKey(whitemove))
+                    {
+                        <tr>
+                            <td>@(((int)I/2) + 1)</td>
+                            <td id="@MoveId(whitemove)" class="pointer @(whiteIsCurrent ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(whitemove)">@whitemove.PgnMove</td>
+                        </tr>
+                        <MovesVariationComponent Variations="Game.Variations[whitemove]" Game="Game" GotoMove="GotoMove"></MovesVariationComponent>
+                        @if (blackmove != null)
                         {
-                            <td class="pointer @(Game.ObserverMove == I + 2 ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(new KeyValuePair<Guid, int>(Game.Guid, I + 1))">
-                                @Game.State.Moves[I + 1].PgnMove
-                            </td>
+                            <tr>
+                                <td>@(((int)I/2) + 1)</td>
+                                <td>...</td>
+                                <td id="@MoveId(blackmove)" class="pointer @(blackIsCurrent ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(blackmove)">
+                                    @blackmove.PgnMove
+                                </td>
+                            </tr>
                         }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td>@(((int)I/2) + 1)</td>
+                            <td id="@MoveId(whitemove)" class="pointer @(whiteIsCurrent ? "table-info rounded" : "")" @onclick="e => GotoMove.InvokeAsync(whitemove)">@whitemove.PgnMove</td>
+                            @if (blackmove != null)
+                            {
+                                <td id="@MoveId(whitemove)" class="pointer @(blackIsCurrent ? "table-info" : "")" @onclick="e => GotoMove.InvokeAsync(blackmove)">
+                                    @blackmove.PgnMove
+                                </td>
+                            }
 
-                    </tr>
+                        </tr>
+                    }
+                    @if (blackmove != null && Game.Variations.ContainsKey(blackmove))
+                    {
+                        <MovesVariationComponent Variations="Game.Variations[blackmove]" Game="Game" GotoMove="GotoMove"></MovesVariationComponent>
+                    }
                 }
             </tbody>
         </table>
@@ -43,10 +75,48 @@
 @code
 {
     [CascadingParameter]
-    public Game? Game { get; set; }
+    [EditorRequired]
+    public Game Game { get; set; } = new Game();
 
     [Parameter]
-    public EventCallback<KeyValuePair<Guid, int>> GotoMove { get; set; }
+    public EventCallback<Move> GotoMove { get; set; }
 
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Game.ObserverMoved += Update;
+    }
 
+    public string MoveId(Move? move)
+    {
+        if (move == null)
+        {
+            return "0";
+        }
+        else
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append(move.Variation == null ? "0|0" : $"{move.Variation.StartMove}|{move.Variation.RootStartMove}");
+            sb.Append("|");
+            sb.Append(move.HalfMoveNumber);
+            sb.Append("|");
+            sb.Append(Game.Guid.ToString().Substring(0, 5));
+            return sb.ToString();
+        }
+    }
+
+    public void Update(object? sender, EventArgs e)
+    {
+        _js.InvokeVoidAsync("scrollToElement", MoveId(Game.ObserverState.CurrentMove));
+        if (Game.ObserverState.CurrentMove?.Variation != null)
+        {
+            InvokeAsync(() => StateHasChanged());
+        }
+
+    }
+
+    public void Dispose()
+    {
+        Game.ObserverMoved -= Update;
+    }
 }

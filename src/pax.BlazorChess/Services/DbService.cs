@@ -15,9 +15,46 @@ public class DbService
         this.logger = logger;
     }
 
+    public async Task<DbGame> SaveGame(Game game, int? gameId)
+    {
+        DbGame? dbGame = null;
+        if (gameId != null)
+        {
+            dbGame = await context.Games.FirstOrDefaultAsync(f => f.Id == gameId);
+            if (dbGame == null) return null;
+        } else
+        {
+            if (game.Infos.ContainsKey("Site"))
+            {
+                dbGame = await context.Games.FirstOrDefaultAsync(f => f.Site == game.Infos["Site"]);
+            }
+        }
+        DbGame newGame;
+        if (dbGame == null)
+        {
+            newGame = new DbGame();
+            context.Games.Add(newGame);
+        }
+        else
+        {
+            newGame = dbGame;
+        }
+
+        DbMap.SetGameInfo(newGame, game);
+        newGame.HalfMoves = game.State.Moves.Count;
+        newGame.EngineMoves = String.Concat(game.State.Moves.Select(s => Map.GetEngineMoveString(s)));
+        newGame.Variations = DbMap.GetVariations(game);
+        await context.SaveChangesAsync();
+        return newGame;
+    }
+
     public async Task<Game?> GetGameFromIdAsync(int gameId)
     {
-        var dbGame = await context.Games.AsNoTracking().FirstOrDefaultAsync(f => f.Id == gameId);
+        var dbGame = await context.Games
+            .Include(i => i.Variations)
+                .ThenInclude(i => i.Evaluation)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Id == gameId);
         if (dbGame == null) return null;
         var game = DbMap.GetGame(dbGame);
         return game;

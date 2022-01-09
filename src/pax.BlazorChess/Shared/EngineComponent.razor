@@ -1,0 +1,162 @@
+﻿@using pax.chess
+@using pax.uciChessEngine
+@inject EngineService engineService
+@implements IDisposable
+
+@if (Analyzes != null)
+{
+    <div>
+        <div class="btn-group">
+            <span class="oi oi-cog pointer me-3" @onclick="e => enginesModal?.Show()"></span>
+            @if (!Analyzes.isPaused)
+            {
+                <button type="button" class="btn btn-sm btn-outline-warning" @onclick="Pause">Pause</button>
+            }
+            else
+            {
+                <button type="button" class="btn btn-sm btn-outline-warning" @onclick="e => Analyzes.Resume()">Resume</button>
+            }
+        </div>
+        @if (!Analyzes.isPaused)
+        {
+            <div class="mt-1">
+                <CascadingValue Value="Game">
+                    <div class="row ms-1">
+                        @foreach (var engineInfo in EngineInfos.OrderBy(o => o.EngineName))
+                        {
+                            <CascadingValue Value="engineInfo">
+                                <EvalComponent OnPvInfoSelected="PvInfoSelected" OnPvLinesChange="PvLinesChange" OnCloseRequested="RemoveEngine"></EvalComponent>
+                            </CascadingValue>
+                        }
+                    </div>
+                </CascadingValue>
+            </div>
+        }
+    </div>
+}
+
+<EnginesModal @ref="enginesModal" EngineSelected="LoadEngine"></EnginesModal>
+
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public Game Game { get; set; } = new Game();
+
+    [Parameter]
+    public BoardContainer? mainBoard { get; set; }
+
+    Analyzes? Analyzes;
+    List<EngineInfo> EngineInfos = new List<EngineInfo>();
+
+    EnginesModal? enginesModal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        Analyzes = await engineService.CreateAnalyzes(Game);
+        Analyzes.EngineInfoAvailable += InfoAvailable;
+    }
+
+    private void InfoAvailable(object? sender, List<EngineInfo> infos)
+    {
+        EngineInfos = infos;
+
+        if (infos.Any())
+        {
+            HashSet<EngineMove> hints = new HashSet<EngineMove>();
+            infos.ForEach(f => f.PvInfos.ForEach(g => hints.Add(g.Moves[0])));
+            if (hints.Any())
+            {
+                mainBoard?.DrawOtherHints(hints.ToList(), true);
+            }
+        }
+
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    private void LoadEngine(string engineName)
+    {
+        Analyzes?.AddEngine(new Engine(engineName, engineService.AvailableEngines[engineName]));
+    }
+
+    private void PvInfoSelected(KeyValuePair<string, PvInfo> info)
+    {
+        int startMoveId = Game.ObserverState.CurrentMove == null ? 0 : Game.ObserverState.CurrentMove.HalfMoveNumber + 1;
+        Game.CreateVariation(startMoveId, info.Value.Moves, new Evaluation(info.Value.Score, info.Value.Mate, Game.ObserverState.Info.BlackToMove));
+    }
+
+    public async Task<EngineMove?> ExecuteBestMove()
+    {
+        if (Analyzes != null)
+        {
+            if (Analyzes.isPaused)
+            {
+                Analyzes.Resume();
+                return null;
+            }
+            var engine = Analyzes.Engines.FirstOrDefault();
+            if (engine != null)
+            {
+                var info = await engine.GetStopInfo();
+                if (info != null && info.BestMove != null)
+                {
+                    Game.VariationMove(info.BestMove);
+                    await Analyzes.UpdateEngineGame();
+                    return info.BestMove;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void RemoveEngine(string engineName)
+    {
+        if (Analyzes != null)
+        {
+            var engine = Analyzes.Engines.FirstOrDefault(f => f.Name == engineName);
+            if (engine != null)
+            {
+                Analyzes.RemoveEngine(engine);
+            }
+        }
+    }
+
+    private async void PvLinesChange(KeyValuePair<string, bool> info)
+    {
+        if (Analyzes != null)
+        {
+            var engine = Analyzes.Engines.FirstOrDefault(f => f.Name == info.Key);
+            if (engine != null)
+            {
+                await Analyzes.ChangePvLine(engine, info.Value);
+            }
+        }
+    }
+
+    public void Pause()
+    {
+        if (Analyzes != null)
+        {
+            mainBoard?.DrawOtherHints(new List<EngineMove>(), true);
+            Analyzes.Pause();
+        }
+    }
+
+    public async Task Update()
+    {
+        if (Analyzes != null)
+        {
+            await Analyzes.UpdateEngineGame();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (Analyzes != null)
+        {
+            Analyzes.EngineInfoAvailable -= InfoAvailable;
+            Analyzes.Dispose();
+        }
+    }
+}

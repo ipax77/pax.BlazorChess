@@ -1,0 +1,97 @@
+﻿@using pax.BlazorChess.Models
+@using pax.chess
+@using pax.uciChessEngine
+@inject EngineService engineService
+@inject IJSRuntime _js
+
+<!-- Modal -->
+<div class="modal fade" id="eveModal" tabindex="-1" aria-labelledby="eveModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">
+                    Engine vs Engine Options
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <EditForm EditContext="editContext" OnValidSubmit="Set">
+                    <div class="d-flex">
+                        <div class="form-group">
+                            <label for="engineSelect" class="form-label mt-4">White Engine</label>
+                            <select class="form-select" id="engineSelect" @bind="Options.WhiteEngineName">
+                                @foreach (var engine in engineService.AvailableEngines)
+                                {
+                                    <option value="@engine.Key">@engine.Key</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="engineSelect" class="form-label mt-4">Black Engine</label>
+                            <select class="form-select" id="engineSelect" @bind="Options.BlackEngineName">
+                                @foreach (var engine in engineService.AvailableEngines)
+                                {
+                                    <option value="@engine.Key">@engine.Key</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <label for="timespan" class="form-label">Game Time Seconds @Options.TimeInSeconds - @TimeSpan.FromSeconds(Options.TimeInSeconds).ToString(@"hh\:mm\:ss")</label>
+                        <input type="range" min="60" max="7200" step="60" class="form-range" id="timespan" @bind="Options.TimeInSeconds">
+                    </div>
+                    <div>
+                        <label for="threads" class="form-label">Increment in Seconds @Options.IncrementInSeconds - @TimeSpan.FromSeconds(Options.IncrementInSeconds).ToString(@"mm\:ss")</label>
+                        <input type="range" min="0" max="60" class="form-range" id="threads" @bind="Options.IncrementInSeconds">
+                    </div>
+                    <div>
+                        <label for="threads" class="form-label">Threads (combined) @Options.Threads</label>
+                        <input type="range" min="2" max="@(Environment.ProcessorCount / 2)" class="form-range" id="threads" @bind="Options.Threads">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </EditForm>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public EngineGameOptions Options { get; set; } = new EngineGameOptions();
+
+    [Parameter]
+    public EventCallback OnSettingsChoosen { get; set; }
+
+    EditContext? editContext;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        editContext = new EditContext(Options);
+    }
+
+    private async void Close()
+    {
+        await _js.InvokeVoidAsync("modalClose");
+    }
+
+    public async void Show(EngineGameOptions options)
+    {
+        Options = options;
+        await _js.InvokeVoidAsync("modalOpen", "eveModal");
+        StateHasChanged();
+    }
+
+    public void Set()
+    {
+        OnSettingsChoosen.InvokeAsync();
+        Close();
+    }
+}

@@ -1,8 +1,14 @@
 ﻿@using pax.chess
 @inject IJSRuntime _js
 
-<div class="d-flex" tabindex="0" @onkeydown="KeyDown" @onmousewheel:preventDefault @onmousewheel="MouseWheel" style="outline: none !important;">
+<div class="d-flex" tabindex="0" @ref="boardcontainer" @onkeydown="KeyDown" @onmousewheel="MouseWheel" style="outline: none !important; touch-action: none;">
     <CascadingValue Value="Game">
+        @if (ShowInfo)
+        {
+            <div class="mx-2">
+                <GameInfoComponent></GameInfoComponent>
+            </div>
+        }
         <div>
             @if (ShowBoard)
             {
@@ -13,49 +19,16 @@
             @if (ShowObserverBoard)
             {
                 <div class="boardcontainer mt-1" style="width: 40vh;">
-                    <BoardComponent @ref="boardobs" ObserverMode="true"></BoardComponent>
+                    <BoardComponent @ref="boardobs" ObserverMode="true" OnMoveUpdate="ObserverBoardUpdate"></BoardComponent>
                 </div>
             }
         </div>
         <div>
-            @if (ShowInfo)
-            {
-                <div class="mx-2">
-                    <table class="table table-sm table-striped">
-                        <tbody>
-                            <tr>
-                                <td colspan="2">@Game.Name</td>
-                            </tr>
-                            @if (Game.Result != Result.None)
-                            {
-                                <tr>
-                                    <td colspan="2">@Game.Result</td>
-                                </tr>
-                                <tr>
-                                    <td colspan="2">@Game.Termination</td>
-                                </tr>
-                            }
-                            @if (Game.Time != null)
-                            {
-                                <tr>
-                                    <td>
-                                        <span class="badge bg-light">@Game.Time.CurrentWhiteTime.ToString(@"hh\:mm\:ss")</span>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-dark">@Game.Time.CurrentBlackTime.ToString(@"hh\:mm\:ss")</span>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-
-                    </table>
-                </div>
-            }
             @if (ShowMoves)
             {
                 <div class="mx-2">
                     <div style="height: 40vh;">
-                        <MovesComponent GotoMove="GotoBoardMove"></MovesComponent>
+                        <MovesComponent @ref="movesComponent" GotoMove="GotoBoardMove"></MovesComponent>
                     </div>
                 </div>
             }
@@ -66,7 +39,7 @@
 @code {
     [Parameter]
     [EditorRequired]
-    public Game Game { get; set; }
+    public Game Game { get; set; } = new Game();
 
     [Parameter]
     public bool ShowBoard { get; set; } = true;
@@ -81,10 +54,15 @@
     public bool ShowInfo { get; set; } = true;
 
     [Parameter]
-    public EventCallback<int?> OnObserverMoveChanged { get; set; }
+    public EventCallback OnObserverMoveChanged { get; set; }
 
+    [Parameter]
+    public EventCallback OnMoveRequested { get; set; }
+
+    ElementReference? boardcontainer;
     BoardComponent? board;
     BoardComponent? boardobs;
+    MovesComponent? movesComponent;
 
     private Game? KeyBoardGame;
 
@@ -126,12 +104,12 @@
         }
     }
 
-    public void DrawLastMove(Position start, Position end, bool ObserverBoard, string color = "lightgrey")
+    public void DrawOtherHints(List<EngineMove> hints, bool ObserverBoard)
     {
         var dboard = ObserverBoard ? boardobs : board;
         if (dboard != null)
         {
-            dboard.DrawLastMove(start, end, color);
+            dboard.DrawOtherHints(hints);
         }
     }
 
@@ -140,12 +118,16 @@
         if (e.Code == "ArrowRight")
         {
             KeyBoardGame?.ObserverMoveForward();
-            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+            OnObserverMoveChanged.InvokeAsync();
         }
         else if (e.Code == "ArrowLeft")
         {
             KeyBoardGame?.ObserverMoveBackward();
-            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+            OnObserverMoveChanged.InvokeAsync();
+        }
+        else if (e.Code == "Space")
+        {
+            OnMoveRequested.InvokeAsync();
         }
     }
 
@@ -154,12 +136,12 @@
         if (e.DeltaY > 0)
         {
             KeyBoardGame?.ObserverMoveForward();
-            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+            OnObserverMoveChanged.InvokeAsync();
         }
         else if (e.DeltaY < 0)
         {
             KeyBoardGame?.ObserverMoveBackward();
-            OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+            OnObserverMoveChanged.InvokeAsync();
         }
     }
 
@@ -169,10 +151,22 @@
         KeyBoardGame = Game;
     }
 
-    private void GotoBoardMove(KeyValuePair<Guid, int> move)
+    private void ObserverBoardUpdate()
     {
-        Game.ObserverMoveTo(move.Value + 1);
+        StateHasChanged();
         KeyBoardGame = Game;
-        OnObserverMoveChanged.InvokeAsync(KeyBoardGame?.ObserverMove);
+    }
+
+    private void GotoBoardMove(Move move)
+    {
+        Game.ObserverMoveTo(move);
+        KeyBoardGame = Game;
+        OnObserverMoveChanged.InvokeAsync();
+    }
+
+    public void Focus()
+    {
+        KeyBoardGame = Game;
+        _js.InvokeVoidAsync("SetFocusToElement", boardcontainer);
     }
 }

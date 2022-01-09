@@ -5,7 +5,12 @@
 {
     <div class="card" style="width: 30vw;">
         <div class="card-header">
-            @EngineInfo.EngineName
+            <span class="oi oi-x text-danger pointer me-3" @onclick="e => OnCloseRequested.InvokeAsync(EngineInfo.EngineName)"></span>
+            <span>@EngineInfo.EngineName</span>
+            <span class="float-end">
+            <span class="oi oi-plus pointer" @onclick="e => OnPvLinesChange.InvokeAsync(new KeyValuePair<string, bool>(EngineInfo.EngineName, true))"></span>
+            <span class="oi oi-minus pointer ms-1" @onclick="e => OnPvLinesChange.InvokeAsync(new KeyValuePair<string, bool>(EngineInfo.EngineName, false))"></span>
+            </span>
         </div>
         <div class="card-body">
             <table class="table table-sm table-striped">
@@ -42,4 +47,12 @@
 
     [Parameter]
     public EventCallback<KeyValuePair<string, PvInfo>> OnPvInfoSelected { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnCloseRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<KeyValuePair<string, bool>> OnPvLinesChange { get; set; }
+
+
 }

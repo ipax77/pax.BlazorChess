@@ -36,48 +36,54 @@
         <div>
             <div style="width: 40vw;">
                 <div class="btn-group">
-                    <button type="button" class="btn btn-sm btn-outline-success" @onclick="Start">Start</button>
-                    <button type="button" class="btn btn-sm btn-outline-warning" @onclick="Stop">Stop</button>
+                    @if (!EngineGame.Playing)
+                    {
+                        <span class="oi oi-cog pointer me-2" @onclick="e => eveOptionsModal?.Show(EngineGame.Options)"></span>
+                        <button type="button" class="btn btn-sm btn-outline-success" @onclick="Start">Start</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="Stop">Stop</button>
+                    }
                     <button type="button" class="btn btn-sm btn-outline-danger" @onclick="Delete">Delete</button>
                 </div>
-                @if (BlackEvent != null)
-                {
-                    <div class="d-flex justify-content-between mt-1">
-                        @if (EngineGame.Game.State.Info.BlackToMove)
-                        {
-                            <span class="col-sm-3 badge bg-primary"><span class="oi oi-arrow-circle-right text-black"></span> @BlackEvent.EngineName</span>
-                        }
-                        else
-                        {
-                            <span class="col-sm-3 badge bg-primary">@BlackEvent.EngineName</span>
-                        }
-                        <span class="col-sm-3 badge bg-info">Eval @BlackEval.ToString()</span>
-                        <span class="badge bg-dark">@EngineGame.Game.Time.CurrentBlackTime.ToString(@"hh\:mm\:ss")</span>
-                    </div>
-                }
-                @if (WhiteEvent != null)
-                {
-                    <div class="d-flex justify-content-between">
-                        @if (!EngineGame.Game.State.Info.BlackToMove)
-                        {
-                            <span class="col-sm-3 badge bg-primary"><span class="oi oi-arrow-circle-right text-white"></span> @WhiteEvent.EngineName</span>
-                        }
-                        else
-                        {
-                            <span class="col-sm-3 badge bg-primary">@WhiteEvent.EngineName</span>
-                        }
-                        <span class="col-sm-3 badge bg-info">Eval @WhiteEval.ToString()</span>
-                        <span class="badge bg-light">@EngineGame.Game.Time.CurrentWhiteTime.ToString(@"hh\:mm\:ss")</span>
-                    </div>
-                }
+
             </div>
             <div>
                 <BoardContainer @ref="boardContainer" Game="EngineGame.Game"></BoardContainer>
             </div>
         </div>
-        <div>
-@*            <EvalComponent Status="eve.WhiteEngine.Status"></EvalComponent>
-            <EvalComponent Status="eve.BlackEngine.Status"></EvalComponent>*@
+        <div class="mt-2">
+            @if (BlackEvent != null)
+            {
+                <div class="d-flex justify-content-between mt-1">
+                    @if (EngineGame.Game.State.Info.BlackToMove)
+                    {
+                        <span class="col-sm-5 badge bg-primary"><span class="oi oi-arrow-circle-right text-black"></span> @BlackEvent.EngineName</span>
+                    }
+                    else
+                    {
+                        <span class="col-sm-5 badge bg-primary">@BlackEvent.EngineName</span>
+                    }
+                    <span class="col-sm-5 badge bg-info">Eval @BlackEval.ToString()</span>
+                    <span class="badge bg-dark">@EngineGame.Game.Time.CurrentBlackTime.ToString(@"hh\:mm\:ss")</span>
+                </div>
+            }
+            @if (WhiteEvent != null)
+            {
+                <div class="d-flex justify-content-between">
+                    @if (!EngineGame.Game.State.Info.BlackToMove)
+                    {
+                        <span class="col-sm-5 badge bg-primary"><span class="oi oi-arrow-circle-right text-white"></span> @WhiteEvent.EngineName</span>
+                    }
+                    else
+                    {
+                        <span class="col-sm-5 badge bg-primary">@WhiteEvent.EngineName</span>
+                    }
+                    <span class="col-sm-5 badge bg-info">Eval @WhiteEval.ToString()</span>
+                    <span class="badge bg-light">@EngineGame.Game.Time.CurrentWhiteTime.ToString(@"hh\:mm\:ss")</span>
+                </div>
+            }
         </div>
     </div>
 }
@@ -85,6 +91,7 @@ else
 {
     <p>Start new Engine vs Engine game ...</p>
 }
+<EveOptionsModal @ref="eveOptionsModal" Options="Options" OnSettingsChoosen="Start"></EveOptionsModal>
 
 @code {
     [Parameter]
@@ -98,8 +105,10 @@ else
     EngineMoveEventArgs? BlackEvent;
     Evaluation WhiteEval = new Evaluation(0, 0, false);
     Evaluation BlackEval = new Evaluation(0, 0, true);
+    EngineGameOptions Options = new EngineGameOptions();
 
     BoardContainer? boardContainer;
+    EveOptionsModal? eveOptionsModal;
 
     protected override void OnInitialized()
     {
@@ -114,9 +123,22 @@ else
         {
             EngineGame = EngineGames.FirstOrDefault();
         }
-        if (EngineGame != null)
+        if (EngineGame != null && EngineGame.Playing)
         {
             EngineGame.EngineMoved += EngineMoved;
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+        if (firstRender)
+        {
+            if (EngineGame != null && !EngineGame.Playing)
+            {
+                Options = EngineGame.Options;
+                eveOptionsModal?.Show(EngineGame.Options);
+            }
         }
     }
 
@@ -152,14 +174,17 @@ else
 
     public void Start()
     {
-        EngineGame?.Start();
+        if (EngineGame != null)
+        {
+            EngineGame.EngineMoved += EngineMoved;
+            engineService.SetEngineGameOptions(EngineGame, Options);
+            _ = EngineGame.Start();
+        }
     }
 
     public void Stop()
     {
-        if (EngineGame != null)
-        {
-        }
+        EngineGame?.Stop();
     }
 
     public void Delete()

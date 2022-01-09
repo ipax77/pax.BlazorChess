@@ -1,0 +1,53 @@
+﻿@using pax.chess
+
+<div>
+    @if (dbGame != null && !isHidden)
+    {
+    <table class="table table-sm table-striped">
+        <thead>
+            <tr>
+                <th>
+                    <button type="button" class="btn btn-dm Update" @onclick="ShowHide"><span class="oi oi-x text-danger"></span></button>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>@dbGame.UTCDate @dbGame.UTCTime</td></tr>
+            <tr><td>@dbGame.Event @dbGame.TimeControl</td></tr>
+            <tr><td><span class="oi oi-arrow-circle-right text-white"></span> @dbGame.White (@dbGame.WhiteElo)</td></tr>
+            <tr><td><span class="oi oi-arrow-circle-right text-black"></span> @dbGame.Black (@dbGame.BlackElo)</td></tr>
+            <tr><td>@dbGame.Result @dbGame.Termination</td></tr>
+        </tbody>
+        </table>
+    } else
+    {
+        <button type="button" class="btn btn-sm" @onclick="ShowHide"><span class="oi oi-info"></span></button>
+    }
+</div>
+
+@code {
+    [CascadingParameter]
+    [EditorRequired]
+    public Game Game { get; set; } = new Game();
+
+    private DbGame? dbGame;
+    private bool isHidden = true;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        dbGame = DbMap.GetGame(Game);
+    }
+
+    public void ShowHide()
+    {
+        isHidden = !isHidden;
+        Update();
+    }
+
+    public void Update()
+    {
+        dbGame = DbMap.GetGame(Game);
+        InvokeAsync(() => StateHasChanged());
+    }
+}

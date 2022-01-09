@@ -31,4 +31,15 @@ public static class GuiService
         5 => "#ecc6d9",
         _ => "#f9ecf2"
     };
+
+    public static string GetOtherHintColor(int i) => i switch
+    {
+        0 => "#000066",
+        1 => "#000099",
+        2 => "#0000cc",
+        3 => "#0000ff",
+        4 => "#3333ff",
+        5 => "#6666ff",
+        _ => "#9999ff"
+    };
 }

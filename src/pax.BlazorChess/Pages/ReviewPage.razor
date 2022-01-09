@@ -1,14 +1,31 @@
 ﻿@page "/review"
+@using pax.BlazorChess.Models
 @using pax.BlazorChess.Services
 @using pax.chess
 @using pax.uciChessEngine
+@using System.Text.Json
 @inject EngineService engineService
 @inject DbService dbService
+@inject NavigationManager _nav
+@inject ILogger<ReviewPage> logger
+@implements IDisposable
 
 <div class="btn-group">
-    <button type="button" class="btn btn-primary" @onclick="@( async() => _ = Analyse())">Analyse</button>
-    <button type="button" class="btn btn-danger" @onclick="Stop">Stop</button>
-
+    <button type="button" class="btn btn-outline-light" @onclick="e => loadModal?.Show()">Import</button>
+    @if (!Analyzing)
+    {
+        <button type="button" class="btn btn-outline-warning" @onclick="@( async() => _ = Analyse())">Analyze</button>
+        <button type="button" class="btn btn-success ms-2" @onclick="Save">Save</button>
+    }
+    else
+    {
+        <div class="spinner-border mx-2" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <button type="button" class="btn btn-danger ms-2" @onclick="Stop">Stop</button>
+    }
+    <button type="button" class="btn btn-info ms-2" @onclick="StartEngineVsEngineGame">Engine vs Engine</button>
+    <span class="oi oi-cog pointer ms-5" @onclick="e => settingModal?.Show(reviewSettings)"></span>
 </div>
 <div class="d-flex">
     @if (Analysis != null)
@@ -21,129 +38,173 @@
                         @if (NextInfo != null)
                         {
                             <div class="border rounded p-1">
-                                <h4><span class="badge bg-secondary">Game: @Analysis.Game.State.Moves[CurrentInfo.HalfMoveNumber].PgnMove</span></h4>
-                                <h4><span class="badge bg-info">Game Eval @NextInfo.Eval</span></h4>
+                                <h4><span class="badge bg-secondary">Game: @CurrentInfo.GameMove.PgnMove</span></h4>
+                                <h4><span class="badge bg-info">Game Eval @NextInfo.BestMove.Evaluation</span></h4>
                             </div>
                         }
                         <div class="border rounded p-1">
-                            <h4><span class="badge bg-primary">Bestmove: @CurrentInfo.BestPgnMove</span></h4>
-                            <h4><span class="badge bg-info">Eval @CurrentInfo.Eval</span></h4>
+                            <h4><span class="badge bg-primary">Bestmove: @CurrentInfo.BestMove.PgnMove</span></h4>
+                            <h4><span class="badge bg-info">Eval @CurrentInfo.BestMove.Evaluation</span></h4>
+                            <button type="button" class="btn btn-sm btn-outline-light" @onclick="ShowBestLine">Show Line</button>
                         </div>
-                        <div class="border rounded p-1">
-                            <h4><span class="badge bg-secondary">2nd Best: @CurrentInfo.RunnerPgnMove</span></h4>
-                            <h4><span class="badge bg-info">Runner Eval @CurrentInfo.RunnerEval</span></h4>
-                        </div>
+                        @if (CurrentInfo.RunnerMoves.Any())
+                        {
+                            <div class="border rounded p-1">
+                                <h4><span class="badge bg-secondary">2nd Best: @CurrentInfo.RunnerMoves[0].PgnMove</span></h4>
+                                <h4><span class="badge bg-info">Runner Eval @CurrentInfo.RunnerMoves[0].Evaluation</span></h4>
+                                <button type="button" class="btn btn-sm btn-outline-light" @onclick="e => Show2ndBestLine(0)">Show Line</button>
+                            </div>
+                        }
                     </div>
                 }
             </div>
-            <BoardContainer @ref="boardContainer" Game="Analysis.Game" ShowBoard="false" OnObserverMoveChanged="ObserverMoveChanged"></BoardContainer>
+            <BoardContainer @ref="boardContainer" Game="Analysis.Game" ShowBoard="false" OnObserverMoveChanged="ObserverMoveChanged" OnMoveRequested="MoveRequested"></BoardContainer>
 
         </div>
     }
     else
     {
-        <div>
-            <p>
-                Loading ...
-            </p>
-        </div>
+
     }
-    <div class="ms-4">
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>BestMove</th>
-                    <th>Eval</th>
-                    <th>Ponder</th>
-                    <th>PonderEval</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var info in Infos.OrderBy(o => o.HalfMoveNumber))
-                {
-                    <tr>
-                        <td>@info.HalfMoveNumber</td>
-                        <td>@info.BestMove</td>
-                        <td>@info.Eval</td>
-                        <td>@info.RunnerMove</td>
-                        <td>@info.RunnerEval</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+    <div class="ms-4"  style="width: 40vw;">
+        @if (Analysis != null)
+        {
+        <div>
+            <EngineComponent @ref="engineComponent" Game="Analysis.Game" mainBoard="boardContainer"></EngineComponent>
+        </div>
+        }
+        <div>
+            <ChartComponent @ref="chart" Chart="_chart" OnChartClicked="ChartClicked"></ChartComponent>
+        </div>
     </div>
 </div>
+<LoadModal @ref="loadModal" Loaded="GameImport"></LoadModal>
+<SettingsModal @ref="settingModal" Setting="SettingsModal.PageSetting.Review" OnSettingsChoosen="SettingsChoosen"></SettingsModal>
 
 @code {
     [Parameter]
     [SupplyParameterFromQuery]
-    public int? GameId { get; set; }
+    public int? GameId { get; set; } = 22;
 
-    GameAnalysis? Analysis;
+    List<GameAnalyzes> GameAnalyzis = new List<GameAnalyzes>();
+    GameAnalyzes? Analysis;
     BoardContainer? boardContainer;
+    ChartComponent? chart;
+    LoadModal? loadModal;
+    SettingsModal? settingModal;
+    EngineComponent? engineComponent;
+
     CancellationTokenSource cts = new CancellationTokenSource();
 
-    List<InfoHelper> Infos = new List<InfoHelper>();
-    private int ObserverMove;
-    private InfoHelper? CurrentInfo => Infos.FirstOrDefault(f => f.HalfMoveNumber == ObserverMove - 1);
-    private InfoHelper? NextInfo => Infos.FirstOrDefault(f => f.HalfMoveNumber == ObserverMove);
+    List<Rating> Infos = new List<Rating>();
+    private Rating? CurrentInfo;
+    private Rating? NextInfo;
+
+    private Chart _chart = ChartService.GetRatingChart();
+    private bool Analyzing = false;
+
+    private ReviewSettings reviewSettings = new ReviewSettings();
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        reviewSettings.EngineString = engineService.AvailableEngines.First().Key;
         _ = Init();
     }
 
     private async Task Init()
     {
-        if (Analysis == null)
+        GameAnalyzis = engineService.GetGameAnalyses();
+        if (GameId == null)
         {
-            if (GameId == null)
+            Analysis = GameAnalyzis.FirstOrDefault();
+        }
+        else
+        {
+            var game = await dbService.GetGameFromIdAsync((int)GameId);
+            if (game != null)
             {
-                var game = await dbService.GetGameFromIdAsync(2);
-                if (game != null)
-                {
-                    Analysis = engineService.CreateGameAnalyzes(game, "Stockfish");
-                }
+                Analysis = engineService.CreateGameAnalyzes(game, reviewSettings.EngineString);
             }
-            else
-            {
-                var game = await dbService.GetGameFromIdAsync((int)GameId);
-                if (game != null)
-                {
-                    Analysis = engineService.CreateGameAnalyzes(game, "Stockfish");
-                }
-            }
-            await InvokeAsync(() => StateHasChanged());
+        }
+        await InvokeAsync(() => StateHasChanged());
+        if (Analysis != null)
+        {
+            _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
         }
     }
 
-    private void ObserverMoveChanged(int? i)
+    private async void GameImport(Game game)
     {
-        if (i != null)
+        GameId = null;
+        Analysis = engineService.CreateGameAnalyzes(game, reviewSettings.EngineString);
+
+        if (game.State.Moves.Any())
         {
-            ObserverMove = (int)i;
+            if (!game.Infos.ContainsKey("UTCDate"))
+            {
+                game.Infos["UTCDate"] = DateTime.UtcNow.ToString("yyyy.MM.dd");
+                game.Infos["UTCTime"] = DateTime.UtcNow.ToString("HH:mm:ss");
+            }
+            var dbGame = await dbService.SaveGame(game, null);
+            if (dbGame != null)
+            {
+                GameId = dbGame.Id;
+                _nav.NavigateTo(_nav.GetUriWithQueryParameter("GameId", GameId));
+            }
+        }
+    }
+
+    private void SettingsChoosen()
+    {
+        if (Analysis != null)
+        {
+            engineService.DeleteGameAnalyzes(Analysis);
+            Analysis = engineService.CreateGameAnalyzes(Analysis.Game, reviewSettings.EngineString);
+        }
+    }
+
+    private void ChartClicked(string label)
+    {
+        if (Analysis != null)
+        {
+            int i;
+            if (int.TryParse(label, out i))
+            {
+                Analysis.Game.ObserverMoveTo(i);
+                ObserverMoveChanged();
+                boardContainer?.Focus();
+            }
+        }
+    }
+
+    private void UpdateChart()
+    {
+        _chart.data.datasets[0].data = Infos.OrderByDescending(o => o.BestMove.HalfMoveNumber).Select(s => s.BestMove.Evaluation != null ? s.BestMove.Evaluation.ChartScore() : 0).ToList();
+        chart?.UpdateDataset(_chart.data.datasets[0]);
+    }
+
+    private void ObserverMoveChanged()
+    {
+        _ = engineComponent?.Update();
+        if (Analysis != null && Analysis.Game.ObserverState.CurrentMove != null && Analysis.Game.ObserverState.CurrentMove.Variation == null)
+        {
+            CurrentInfo = Infos.FirstOrDefault(f => f.BestMove.HalfMoveNumber == Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber);
+            NextInfo = Infos.FirstOrDefault(f => f.BestMove.HalfMoveNumber == Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber + 1);
             if (CurrentInfo != null)
             {
-                var move = Map.GetEngineMove(CurrentInfo.BestMove);
-                var runnermove = Map.GetEngineMove(CurrentInfo.RunnerMove);
+                var move = CurrentInfo.BestMove;
+                var runnermove = CurrentInfo.RunnerMoves.FirstOrDefault();
                 if (move != null && runnermove != null)
                 {
-                    boardContainer?.DrawHints(new List<EngineMove>() { move, runnermove }, true);
-                }
-                if (Analysis != null)
-                {
-                    var pgnState = new State(Analysis.Game.ObserverState);
-                    if (pgnState.Moves.Any())
-                    {
-                        pgnState.RevertMove();
-                    }
-                    CurrentInfo.BestPgnMove = Pgn.GetPgnMove(Map.GetValidEngineMove(CurrentInfo.BestMove), pgnState);
-                    CurrentInfo.RunnerPgnMove = Pgn.GetPgnMove(Map.GetValidEngineMove(CurrentInfo.RunnerMove), pgnState);
+                    boardContainer?.DrawHints(new List<EngineMove>() { move.EngineMove, runnermove.EngineMove }, true);
                 }
                 InvokeAsync(() => StateHasChanged());
             }
+            chart?.DrawHorizontalLine(Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber);
+        } else if (Analysis != null && Analysis.Game.ObserverState.CurrentMove != null)
+        {
+            boardContainer?.DrawHints(new List<EngineMove>(), true);
         }
     }
 
@@ -152,20 +213,104 @@
         int i = 0;
         if (Analysis != null)
         {
-            await foreach (var info in Analysis.Analyse(cts.Token))
+            _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
+            chart?.UpdateLabels(_chart.data.labels);
+            Analyzing = true;
+            await InvokeAsync(() => StateHasChanged());
+            Infos.Clear();
+            cts = new CancellationTokenSource();
+            try
             {
-                i++;
-                Infos.Add(info);
-                if (i % 10 == 0)
+                await foreach (var info in Analysis.Analyze(cts.Token, TimeSpan.FromMilliseconds(reviewSettings.MsPerMove), 2, reviewSettings.Threads))
                 {
-                    await InvokeAsync(() => StateHasChanged());
+                    i++;
+                    Infos.Add(info);
+                    if (i % 10 == 0)
+                    {
+                        List<string> labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
+                        List<double> data = Enumerable.Repeat(0.0, Analysis.Game.State.Moves.Count).ToList();
+                        for (int j = 0; j < Infos.Count; j++)
+                        {
+                            var bestmove = Infos[j].BestMove;
+                            data[bestmove.HalfMoveNumber] = bestmove.Evaluation != null ? bestmove.Evaluation.ChartScore() : 0;
+                        }
+                        _chart.data.datasets[0].data = data;
+                        chart?.UpdateDataset(_chart.data.datasets[0]);
+                        await InvokeAsync(() => StateHasChanged());
+                    }
                 }
             }
-            await InvokeAsync(() => StateHasChanged());
+            catch (OperationCanceledException) { }
+            finally
+            {
+                _chart.data.datasets[0].data = Infos.OrderBy(o => o.BestMove.HalfMoveNumber).Select(s => s.BestMove.Evaluation != null ? s.BestMove.Evaluation.ChartScore() : 0).ToList();
+                chart?.UpdateDataset(_chart.data.datasets[0]);
+                Analyzing = false;
+                await InvokeAsync(() => StateHasChanged());
+            }
+        }
+    }
+
+    private void ShowBestLine()
+    {
+        if (CurrentInfo != null && Analysis != null)
+        {
+            int startMoveId = Analysis.Game.ObserverState.CurrentMove == null ? 0 : Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber;
+            Analysis.Game.CreateVariation(startMoveId, CurrentInfo.BestLine, CurrentInfo.BestMove.Evaluation);
+        }
+    }
+
+    private async void Save()
+    {
+        if (Analysis != null)
+        {
+            await dbService.SaveGame(Analysis.Game, GameId);
+        }
+    }
+
+    private void Show2ndBestLine(int i)
+    {
+        if (CurrentInfo != null && Analysis != null && CurrentInfo.RunnerLines.Count > i)
+        {
+            int startMoveId = Analysis.Game.ObserverState.CurrentMove == null ? 0 : Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber;
+            Analysis.Game.CreateVariation(startMoveId, CurrentInfo.RunnerLines[i], CurrentInfo.BestMove.Evaluation);
+        }
+    }
+
+    private async Task MoveRequested()
+    {
+        if (engineComponent != null)
+        {
+            var move = await engineComponent.ExecuteBestMove();
+            if (move != null)
+            {
+                boardContainer?.DrawHints(new List<EngineMove>(), true);
+                boardContainer?.DrawOtherHints(new List<EngineMove>(), true);
+                await InvokeAsync(() => StateHasChanged());
+            }
+        }
+    }
+
+    private void StartEngineVsEngineGame()
+    {
+        if (Analysis != null)
+        {
+            Game eveGame = new Game();
+            for (int i = 0; i < Analysis.Game.ObserverState.Moves.Count; i++)
+            {
+                eveGame.Move(Analysis.Game.ObserverState.Moves[i].EngineMove);
+            }
+            engineService.CreateEngineGame(eveGame, "Test1");
+            _nav.NavigateTo("enginevsengine");
         }
     }
 
     private void Stop()
+    {
+        cts.Cancel();
+    }
+
+    public void Dispose()
     {
         cts.Cancel();
     }
