@@ -12,8 +12,8 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="6.0.1" />
-    <PackageReference Include="pax.chess" Version="0.5.1" />
-    <PackageReference Include="pax.uciChessEngine" Version="0.5.1" />
+    <PackageReference Include="pax.chess" Version="0.5.3" />
+    <PackageReference Include="pax.uciChessEngine" Version="0.5.3" />
   </ItemGroup>
 
 </Project>
