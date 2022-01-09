@@ -13,4 +13,3 @@ dotnet 6
 ## Dependencies
 * [pax.chess](https://www.nuget.org/packages/pax.chess)
 * [pax.uciChessEngine](https://www.nuget.org/packages/pax.uciChessEngine)
-
