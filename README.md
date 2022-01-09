@@ -4,7 +4,7 @@ Blazor Server app for analyzing chess games with UCI chess engines
 
 !Beta version!
 
-![sample pic](/img/review.png.png)
+![sample pic](/images/review.png)
 
 # Getting started
 ## Prerequisites
