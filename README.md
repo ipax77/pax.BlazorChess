@@ -11,8 +11,6 @@ I got a new computer with 16 CPU cores and needed something to test the new toy.
 # Getting started
 ## Prerequisites
 * dotnet 6
-* ElectronNET.CLI: ```dotnet tool install ElectronNET.CLI -g```
-* Execute ``` electronize start ``` in folder ./src/pax.BlazorChess
 * Download UCI Chess Engine(s) (e.g [Stockfish](https://github.com/official-stockfish/Stockfish/releases/tag/sf_14.1) or [Lc0](https://github.com/LeelaChessZero/lc0/releases)) and add them to the configuration (make sure you have the correct engine version for your CPU/graphic card)
 
 ## Dependencies
