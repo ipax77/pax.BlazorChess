@@ -1,0 +1,60 @@
+﻿@page "/review"
+@using pax.BlazorChess.Services
+
+<div class="btn-group">
+    <button type="button" class="btn btn-outline-light" @onclick="e => loadModal?.Show()">Import</button>
+    @if (!Analyzing)
+    {
+        <button type="button" class="btn btn-outline-warning" @onclick="@( async() => _ = Analyse())">Analyze</button>
+        <button type="button" class="btn btn-success ms-2" @onclick="Save">Save</button>
+    }
+    else
+    {
+        <div class="spinner-border mx-2" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <button type="button" class="btn btn-danger ms-2" @onclick="Stop">Stop</button>
+    }
+    <button type="button" class="btn btn-info ms-2" @onclick="StartEngineVsEngineGame">Engine vs Engine</button>
+    <span class="oi oi-cog pointer ms-5" @onclick="e => settingModal?.Show(reviewSettings)"></span>
+</div>
+<div class="d-flex">
+    @if (Analysis != null)
+    {
+        <div>
+            <div class="d-flex justify-content-start mt-3">
+                <ReviewMoveComponent Move="@Analysis.Game.State.Moves[currentMoveId]"></ReviewMoveComponent>
+                @foreach (var variation in reviewVariations)
+                {
+                    int I = reviewVariations.IndexOf(variation);
+                    <div class="border rounded p-1">
+                        <h4><span class="badge" style="background: @(GuiService.GetHintColor(I))">#@(I+1) Move: @variation.Moves.First().PgnMove</span></h4>
+                        <h4><span class="badge bg-info">Eval @variation.Evaluation</span></h4>
+                        <button type="button" class="btn btn-sm btn-outline-light" @onclick="e => ShowLine(I)">Show Line</button>
+                    </div>
+                }
+            </div>
+
+            <BoardContainer @ref="boardContainer" Game="Analysis.Game" ShowBoard="false" OnObserverMoveChanged="ObserverMoveChanged" OnMoveRequested="MoveRequested"></BoardContainer>
+
+        </div>
+    }
+    else
+    {
+
+    }
+    <div class="ms-4" style="width: 40vw;">
+        @if (Analysis != null)
+        {
+            <div>
+                <EngineComponent @ref="engineComponent" Game="Analysis.Game" mainBoard="boardContainer"></EngineComponent>
+            </div>
+        }
+        <div>
+            <ChartComponent @ref="chart" Chart="_chart" OnChartClicked="ChartClicked"></ChartComponent>
+        </div>
+    </div>
+</div>
+<LoadModal @ref="loadModal" Loaded="GameImport"></LoadModal>
+<SettingsModal @ref="settingModal" Setting="SettingsModal.PageSetting.Review" OnSettingsChoosen="SettingsChoosen"></SettingsModal>
+

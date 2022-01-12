@@ -1,0 +1,57 @@
+﻿@using pax.chess
+
+@if (Move != null)
+{
+    <div class="border rounded p-1">
+        <h4>
+            <span class="badge @(GetBgColor())">Game: @Move.PgnMove</span>
+            <span class="@(GetIcon())"></span>
+        </h4>
+        <h4><span class="badge bg-info">Eval @Move.Evaluation</span></h4>
+    </div>
+}
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public Move? Move { get; set; }
+
+    string GetBgColor()
+    {
+        if (Move == null || Move.Evaluation == null || Move.Evaluation.MoveQuality == MoveQuality.Unknown)
+        {
+            return "bg-secondary";
+        }
+
+        return Move.Evaluation.MoveQuality switch
+        {
+            MoveQuality.Only => "bg-success",
+            MoveQuality.Best => "bg-success",
+            MoveQuality.Runner => "bg-success",
+            MoveQuality.Clubhouse => "bg-secondary",
+            MoveQuality.Questionmark => "bg-warning",
+            MoveQuality.Blunder => "bg-danger",
+            _ => "bg-seondary"
+        };
+    }
+
+    string GetIcon()
+    {
+        if (Move == null || Move.Evaluation == null || Move.Evaluation.MoveQuality == MoveQuality.Unknown)
+        {
+            return "";
+        }
+        
+        return Move.Evaluation.MoveQuality switch
+        {
+            MoveQuality.Only => "oi oi-circle-check text-success",
+            MoveQuality.Best => "oi oi-circle-check text-success",
+            MoveQuality.Runner => "oi oi-check text-success",
+            MoveQuality.Clubhouse => "",
+            MoveQuality.Questionmark => "oi oi-question-mark text-warning",
+            MoveQuality.Blunder => "oi oi-circle-x text-danger",
+            _ => ""
+        };
+    }
+
+}
