@@ -4,8 +4,6 @@ Blazor Server Electron app for analyzing chess games with UCI chess engines on l
 
 !Beta version!
 
-I got a new computer with 16 CPU cores and needed something to test the new toy. I found no decent GUI for this so I ended up writing my own ..
-
 ![sample pic](/images/review.png)
 
 # Getting started
@@ -23,5 +21,6 @@ I got a new computer with 16 CPU cores and needed something to test the new toy.
 * No sub variations from engine pvs
 * No sub variations in the database
 * FEN import not tested
+* Database tested for lichess PGNs only
 
 (Debug logging enabled)
