@@ -10,6 +10,7 @@ public class ChessContext : DbContext
     public virtual DbSet<DbVariation> Variations { get; set; }
     public virtual DbSet<DbEvaluation> Evaluations { get; set; }
     public virtual DbSet<DbSubVariation> SubVariations { get; set; }
+    public virtual DbSet<DbMoveEvaluation> MoveEvaluations { get; set; }
 
     public ChessContext(DbContextOptions<ChessContext> options)
     : base(options)

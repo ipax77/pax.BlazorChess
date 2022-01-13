@@ -69,6 +69,19 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         if (Analysis != null)
         {
             _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
+            if (Analysis.Game.ReviewVariations.Any())
+            {
+                ReviewVariations = new Dictionary<int, List<Variation>>(Analysis.Game.ReviewVariations);
+            }
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+        if (firstRender)
+        {
+            UpdateChart();
         }
     }
 
@@ -116,7 +129,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         }
     }
 
-    private void UpdateChart()
+    private void UpdateChart(bool dry = false)
     {
         if (Analysis != null)
         {
@@ -132,7 +145,10 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                     _chart.data.datasets[0].data.Add(0);
                 }
             }
-            chart?.UpdateDataset(_chart.data.datasets[0]);
+            if (!dry)
+            {
+                chart?.UpdateDataset(_chart.data.datasets[0]);
+            }
         }
     }
 
@@ -173,20 +189,28 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
             double diff = Math.Abs(move.Evaluation.ChartScore() - bestVariation.Evaluation.ChartScore());
             // double runnerDiff = Math.Abs(move.Evaluation.ChartScore() - runnerVariation.Evaluation.ChartScore());
 
+            if (diff == 0)
+            {
+                return MoveQuality.Best;
+            }
+
+            double eval = Math.Abs(move.Evaluation.ChartScore());
+
+
             if (move.EngineMove == runnerVariation.Moves.FirstOrDefault()?.EngineMove)
             {
-                if (diff < 0.5)
+                if (diff < 0.5 * Math.Max(1.0, eval))
                 {
                     return MoveQuality.Runner;
                 }
             }
 
-            if (diff > 1)
+            if (diff > Math.Max(1.0, eval * 0.5))
             {
                 return MoveQuality.Blunder;
             }
 
-            if (diff >= 0.5)
+            if (diff >= 0.5 * Math.Max(1.0, eval))
             {
                 return MoveQuality.Questionmark;
             }

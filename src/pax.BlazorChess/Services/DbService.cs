@@ -22,7 +22,8 @@ public class DbService
         {
             dbGame = await context.Games.FirstOrDefaultAsync(f => f.Id == gameId);
             if (dbGame == null) return null;
-        } else
+        }
+        else
         {
             if (game.Infos.ContainsKey("Site"))
             {
@@ -38,12 +39,17 @@ public class DbService
         else
         {
             newGame = dbGame;
+            context.Variations.RemoveRange(newGame.Variations);
+            context.MoveEvaluations.RemoveRange(newGame.MoveEvaluations);
+            newGame.Variations.Clear();
+            newGame.MoveEvaluations.Clear();
         }
 
         DbMap.SetGameInfo(newGame, game);
         newGame.HalfMoves = game.State.Moves.Count;
         newGame.EngineMoves = String.Concat(game.State.Moves.Select(s => Map.GetEngineMoveString(s)));
         newGame.Variations = DbMap.GetVariations(game);
+        newGame.MoveEvaluations = DbMap.GetMoveEvaluations(game);
         await context.SaveChangesAsync();
         return newGame;
     }
@@ -53,11 +59,16 @@ public class DbService
         var dbGame = await context.Games
             .Include(i => i.Variations)
                 .ThenInclude(i => i.Evaluation)
+            .Include(i => i.MoveEvaluations)
             .AsNoTracking()
+            .AsSplitQuery()
             .FirstOrDefaultAsync(f => f.Id == gameId);
-        if (dbGame == null) return null;
-        var game = DbMap.GetGame(dbGame);
-        return game;
+
+        if (dbGame == null)
+        {
+            return null; 
+        }
+        return DbMap.GetGame(dbGame);
     }
 
     public async Task<int> GetGamesCountAsync(GameRequest request)
