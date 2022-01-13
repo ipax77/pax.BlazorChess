@@ -1,4 +1,6 @@
-﻿@using pax.chess
+﻿@using pax.BlazorChess.Models
+@using pax.BlazorChess.Services
+@using pax.chess
 @inject IJSRuntime _js
 
 <div class="d-flex" tabindex="0" @ref="boardcontainer" @onkeydown="KeyDown" @onmousewheel="MouseWheel" style="outline: none !important; touch-action: none;">
@@ -111,6 +113,26 @@
         {
             dboard.DrawOtherHints(hints);
         }
+    }
+
+    public void DrawReviewHints(bool observerBoard = true)
+    {
+        var moves = GetReviewMoves();
+        if (moves.Any())
+        {
+            DrawHints(moves, observerBoard);
+        }
+    }
+
+    public List<EngineMove> GetReviewMoves()
+    {
+        List<EngineMove> moves = new List<EngineMove>();
+        var reviewVariations = Game.GetReviewVariations();
+        for (int i = 0; i < reviewVariations.Count; i++)
+        {
+            moves.Add(reviewVariations[i].Moves.First().EngineMove);
+        }
+        return moves;
     }
 
     private void KeyDown(KeyboardEventArgs e)

@@ -203,7 +203,6 @@
 
     private void Move(MouseEventArgs e, Piece? piece, int x, int y)
     {
-        Annotations.Clear();
         if (PieceToMove == null)
         {
             if (piece != null)
@@ -244,6 +243,10 @@
 
     private void ExecuteMove(Piece piece, int x, int y, PieceType? transformation = null)
     {
+        Annotations.Clear();
+        HintAnnotations.Clear();
+        OtherHintAnnotations.Clear();
+
         var moveState = Game.Move(piece, x, y, transformation);
         if (moveState != MoveState.Ok)
         {
@@ -259,6 +262,10 @@
 
     private void VariationMove(Piece piece, int x, int y, PieceType? transformation = null)
     {
+        Annotations.Clear();
+        HintAnnotations.Clear();
+        OtherHintAnnotations.Clear();
+
         var moveState = Game.VariationMove(piece, x, y, transformation);
         if (moveState != MoveState.Ok)
         {
@@ -370,6 +377,8 @@
         }
         InvokeAsync(() => StateHasChanged());
     }
+
+
 
     public record PendingMove
     {
