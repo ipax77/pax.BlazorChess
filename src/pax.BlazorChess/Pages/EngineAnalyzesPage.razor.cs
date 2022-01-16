@@ -308,7 +308,11 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
     {
         if (Analysis != null)
         {
-            await dbService.SaveGame(Analysis.Game, GameId);
+            var dbGame = await dbService.SaveGame(Analysis.Game, GameId);
+            if (dbGame != null)
+            {
+                toastService.ShowSuccess("Game saved.");
+            }
         }
     }
 
