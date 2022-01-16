@@ -121,6 +121,9 @@
         if (moves.Any())
         {
             DrawHints(moves, observerBoard);
+        } else
+        {
+            DrawHints(new List<EngineMove>(), observerBoard);
         }
     }
 

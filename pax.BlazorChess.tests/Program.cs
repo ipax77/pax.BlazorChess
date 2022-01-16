@@ -1,10 +1,19 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using pax.chess;
 using pax.uciChessEngine;
+using static pax.chess.Pgn;
 
 Console.WriteLine("Hello, World!");
 
-int bab = Test().GetAwaiter().GetResult();
+// int bab = Test().GetAwaiter().GetResult();
+int bab = 0;
+
+var pgnFile = @"C:\data\pgns\lichess_study_game-2_magnus-carlsen-ian-nepomniachtchi_by_cFlour_2021.11.27.pgn";
+var lines = File.ReadAllLines(pgnFile);
+
+var game = Pgn.MapStrings(lines);
+
+Console.WriteLine(game.State.Moves.Count);
 
 Console.ReadLine();
 Console.WriteLine($"done: {bab}");

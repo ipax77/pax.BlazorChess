@@ -156,9 +156,16 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
     {
         if (Analysis != null && Analysis.Game.ObserverState.CurrentMove != null)
         {
-            chart?.DrawHorizontalLine(Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber);
+            if (Analysis.Game.ObserverState.CurrentMove.Variation == null)
+            {
+                chart?.DrawHorizontalLine(Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber);
+            }
+            else
+            {
+                var startMove = Analysis.Game.ObserverState.CurrentMove.Variation?.StartMove;
+                chart?.DrawHorizontalLine(startMove ?? 0);
+            }
             boardContainer?.DrawReviewHints();
-
             reviewVariations = Analysis.Game.GetReviewVariations();
             // nextVariation = !Analysis.Game.ReviewVariations.ContainsKey(currentMoveId + 1) ? null : Analysis.Game.ReviewVariations[currentMoveId + 1].OrderBy(o => o.Pv).FirstOrDefault();
         }
