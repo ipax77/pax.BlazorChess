@@ -54,36 +54,56 @@
             </div>
         </div>
         <div class="mt-2">
+            <div>
+                <GameTimeComponent @ref="gameTimeComponent" Game="EngineGame.Game"></GameTimeComponent>
+            </div>
             @if (BlackEvent != null)
             {
-                <div class="d-flex justify-content-between mt-1">
-                    @if (EngineGame.Game.State.Info.BlackToMove)
-                    {
-                        <span class="col-sm-5 badge bg-primary"><span class="oi oi-arrow-circle-right text-black"></span> @BlackEvent.EngineName</span>
-                    }
-                    else
-                    {
-                        <span class="col-sm-5 badge bg-primary">@BlackEvent.EngineName</span>
-                    }
-                    <span class="col-sm-5 badge bg-info">Eval @BlackEval.ToString()</span>
-                    <span class="badge bg-dark">@EngineGame.Game.Time.CurrentBlackTime.ToString(@"hh\:mm\:ss")</span>
+                <div class="d-flex justify-content-start mt-4">
+                    <div class="col-6">
+                        @if (EngineGame.Game.State.Info.BlackToMove)
+                        {
+                            <h5><span class="badge bg-primary"><span class="oi oi-arrow-circle-right text-black"></span> @BlackEvent.EngineName</span></h5>
+                        }
+                        else
+                        {
+                            <h5><span class="badge bg-primary">@BlackEvent.EngineName</span></h5>
+                        }
+                    </div>
+                    <div class="col-6">
+                        <h5><span class="badge bg-info">Eval @BlackEval.ToString()</span></h5>
+                    </div>
                 </div>
             }
             @if (WhiteEvent != null)
             {
-                <div class="d-flex justify-content-between">
-                    @if (!EngineGame.Game.State.Info.BlackToMove)
-                    {
-                        <span class="col-sm-5 badge bg-primary"><span class="oi oi-arrow-circle-right text-white"></span> @WhiteEvent.EngineName</span>
-                    }
-                    else
-                    {
-                        <span class="col-sm-5 badge bg-primary">@WhiteEvent.EngineName</span>
-                    }
-                    <span class="col-sm-5 badge bg-info">Eval @WhiteEval.ToString()</span>
-                    <span class="badge bg-light">@EngineGame.Game.Time.CurrentWhiteTime.ToString(@"hh\:mm\:ss")</span>
+                <div class="d-flex justify-content-start mt-2">
+                    <div class="col-6">
+                        @if (!EngineGame.Game.State.Info.BlackToMove)
+                        {
+                            <h5><span class="badge bg-primary"><span class="oi oi-arrow-circle-right text-white"></span> @WhiteEvent.EngineName</span></h5>
+                        }
+                        else
+                        {
+                            <h5><span class="badge bg-primary">@WhiteEvent.EngineName</span></h5>
+                        }
+                    </div>
+                    <div class="col-6">
+                        <h5><span class="badge bg-info">Eval @WhiteEval.ToString()</span></h5>
+                    </div>
                 </div>
             }
+            <div>
+                <div class="mt-4 col-7">
+                    <button type="button" class="btn btn-sm btn-primary" @onclick="ShowPgn">ShowPgn</button>
+                    @if (showPgn)
+                    {
+                        <div class="mt-1">
+                            @PgnString
+                        </div>
+                    }
+                </div>
+            </div>
         </div>
     </div>
 }
@@ -109,6 +129,10 @@ else
 
     BoardContainer? boardContainer;
     EveOptionsModal? eveOptionsModal;
+    GameTimeComponent? gameTimeComponent;
+
+    bool showPgn = false;
+    string PgnString = String.Empty;
 
     protected override void OnInitialized()
     {
@@ -139,6 +163,10 @@ else
                 Options = EngineGame.Options;
                 eveOptionsModal?.Show(EngineGame.Options);
             }
+            else
+            {
+                gameTimeComponent?.Start();
+            }
         }
     }
 
@@ -162,11 +190,13 @@ else
             {
                 WhiteEvent = e;
                 WhiteEval = new Evaluation(e.EngineInfo.Evaluation, e.EngineInfo.Mate, false);
+                gameTimeComponent?.Update(true);
             }
             else
             {
                 BlackEvent = e;
                 BlackEval = new Evaluation(e.EngineInfo.Evaluation, e.EngineInfo.Mate, true);
+                gameTimeComponent?.Update(false);
             }
             InvokeAsync(() => StateHasChanged());
         }
@@ -174,17 +204,28 @@ else
 
     public void Start()
     {
-        if (EngineGame != null)
+        if (EngineGame != null && !EngineGame.Playing)
         {
+            EngineGame.Game.Infos["Event"] = "Engine vs Engine";
+            EngineGame.Game.Infos["Site"] = Guid.NewGuid().ToString();
+            EngineGame.Game.Infos["UTCDate"] = DateTime.UtcNow.ToString("yyyy.MM.dd");
+            EngineGame.Game.Infos["UTCTime"] = DateTime.UtcNow.ToString("hh:mm:ss");
+            EngineGame.Game.Infos["White"] = EngineGame.WhiteEngine?.Name ?? "";
+            EngineGame.Game.Infos["Black"] = EngineGame.WhiteEngine?.Name ?? "";
+            EngineGame.Game.Infos["TimeControl"] = ((int)EngineGame.Game.Time.WhiteTime.TotalSeconds).ToString() + "+" + ((int)EngineGame.Game.Time.WhiteIncrement.TotalSeconds).ToString();
             EngineGame.EngineMoved += EngineMoved;
             engineService.SetEngineGameOptions(EngineGame, Options);
             _ = EngineGame.Start();
+            gameTimeComponent?.Start();
+            InvokeAsync(() => StateHasChanged());
         }
     }
 
     public void Stop()
     {
         EngineGame?.Stop();
+        gameTimeComponent?.Stop();
+        InvokeAsync(() => StateHasChanged());
     }
 
     public void Delete()
@@ -193,6 +234,16 @@ else
         {
             engineService.DeleteEngineGame(EngineGame);
         }
+    }
+
+    private void ShowPgn()
+    {
+        showPgn = !showPgn;
+        if (showPgn && EngineGame != null)
+        {
+            PgnString = Pgn.MapPieces(EngineGame.Game.State);
+        }
+        StateHasChanged();
     }
 
     public void Dispose()

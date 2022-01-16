@@ -1,0 +1,90 @@
+﻿@using pax.chess
+@implements IDisposable
+
+<div class="d-flex">
+    <div class="col-sm-10">
+        <h3><span class="badge bg-light border rounded p-1 @(!_blackToMove ? "border-info" : "")">@_currentWhiteTime.ToString(@"hh\:mm\:ss")</span></h3>
+    </div>
+    <div class="col-sm-10">
+        <h3><span class="badge bg-dark border rounded p-1 @(_blackToMove ? "border-info" : "")">@_currentBlackTime.ToString(@"hh\:mm\:ss")</span></h3>
+    </div>
+</div>
+
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public Game Game { get; set; } = new Game();
+
+    CancellationTokenSource? tokenSource;
+
+    private TimeSpan _currentWhiteTime = TimeSpan.FromMinutes(3);
+    private TimeSpan _currentBlackTime = TimeSpan.FromMinutes(3);
+    private bool _blackToMove = false;
+
+    private object lockobject = new object();
+
+    public void Start()
+    {
+        _currentWhiteTime = Game.Time.CurrentWhiteTime;
+        _currentBlackTime = Game.Time.CurrentBlackTime;
+        tokenSource = new CancellationTokenSource();
+        _ = Timer(tokenSource.Token);
+    }
+
+    public void Stop()
+    {
+        tokenSource?.Cancel();
+    }
+
+    public void Update(bool blackToMove)
+    {
+        lock (lockobject)
+        {
+            _blackToMove = blackToMove;
+            if (_blackToMove)
+            {
+                _currentBlackTime = Game.Time.CurrentBlackTime;
+            }
+            else
+            {
+                _currentWhiteTime = Game.Time.CurrentWhiteTime;
+            }
+            InvokeAsync(() => StateHasChanged());
+        }
+    }
+
+    private async Task Timer(CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                if (Game.Termination != Termination.None)
+                {
+                    break;
+                };
+
+                await Task.Delay(1000, token);
+                lock (lockobject)
+                {
+                    if (_blackToMove)
+                    {
+                        _currentBlackTime -= TimeSpan.FromSeconds(1);
+                    }
+                    else
+                    {
+                        _currentWhiteTime -= TimeSpan.FromSeconds(1);
+                    }
+                    InvokeAsync(() => StateHasChanged());
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public void Dispose()
+    {
+        tokenSource?.Cancel();
+    }
+}
