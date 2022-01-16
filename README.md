@@ -17,10 +17,8 @@ Blazor Server Electron app for analyzing chess games with UCI chess engines on l
 
 # Known Limitations
 * No Chess960 support
-* At the moment only uncommented PGN imports are supported
 * No sub variations from engine pvs
 * No sub variations in the database
 * FEN import not tested
-* Database tested for lichess PGNs only
 
 (Debug logging enabled)
