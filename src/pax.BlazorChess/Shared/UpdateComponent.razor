@@ -53,12 +53,12 @@ else
         electronService.DownloadProgress += DownloadProgress;
     }
 
-    protected override void OnAfterRender(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        base.OnAfterRender(firstRender);
+        await base.OnAfterRenderAsync(firstRender);
         if (firstRender) 
         {
-            Task.Delay(3000).GetAwaiter().GetResult();
+            await Task.Delay(3000);
             CheckForUpdate();
         }
     }
