@@ -16,6 +16,8 @@ builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
     config.AddJsonFile(ConfigFile, optional: true, reloadOnChange: true);
 });
 
+builder.WebHost.UseElectron(args);
+
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
@@ -66,6 +68,15 @@ app.UseRouting();
 
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
+
+Task.Run(async () => await Electron.WindowManager.CreateWindowAsync(new BrowserWindowOptions()
+{
+    AutoHideMenuBar = true,
+    Width = 1920,
+    Height = 1080,
+    X = 0,
+    Y = 0
+}));
 
 app.Run();
 

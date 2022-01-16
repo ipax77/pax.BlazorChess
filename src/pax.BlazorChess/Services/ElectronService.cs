@@ -41,22 +41,29 @@ public class ElectronService
     {
         if (HybridSupport.IsElectronActive)
         {
-            if (delay > 0)
+            try
             {
-                await Task.Delay(delay);
-            }
-            Electron.AutoUpdater.OnError += (message) => Electron.Dialog.ShowErrorBox("Error", message);
-            CurrentVersion = new Version(await Electron.App.GetVersionAsync());
-            Electron.AutoUpdater.AutoDownload = false;
-            var updateResult = await Electron.AutoUpdater.CheckForUpdatesAsync();
-            AvailableVersion = new Version(updateResult.UpdateInfo.Version);
-            OnDownloadProgress(new DownloadEventArgs());
-            if (AvailableVersion > CurrentVersion)
+                if (delay > 0)
+                {
+                    await Task.Delay(delay);
+                }
+                Electron.AutoUpdater.OnError += (message) => Electron.Dialog.ShowErrorBox("Error", message);
+                CurrentVersion = new Version(await Electron.App.GetVersionAsync());
+                Electron.AutoUpdater.AutoDownload = false;
+                var updateResult = await Electron.AutoUpdater.CheckForUpdatesAsync();
+                AvailableVersion = new Version(updateResult.UpdateInfo.Version);
+                OnDownloadProgress(new DownloadEventArgs());
+                if (AvailableVersion > CurrentVersion)
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            } catch (Exception ex)
             {
-                return true;
-            }
-            else
-            {
+                Console.WriteLine($"checking for update failed: {ex.Message}");
                 return false;
             }
         }
