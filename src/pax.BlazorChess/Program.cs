@@ -4,12 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using pax.BlazorChess.Models;
 using pax.BlazorChess.Services;
 using pax.uciChessEngine;
-<<<<<<< Updated upstream
-=======
 using ElectronNET.API;
 using ElectronNET.API.Entities;
 using Blazored.Toast;
->>>>>>> Stashed changes
 
 var builder = WebApplication.CreateBuilder(args);
 
