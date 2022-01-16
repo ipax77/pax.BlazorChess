@@ -4,7 +4,7 @@ namespace pax.BlazorChess.Models;
 public static class QueriableExtension
 {
     public static IOrderedQueryable<T> CallOrderedQueryable<T>(this IQueryable<T> query, string methodName, string propertyName,
-            IComparer<object> comparer = null)
+            IComparer<object>? comparer = null)
     {
         var param = Expression.Parameter(typeof(T), "x");
 

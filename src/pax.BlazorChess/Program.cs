@@ -6,6 +6,7 @@ using pax.BlazorChess.Services;
 using pax.uciChessEngine;
 using ElectronNET.API;
 using ElectronNET.API.Entities;
+using Blazored.Toast;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,11 +17,6 @@ builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
 });
 
 builder.WebHost.UseElectron(args);
-
-builder.Host.ConfigureHostConfiguration((host) =>
-{
-
-});
 
 // Add services to the container.
 builder.Services.AddRazorPages();
@@ -38,6 +34,7 @@ builder.Services.AddDbContext<ChessContext>(options =>
 //.EnableDetailedErrors()
 );
 
+builder.Services.AddBlazoredToast();
 builder.Services.AddScoped<DbService>();
 builder.Services.AddSingleton<ConfigurationService>();
 builder.Services.AddSingleton<EngineService>();
@@ -80,6 +77,7 @@ Task.Run(async () => await Electron.WindowManager.CreateWindowAsync(new BrowserW
     X = 0,
     Y = 0
 }));
+
 app.Run();
 
 public partial class Program

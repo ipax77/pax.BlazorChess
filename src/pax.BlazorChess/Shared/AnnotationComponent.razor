@@ -1,5 +1,6 @@
 ﻿@using System.Globalization
 @using pax.BlazorChess.Models
+@using pax.chess
 
 @if (Annotation.Length == 0)
 {
@@ -37,7 +38,7 @@ else
 
     [Parameter]
     [EditorRequired]
-    public Annotation Annotation { get; set; }
+    public Annotation Annotation { get; set; } = new Annotation(new Position(0, 0), "black");
 
     Guid guid = Guid.NewGuid();
 

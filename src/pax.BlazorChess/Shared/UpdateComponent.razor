@@ -1,0 +1,105 @@
+@using pax.BlazorChess.Services
+@using ElectronNET.API.Entities
+@inject IToastService toastService
+@implements IDisposable
+
+@if (ElectronService.CurrentVersion != null && ElectronService.CurrentVersion < ElectronService.AvailableVersion)
+{
+    <div class="ms-2">
+        @if (DownloadInfo != null)
+        {
+            <div class="position-relative"
+        style="width: 300px; height: 70% !important; font-size: 1em; padding-top: 0.2rem; padding-bottom: 1rem;">
+                <div class="text-success" style="font-size: 1em;">Download @DownloadInfo.BytesPerSecond</div>
+                <div class="position-absolute w-100" style="height: 1rem;">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-animated bg-success" role="progressbar"
+                    style="width: @(DownloadInfo.Percent)%;" aria-valuenow="@(DownloadInfo.Transferred)"
+                    aria-valuemin="0" aria-valuemax="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            @if (isDownloaded)
+            {
+                <span class="badge badge-success">New Version downloaded</span>
+            }
+            else
+            {
+                <button type="button" class="btn btn-warning" @onclick="ShowDownloadModal">New Version available!</button>
+            }
+        }
+    </div>
+}
+else
+{
+    <button type="button" class="btn btn-outline-info" @onclick="CheckForUpdate">Check for Updates</button>
+}
+
+<DownloadModal @ref="downloadModal" OnInstallRequested="Install"></DownloadModal>
+
+@code {
+    ElectronService electronService = new ElectronService();
+    DownloadModal? downloadModal;
+    bool isDownloaded = false;
+    ProgressInfo? DownloadInfo;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        electronService.DownloadProgress += DownloadProgress;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (firstRender) 
+        {
+            await Task.Delay(3000);
+            CheckForUpdate();
+        }
+    }
+
+    void ShowDownloadModal()
+    {
+        downloadModal?.Show();
+    }
+
+    async void CheckForUpdate()
+    {
+        await electronService.CheckForUpdate();
+        if (ElectronService.CurrentVersion != null && ElectronService.CurrentVersion < ElectronService.AvailableVersion)
+        {
+            toastService.ShowSuccess("New Version available!");
+        }
+        else
+        {
+            toastService.ShowInfo($"Current Version {(ElectronService.CurrentVersion)} is up to date");
+        }
+        await InvokeAsync(() => StateHasChanged());
+    }    
+
+    async void Install(bool install) 
+    {
+        await electronService.DownloadNewVersion(install);
+    }
+
+    private void DownloadProgress(object? sender, DownloadEventArgs e)
+    {
+        DownloadInfo = e.Info;
+        isDownloaded = e.Done;
+        if (isDownloaded)
+        {
+            toastService.ShowSuccess("Update downloaded");
+        }
+        InvokeAsync(() => StateHasChanged());
+    }    
+
+    public void Dispose() 
+    {
+        electronService.DownloadProgress -= DownloadProgress;
+    }
+}

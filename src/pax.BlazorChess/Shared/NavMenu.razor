@@ -1,4 +1,6 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@using pax.BlazorChess.Services
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">pax.BlazorChess</a>
         <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
@@ -43,7 +45,13 @@
         </div>
     </nav>
 </div>
-
+<div class="ms-3">
+    <br />
+    <br />
+    <UpdateComponent></UpdateComponent>
+    <br />
+    <span class="badge badge-dark">@($"v{ElectronService.CurrentVersion}")</span>
+</div>
 @code {
     private bool collapseNavMenu = true;
 

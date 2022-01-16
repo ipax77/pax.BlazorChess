@@ -10,7 +10,7 @@
 @code {
     [Parameter]
     [EditorRequired]
-    public Chart Chart { get; set; }
+    public Chart Chart { get; set; } = new Chart();
 
     [Parameter]
     public EventCallback<string> OnChartClicked { get; set; }
