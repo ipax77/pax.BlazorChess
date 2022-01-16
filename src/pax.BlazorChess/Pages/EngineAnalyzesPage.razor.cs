@@ -4,6 +4,7 @@ using pax.BlazorChess.Services;
 using pax.BlazorChess.Shared;
 using pax.chess;
 using pax.uciChessEngine;
+using Blazored.Toast.Services;
 
 namespace pax.BlazorChess.Pages;
 public partial class EngineAnalyzesPage : ComponentBase, IDisposable
@@ -15,6 +16,8 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
     protected DbService dbService { get; set; }
     [Inject]
     protected NavigationManager _nav { get; set; }
+    [Inject]
+    protected IToastService toastService { get; set; }
     [Inject]
     protected ILogger<EngineAnalyzesPage> logger { get; set; }
 # nullable enable
@@ -279,6 +282,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                         }
                     }
                 }
+                toastService.ShowSuccess("Anlysis complete.");
                 await InvokeAsync(() => StateHasChanged());
             }
         }

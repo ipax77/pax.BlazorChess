@@ -4,6 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using pax.BlazorChess.Models;
 using pax.BlazorChess.Services;
 using pax.uciChessEngine;
+<<<<<<< Updated upstream
+=======
+using ElectronNET.API;
+using ElectronNET.API.Entities;
+using Blazored.Toast;
+>>>>>>> Stashed changes
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,6 +35,7 @@ builder.Services.AddDbContext<ChessContext>(options =>
 //.EnableDetailedErrors()
 );
 
+builder.Services.AddBlazoredToast();
 builder.Services.AddScoped<DbService>();
 builder.Services.AddSingleton<ConfigurationService>();
 builder.Services.AddSingleton<EngineService>();

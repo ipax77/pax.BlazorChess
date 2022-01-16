@@ -15,7 +15,7 @@ public class DbService
         this.logger = logger;
     }
 
-    public async Task<DbGame> SaveGame(Game game, int? gameId)
+    public async Task<DbGame?> SaveGame(Game game, int? gameId)
     {
         DbGame? dbGame = null;
         if (gameId != null)
