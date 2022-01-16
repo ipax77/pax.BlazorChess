@@ -1,0 +1,56 @@
+@using pax.BlazorChess.Services
+@inject IJSRuntime _js
+
+<!-- Modal -->
+<div class="modal fade" id="downloadModal" tabindex="-1" aria-labelledby="downloadModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-xxl-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalLabel">New Version available: @ElectronService.AvailableVersion</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+          <div class="btn-block">
+              <button type="button" class="btn btn-primary" @onclick="e => Install(true)">Install now</button>
+              <button type="button" class="btn btn-primary" @onclick="e => Install(false)">Install after quit</button>
+		  </div>
+          <div class="overflow-auto" style="max-height: 600px; white-space: pre-line;">
+            @versionInfo
+		  </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+@code {
+    [Parameter]
+    public EventCallback<bool> OnInstallRequested { get; set; }
+    string versionInfo = String.Empty;
+    
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+    }
+
+    private async void Close()
+    {
+        await _js.InvokeVoidAsync("ReplayModalClose");
+    }
+
+    public async void Show()
+    {
+        StateHasChanged();
+
+        await _js.InvokeVoidAsync("ReplayModalOpen", "downloadModal");
+    }
+
+    public void Install(bool install)
+    {
+        OnInstallRequested.InvokeAsync(install);
+        Close();
+    }
+}
