@@ -8,10 +8,22 @@
   "singleInstance": false,
   "environment": "Production",
   "build": {
+    "win": {
+      "publish": [ "github" ],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "./bin/wwwroot/images/icon-512x512.png"
+    },    
     "appId": "com.pax.BlazorChess.app",
     "productName": "pax.BlazorChess",
     "copyright": "Copyright © 2022",
-    "buildVersion": "0.5.3",
+    "buildVersion": "0.5.5",
     "compression": "maximum",
     "directories": {
       "output": "../../../bin/Desktop"
@@ -31,5 +43,12 @@
       },
       "**/*"
     ]
-  }
+  },
+  "user": "Ipax77",
+  "project": "pax.BlazorChess",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ipax77/pax.BlazorChess.git"
+  }  
 }
