@@ -130,8 +130,8 @@
     public List<EngineMove> GetReviewMoves()
     {
         List<EngineMove> moves = new List<EngineMove>();
-        var reviewVariations = Game.GetReviewVariations();
-        for (int i = 0; i < reviewVariations.Count; i++)
+        var reviewVariations = Game.GetCurrentReviewVariations().ToArray();
+        for (int i = 0; i < reviewVariations.Length; i++)
         {
             moves.Add(reviewVariations[i].Moves.First().EngineMove);
         }

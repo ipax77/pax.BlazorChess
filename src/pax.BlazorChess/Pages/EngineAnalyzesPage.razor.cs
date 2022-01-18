@@ -169,7 +169,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                 chart?.DrawHorizontalLine(startMove ?? 0);
             }
             boardContainer?.DrawReviewHints();
-            reviewVariations = Analysis.Game.GetReviewVariations();
+            reviewVariations = Analysis.Game.GetCurrentReviewVariations().ToList();
             // nextVariation = !Analysis.Game.ReviewVariations.ContainsKey(currentMoveId + 1) ? null : Analysis.Game.ReviewVariations[currentMoveId + 1].OrderBy(o => o.Pv).FirstOrDefault();
         }
         _ = engineComponent?.Update();
@@ -242,7 +242,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
             await InvokeAsync(() => StateHasChanged());
             cts = new CancellationTokenSource();
             ReviewVariations = new Dictionary<int, List<Variation>>();
-            Analysis.Game.ReviewVariations = new Dictionary<int, List<Variation>>();
+            Analysis.Game.ReviewVariations.Clear();
 
             try
             {
@@ -298,7 +298,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                 var variation = Analysis.Game.ReviewVariations[startMoveId].ElementAt(i);
                 if (variation != null)
                 {
-                    Analysis.Game.CreateVariation(startMoveId, variation.Moves.Select(s => s.EngineMove).ToList(), variation.Evaluation);
+                    Analysis.Game.CreateVariation(startMoveId, variation.Moves.Select(s => s.EngineMove).ToArray(), variation.Evaluation);
                 }
             }
         }

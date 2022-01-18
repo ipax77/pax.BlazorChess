@@ -83,7 +83,7 @@
     private void PvInfoSelected(KeyValuePair<string, PvInfo> info)
     {
         int startMoveId = Game.ObserverState.CurrentMove == null ? 0 : Game.ObserverState.CurrentMove.HalfMoveNumber + 1;
-        Game.CreateVariation(startMoveId, info.Value.Moves, new Evaluation(info.Value.Score, info.Value.Mate, Game.ObserverState.Info.BlackToMove));
+        Game.CreateVariation(startMoveId, info.Value.Moves.ToArray(), new Evaluation(info.Value.Score, info.Value.Mate, Game.ObserverState.Info.BlackToMove));
     }
 
     public async Task<EngineMove?> ExecuteBestMove()

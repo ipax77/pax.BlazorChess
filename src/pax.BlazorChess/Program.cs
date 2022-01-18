@@ -35,6 +35,16 @@ builder.Services.AddDbContext<ChessContext>(options =>
 );
 
 builder.Services.AddBlazoredToast();
+builder.Services.AddBlazorContextMenu(options =>
+{
+    options.ConfigureTemplate("myTemplate", template =>
+    {
+        template.MenuCssClass = "my-menu";
+        template.MenuItemCssClass = "my-menu-item";
+    });
+});
+
+
 builder.Services.AddScoped<DbService>();
 builder.Services.AddSingleton<ConfigurationService>();
 builder.Services.AddSingleton<EngineService>();

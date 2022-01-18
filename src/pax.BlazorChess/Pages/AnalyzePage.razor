@@ -16,13 +16,13 @@
             if (Analyzes == analyzes)
             {
                 <li class="nav-item">
-                    <a class="nav-link active pointer" data-bs-toggle="tab" href="#home">@analyzes.Game.Guid.ToString().Substring(0, 5)</a>
+                    <a class="nav-link active pointer" data-bs-toggle="tab" href="#home">@analyzes.Game.GameGuid.ToString().Substring(0, 5)</a>
                 </li>
             }
             else
             {
                 <li class="nav-item">
-                    <span class="nav-link text-white-50 pointer" data-bs-toggle="tab" href="#home" @onclick="e => SwitchAnalyzes(analyzes)">@analyzes.Game.Guid.ToString().Substring(0, 5)</span>
+                    <span class="nav-link text-white-50 pointer" data-bs-toggle="tab" href="#home" @onclick="e => SwitchAnalyzes(analyzes)">@analyzes.Game.GameGuid.ToString().Substring(0, 5)</span>
                 </li>
             }
         }
