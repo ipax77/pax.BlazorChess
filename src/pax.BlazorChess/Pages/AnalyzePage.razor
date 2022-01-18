@@ -150,7 +150,7 @@
         {
             await CreateNewAnalyzes();
         }
-        AvailableAnalyzes = engineService.GetAnalyzes();
+        AvailableAnalyzes = engineService.GetAnalyzes().ToList();
     }
 
     private async Task CreateNewAnalyzes()
@@ -161,23 +161,23 @@
         }
         Analyzes = await engineService.CreateAnalyzes(Game);
         Analyzes.EngineInfoAvailable += InfoAvailable;
-        AvailableAnalyzes = engineService.GetAnalyzes();
+        AvailableAnalyzes = engineService.GetAnalyzes().ToList();
     }
 
-    private void InfoAvailable(object? sender, List<EngineInfo> infos)
+    private void InfoAvailable(object? sender, EngineInfoEventArgs infoEventArgs)
     {
-        EngineInfos = infos;
+        var _engineInfos = infoEventArgs.Infos.ToList();
 
-        if (infos.Any())
+        if (_engineInfos.Any())
         {
             HashSet<EngineMove> hints = new HashSet<EngineMove>();
-            infos.ForEach(f => f.PvInfos.ForEach(g => hints.Add(g.Moves[0])));
+            _engineInfos.ForEach(f => f.PvInfos.ToList().ForEach(g => hints.Add(g.Moves.ElementAt(0))));
             if (hints.Any())
             {
                 mainBoard?.DrawHints(hints.ToList(), true);
             }
         }
-
+        EngineInfos = _engineInfos;
         InvokeAsync(() => StateHasChanged());
     }
 
@@ -188,8 +188,7 @@
 
     private async Task SetEngineOption(Engine engine, string name, object value)
     {
-        engine.SetOption(name, value);
-        await engine.IsReady();
+        await engine.SetOption(name, value);
     }
 
     private async void ObserverMoveChanged()
@@ -228,7 +227,7 @@
         {
             Analyzes.EngineInfoAvailable -= InfoAvailable;
             engineService.DeleteAnalyzes(Analyzes);
-            AvailableAnalyzes = engineService.GetAnalyzes();
+            AvailableAnalyzes = engineService.GetAnalyzes().ToList();
             Analyzes = AvailableAnalyzes.FirstOrDefault();
             if (Analyzes != null)
             {
@@ -248,7 +247,7 @@
         var eve = engineService.CreateEngineGame(game, "Analyzes");
         if (eve != null)
         {
-            var bab = navigationManager.GetUriWithQueryParameter("GameId", eve.Guid);
+            var bab = navigationManager.GetUriWithQueryParameter("GameId", eve.EngineGameGuid);
             string uristart = "enginevsengine";
             bab = bab.Replace("analyzes", uristart);
             navigationManager.NavigateTo(bab);

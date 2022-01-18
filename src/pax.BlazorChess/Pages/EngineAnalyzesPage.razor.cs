@@ -55,7 +55,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
 
     private async Task Init()
     {
-        GameAnalyzis = engineService.GetGameAnalyses();
+        GameAnalyzis = engineService.GetGameAnalyses().ToList();
         if (GameId == null)
         {
             Analysis = GameAnalyzis.FirstOrDefault();

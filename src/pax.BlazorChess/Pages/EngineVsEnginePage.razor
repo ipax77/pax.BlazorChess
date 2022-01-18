@@ -137,11 +137,11 @@ else
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        EngineGames = engineService.GetEngineGames();
+        EngineGames = engineService.GetEngineGames().ToList();
 
         if (GameId != null)
         {
-            EngineGame = EngineGames.SingleOrDefault(s => s.Guid == GameId);
+            EngineGame = EngineGames.SingleOrDefault(s => s.EngineGameGuid == GameId);
         }
         else
         {

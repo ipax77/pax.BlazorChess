@@ -8,7 +8,7 @@
     <div>
         <div class="btn-group">
             <span class="oi oi-cog pointer me-3" @onclick="e => enginesModal?.Show()"></span>
-            @if (!Analyzes.isPaused)
+            @if (!Analyzes.IsPaused)
             {
                 <button type="button" class="btn btn-sm btn-outline-warning" @onclick="Pause">Pause</button>
             }
@@ -17,7 +17,7 @@
                 <button type="button" class="btn btn-sm btn-outline-warning" @onclick="e => Analyzes.Resume()">Resume</button>
             }
         </div>
-        @if (!Analyzes.isPaused)
+        @if (!Analyzes.IsPaused)
         {
             <div class="mt-1">
                 <CascadingValue Value="Game">
@@ -58,20 +58,21 @@
         Analyzes.EngineInfoAvailable += InfoAvailable;
     }
 
-    private void InfoAvailable(object? sender, List<EngineInfo> infos)
+    private void InfoAvailable(object? sender, EngineInfoEventArgs infoEventArgs)
     {
-        EngineInfos = infos;
+        var _engineInfos = infoEventArgs.Infos.ToList();
 
-        if (infos.Any())
+        if (_engineInfos.Any())
         {
             HashSet<EngineMove> hints = new HashSet<EngineMove>();
-            infos.ForEach(f => f.PvInfos.ForEach(g => hints.Add(g.Moves[0])));
+            _engineInfos.ForEach(f => f.PvInfos.ToList().ForEach(g => hints.Add(g.Moves.ElementAt(0))));
             if (hints.Any())
             {
                 mainBoard?.DrawOtherHints(hints.ToList(), true);
             }
         }
 
+        EngineInfos = _engineInfos;
         InvokeAsync(() => StateHasChanged());
     }
 
@@ -90,7 +91,7 @@
     {
         if (Analyzes != null)
         {
-            if (Analyzes.isPaused)
+            if (Analyzes.IsPaused)
             {
                 Analyzes.Resume();
                 return null;
