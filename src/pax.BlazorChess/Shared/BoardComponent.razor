@@ -157,7 +157,7 @@
         if (PieceToMove != null)
         {
             DragStartPostion = new ClickPosition(e.PageX, e.PageY);
-            possiblePosition = State.ValidPositions(PieceToMove);
+            possiblePosition = State.ValidPositions(PieceToMove).ToList();
         }
     }
 
@@ -208,7 +208,7 @@
             if (piece != null)
             {
                 PieceToMove = piece;
-                possiblePosition = State.ValidPositions(PieceToMove);
+                possiblePosition = State.ValidPositions(PieceToMove).ToList();
             }
         }
         else

@@ -45,12 +45,10 @@ public class DbService
             newGame.MoveEvaluations.Clear();
         }
 
-        DbMap.SetGameInfo(newGame, game);
-        newGame.HalfMoves = game.State.Moves.Count;
-        newGame.EngineMoves = String.Concat(game.State.Moves.Select(s => Map.GetEngineMoveString(s)));
-        newGame.Variations = DbMap.GetVariations(game);
-        newGame.MoveEvaluations = DbMap.GetMoveEvaluations(game);
+        DbMap.UpdateDbGame(newGame, game);
+
         await context.SaveChangesAsync();
+
         return newGame;
     }
 
