@@ -38,14 +38,14 @@
 
     private async void Close()
     {
-        await _js.InvokeVoidAsync("ReplayModalClose");
+        await _js.InvokeVoidAsync("modalClose");
     }
 
     public async void Show()
     {
         StateHasChanged();
 
-        await _js.InvokeVoidAsync("ReplayModalOpen", "downloadModal");
+        await _js.InvokeVoidAsync("modalOpen", "downloadModal");
     }
 
     public void Install(bool install)
