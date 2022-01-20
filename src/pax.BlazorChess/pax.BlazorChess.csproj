@@ -13,8 +13,8 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="6.0.1" />
-    <PackageReference Include="pax.chess" Version="0.5.5" />
-    <PackageReference Include="pax.uciChessEngine" Version="0.5.5" />
+    <PackageReference Include="pax.chess" Version="0.6.0" />
+    <PackageReference Include="pax.uciChessEngine" Version="0.6.0" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="electron.manifest.json">
