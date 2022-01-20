@@ -5,25 +5,32 @@
 @implements IDisposable
 
 <style>
-    .my-menu { color: darkblue; }
-    
-    /* using css specificity to override default background-color */
-    .my-menu .my-menu-item { background-color: #ffb3b3;}
-    .my-menu .my-menu-item:hover { background-color: #c11515;} 
+    .my-menu {
+        color: darkblue;
+    }
+
+        /* using css specificity to override default background-color */
+        .my-menu .my-menu-item {
+            background-color: #ffb3b3;
+        }
+
+            .my-menu .my-menu-item:hover {
+                background-color: #c11515;
+            }
 </style>
 
 <ContextMenu Id="variationMenu" Template="myTemplate">
     <Item Id="variation-delete" OnClick="@DeleteVariation">Delete</Item>
-@*    <Item OnClick="@OnClick">Item 2</Item>
-    <Item OnClick="@OnClick" Enabled="false">Item 3 (disabled)</Item>
-    <Seperator />
-    <Item>
+    @*    <Item OnClick="@OnClick">Item 2</Item>
+        <Item OnClick="@OnClick" Enabled="false">Item 3 (disabled)</Item>
+        <Seperator />
+        <Item>
         Submenu
         <SubMenu>
-            <Item OnClick="@OnClick">Submenu Item 1</Item>
-            <Item OnClick="@OnClick">Submenu Item 2</Item>
+        <Item OnClick="@OnClick">Submenu Item 1</Item>
+        <Item OnClick="@OnClick">Submenu Item 2</Item>
         </SubMenu>
-    </Item>*@
+        </Item>*@
 </ContextMenu>
 
 <div style="height: 100%; overflow-y: auto; overflow-x: hidden;">
@@ -151,18 +158,16 @@
                     Game.Variations[move].RemoveAll(f => f.RootVariation == variation);
                     Game.Variations[move].Remove(variation);
                 }
-                else
+                else if (variation.RootVariation != null)
                 {
-                    foreach (var subVariation in Game.Variations[move])
-                    {
-                        
-                    }
+                    variation.RootVariation.ChildVariations.Remove(variation);
                 }
             }
-        }
-        if (Game.ObserverState.CurrentMove != null && Game.ObserverState.CurrentMove.Variation == variation)
-        {
-            Game.ObserverState.CurrentMove.Variation = null;
+            if (Game.ObserverState.CurrentMove != null && Game.ObserverState.CurrentMove.Variation == variation)
+            {
+                Game.ObserverState.CurrentMove.Variation = null;
+                Game.ObserverMoveTo(variation.StartMove);
+            }
         }
         InvokeAsync(() => StateHasChanged());
 
