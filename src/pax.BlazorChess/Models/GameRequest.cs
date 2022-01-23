@@ -1,7 +1,7 @@
 ﻿namespace pax.BlazorChess.Models;
 public record GameRequest
 {
-    public List<SortOrder> SortOrders { get; set; } = new List<SortOrder>();
+    public List<SortOrder> SortOrders { get; set; } = new List<SortOrder>() { new SortOrder("UTCDate", false) };
     public string? SearchString { get; set; }
     public int StartIndex { get; set; }
     public int Count { get; set; }
