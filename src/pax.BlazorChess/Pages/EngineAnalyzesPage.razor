@@ -37,7 +37,9 @@
             </div>
 
             <BoardContainer @ref="boardContainer" Game="Analysis.Game" ShowBoard="false" OnObserverMoveChanged="ObserverMoveChanged" OnMoveRequested="MoveRequested"></BoardContainer>
-
+            <div class="mt-4">
+                <MoveStatsComponent @ref="moveStatsComponent" OnMoveQualityRequest="MoveToQuality"></MoveStatsComponent>
+            </div>
         </div>
     }
     else

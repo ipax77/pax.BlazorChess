@@ -180,6 +180,7 @@
     {
         StateHasChanged();
         KeyBoardGame = Game;
+        OnObserverMoveChanged.InvokeAsync();
     }
 
     private void GotoBoardMove(Move move)

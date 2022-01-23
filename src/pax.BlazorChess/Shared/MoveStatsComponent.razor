@@ -1,0 +1,114 @@
+﻿@using pax.chess
+
+<div class="d-flex">
+@if (moveStatsWhite != null)
+{
+    <div>
+        <h4><span class="badge bg-light text-black-50">white</span></h4>
+        <table class="table table-sm table-secondary table-striped">
+            <thead>
+                <tr>
+                    <th>MoveQuality</th>
+                    <th>Count</th>
+                    <th>%</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (MoveQuality moveQuality in Enum.GetValues(typeof(MoveQuality)))
+                {
+                    var stat = moveStatsWhite.QualityStat(moveQuality);
+                    <tr class="pointer" @onclick="e => OnMoveQualityRequest.InvokeAsync(new KeyValuePair<MoveQuality, bool>(moveQuality, false))">
+                        <td>@moveQuality</td>
+                        <td>@stat.Key</td>
+                        <td>@stat.Value.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+@if (moveStatsBlack != null)
+{
+    <div class="ms-4">
+        <h4><span class="badge bg-dark text-while-50">black</span></h4>
+        <table class="table table-sm table-secondary table-striped">
+            <thead>
+                <tr>
+                    <th>MoveQuality</th>
+                    <th>Count</th>
+                    <th>%</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (MoveQuality moveQuality in Enum.GetValues(typeof(MoveQuality)))
+                {
+                    var stat = moveStatsBlack.QualityStat(moveQuality);
+                    <tr class="pointer" @onclick="e => OnMoveQualityRequest.InvokeAsync(new KeyValuePair<MoveQuality, bool>(moveQuality, true))">
+                        <td>@moveQuality</td>
+                        <td>@stat.Key</td>
+                        <td>@stat.Value.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+</div>
+
+
+@code {
+    [Parameter]
+    public EventCallback<KeyValuePair<MoveQuality, bool>> OnMoveQualityRequest { get; set; }
+
+    private MoveStats? moveStatsWhite;
+    private MoveStats? moveStatsBlack;
+
+    public void Update(Game game)
+    {
+        moveStatsBlack = new MoveStats(game, true);
+        moveStatsWhite = new MoveStats(game, false);
+        InvokeAsync(() => StateHasChanged());
+    }
+
+
+    public sealed record MoveStats
+    {
+        public int Count { get; init; }
+        public List<MoveQualityStat> Stats { get; init; }
+
+
+        public sealed record MoveQualityStat
+        {
+            public MoveQuality MoveQuality { get; init; }
+            public int Count { get; init; }
+        }
+
+        public MoveStats(Game game, bool isBlack)
+        {
+            Stats = new List<MoveQualityStat>();
+            Count = game.State.Moves.Where(x => (isBlack ? x.HalfMoveNumber % 2 != 0 : x.HalfMoveNumber % 2 == 0)).Count();
+            foreach (MoveQuality quality in Enum.GetValues(typeof(MoveQuality)))
+            {
+                Stats.Add(new MoveQualityStat()
+                    {
+                        MoveQuality = quality,
+                        Count = game.State.Moves.Count(c => (isBlack ? c.HalfMoveNumber % 2 != 0 : c.HalfMoveNumber % 2 == 0) && c.Evaluation?.MoveQuality == quality)
+                    });
+            }
+        }
+
+        public KeyValuePair<int, double> QualityStat(MoveQuality moveQuality)
+        {
+            var stat = Stats.FirstOrDefault(f => f.MoveQuality == moveQuality);
+            if (stat == null)
+            {
+                return new KeyValuePair<int, double>(0, 0.0);
+            }
+            else
+            {
+                return new KeyValuePair<int, double>(stat.Count, Math.Round((double)stat.Count * 100.0 / (double)Count, 2));
+            }
+        }
+    }
+
+}

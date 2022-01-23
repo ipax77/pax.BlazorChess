@@ -6,7 +6,7 @@
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-xxl-down">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="exampleModalLabel">New Version available: @ElectronService.AvailableVersion</h5>
+        <h5 class="modal-title" id="downloadModalLabel">New Version available: @ElectronService.AvailableVersion</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -38,14 +38,14 @@
 
     private async void Close()
     {
-        await _js.InvokeVoidAsync("ReplayModalClose");
+        await _js.InvokeVoidAsync("modalClose");
     }
 
     public async void Show()
     {
         StateHasChanged();
 
-        await _js.InvokeVoidAsync("ReplayModalOpen", "downloadModal");
+        await _js.InvokeVoidAsync("modalOpen", "downloadModal");
     }
 
     public void Install(bool install)
