@@ -33,6 +33,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
     LoadModal? loadModal;
     SettingsModal? settingModal;
     EngineComponent? engineComponent;
+    MoveStatsComponent? moveStatsComponent;
 
     CancellationTokenSource cts = new CancellationTokenSource();
 
@@ -85,6 +86,10 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         if (firstRender)
         {
             UpdateChart();
+            if (Analysis != null)
+            {
+                moveStatsComponent?.Update(Analysis.Game);
+            }
         }
     }
 
@@ -282,7 +287,20 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                         }
                     }
                 }
+                var lastMove = Analysis.Game.State.Moves.LastOrDefault();
+                if (lastMove != null)
+                {
+                    var lastVariation = Analysis.Game.ReviewVariations.OrderBy(o => o.Key).LastOrDefault().Value.FirstOrDefault();
+                    var lastEval = lastVariation?.Evaluation;
+                    if (lastEval != null)
+                    {
+                        lastMove.Evaluation = lastEval;
+                        lastMove.Evaluation.MoveQuality = ValidateMove(lastMove, lastVariation, Analysis.Game.ReviewVariations.OrderBy(o => o.Key).LastOrDefault().Value.LastOrDefault());
+                    }
+                }
+
                 toastService.ShowSuccess("Anlysis complete.");
+                moveStatsComponent?.Update(Analysis.Game);
                 await InvokeAsync(() => StateHasChanged());
             }
         }
@@ -330,6 +348,23 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         }
     }
 
+    private void MoveToQuality(KeyValuePair<MoveQuality, bool> request)
+    {
+        if (Analysis != null)
+        {
+            int skip = Analysis.Game.ObserverState.CurrentMove == null ? 0 : Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber + 1;
+            var move = Analysis.Game.State.Moves.Skip(skip).Where(x => (request.Value ? x.HalfMoveNumber % 2 != 0 : x.HalfMoveNumber % 2 == 0)).FirstOrDefault(f => f.Evaluation?.MoveQuality == request.Key);
+            if (move == null)
+            {
+                move = Analysis.Game.State.Moves.Where(x => (request.Value ? x.HalfMoveNumber % 2 != 0 : x.HalfMoveNumber % 2 == 0)).FirstOrDefault(f => f.Evaluation?.MoveQuality == request.Key);
+            }
+            if (move != null)
+            {
+                Analysis.Game.ObserverMoveTo(move);
+                ObserverMoveChanged();
+            }
+        }
+    }
     private void StartEngineVsEngineGame()
     {
         if (Analysis != null)

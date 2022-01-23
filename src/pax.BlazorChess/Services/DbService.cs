@@ -93,7 +93,7 @@ public class DbService
                 }
                 else
                 {
-                    games = games.OrderBy(o => o.UTCDate);
+                    games = games.OrderByDescending(o => o.UTCDate);
                 }
 
                 return await games.Skip(request.StartIndex).Take(request.Count).ToListAsync(cancellationToken);

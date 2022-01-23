@@ -23,14 +23,14 @@
                 <CascadingValue Value="Game">
                     <div class="row ms-1">
                         @foreach (var engineInfo in EngineInfos.OrderBy(o => o.EngineName))
-                        {
-                            <CascadingValue Value="engineInfo">
-                                <EvalComponent OnPvInfoSelected="PvInfoSelected" OnPvLinesChange="PvLinesChange" OnCloseRequested="RemoveEngine"></EvalComponent>
-                            </CascadingValue>
-                        }
-                    </div>
-                </CascadingValue>
+                {
+                    <CascadingValue Value="engineInfo">
+                        <EvalComponent OnPvInfoSelected="PvInfoSelected" OnPvLinesChange="PvLinesChange" OnCloseRequested="RemoveEngine"></EvalComponent>
+                    </CascadingValue>
+                }
             </div>
+        </CascadingValue>
+    </div>
         }
     </div>
 }
@@ -84,7 +84,26 @@
     private void PvInfoSelected(KeyValuePair<string, PvInfo> info)
     {
         int startMoveId = Game.ObserverState.CurrentMove == null ? 0 : Game.ObserverState.CurrentMove.HalfMoveNumber + 1;
-        Game.CreateVariation(startMoveId, info.Value.Moves.ToArray(), new Evaluation(info.Value.Score, info.Value.Mate, Game.ObserverState.Info.BlackToMove));
+        if (Game.ObserverState.CurrentMove != null && Game.ObserverState.CurrentMove.Variation != null)
+        {
+            startMoveId = Game.ObserverState.CurrentMove.Variation.StartMove;
+            var blackToMove = Game.ObserverState.Info.BlackToMove;
+            // Game.ObserverMoveBackward();
+            for (int i = 0; i < info.Value.Moves.Count; i++)
+            {
+                var result = Game.VariationMove(info.Value.Moves.ElementAt(i));
+                if (result != MoveState.Ok)
+                {
+                    return;
+                }
+            }
+            var startMove = Game.State.Moves[startMoveId];
+            Game.Variations[startMove].Last().Evaluation = new Evaluation(info.Value.Score, info.Value.Mate, blackToMove);
+        }
+        else
+        {
+            Game.CreateVariation(startMoveId, info.Value.Moves.ToArray(), new Evaluation(info.Value.Score, info.Value.Mate, Game.ObserverState.Info.BlackToMove));
+        }
     }
 
     public async Task<EngineMove?> ExecuteBestMove()
