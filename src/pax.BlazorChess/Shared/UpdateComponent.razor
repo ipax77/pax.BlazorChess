@@ -36,9 +36,8 @@
 }
 else
 {
-    <button type="button" class="btn btn-outline-info" @onclick="CheckForUpdate">Check for Updates</button>
+    <button type="button" class="btn btn-sm btn-outline-info" @onclick="CheckForUpdate">Check for Updates</button>
 }
-
 <DownloadModal @ref="downloadModal" OnInstallRequested="Install"></DownloadModal>
 
 @code {
