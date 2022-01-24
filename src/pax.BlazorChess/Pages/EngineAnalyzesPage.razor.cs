@@ -5,6 +5,7 @@ using pax.BlazorChess.Shared;
 using pax.chess;
 using pax.uciChessEngine;
 using Blazored.Toast.Services;
+using Microsoft.AspNetCore.Components.Routing;
 
 namespace pax.BlazorChess.Pages;
 public partial class EngineAnalyzesPage : ComponentBase, IDisposable
@@ -20,6 +21,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
     protected IToastService toastService { get; set; }
     [Inject]
     protected ILogger<EngineAnalyzesPage> logger { get; set; }
+
 # nullable enable
 
     [Parameter]
@@ -39,6 +41,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
 
     private Chart _chart = ChartService.GetRatingChart();
     private bool Analyzing = false;
+    private bool Loading = false;
 
     private ReviewSettings reviewSettings = new ReviewSettings();
 
@@ -93,9 +96,24 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         }
     }
 
-    private async void GameImport(Game game)
+    private async Task GameImport(Game game)
     {
         GameId = null;
+        Loading = true;
+        await InvokeAsync(() => StateHasChanged());
+
+        if (Analysis != null)
+        {
+            engineService.DeleteGameAnalyzes(Analysis);
+            Analysis = null;
+
+        }
+
+        if (engineComponent != null)
+        {
+            await engineComponent.Reset(game);
+        }
+
         Analysis = engineService.CreateGameAnalyzes(game, reviewSettings.EngineString);
 
         if (game.State.Moves.Any())
@@ -112,6 +130,12 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                 _nav.NavigateTo(_nav.GetUriWithQueryParameter("GameId", GameId));
             }
         }
+        _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
+        chart?.UpdateLabels(_chart.data.labels);
+        ReviewVariations.Clear();
+        UpdateChart();
+        Loading = false;
+        await InvokeAsync(() => StateHasChanged());
     }
 
     private void SettingsChoosen()
@@ -148,7 +172,8 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                 {
                     var chartScore = ReviewVariations[i].OrderBy(o => o.Pv).First().Evaluation?.ChartScore();
                     _chart.data.datasets[0].data.Add(chartScore == null ? 0 : (double)chartScore);
-                } else
+                }
+                else
                 {
                     _chart.data.datasets[0].data.Add(0);
                 }
@@ -258,7 +283,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                         ReviewVariations[variation.StartMove] = new List<Variation>();
                     }
                     ReviewVariations[variation.StartMove].Add(variation);
-                    
+
                     i++;
                     if (i % 20 == 0)
                     {
@@ -386,6 +411,8 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
 
     public void Dispose()
     {
+        Loading = true;
+        InvokeAsync(() => StateHasChanged());
         cts.Cancel();
     }
 }
