@@ -1,8 +1,13 @@
 ﻿@page "/review"
 @using pax.BlazorChess.Services
 
+@if (Loading)
+{
+    <LoadingIndicatorComponent></LoadingIndicatorComponent>
+}
+
 <div class="btn-group">
-    <button type="button" class="btn btn-outline-light" @onclick="e => loadModal?.Show()">Import</button>
+    <button type="button" class="btn btn-outline-light" @onclick="async(e) => loadModal?.Show()">Import</button>
     @if (!Analyzing)
     {
         <button type="button" class="btn btn-outline-warning" @onclick="@( async() => _ = Analyse())">Analyze</button>

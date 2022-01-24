@@ -58,6 +58,22 @@
         Analyzes.EngineInfoAvailable += InfoAvailable;
     }
 
+    public async Task Reset(Game game)
+    {
+        if (Analyzes != null)
+        {
+            Pause();
+            Analyzes.EngineInfoAvailable -= InfoAvailable;
+            engineService.DeleteAnalyzes(Analyzes);
+            Analyzes = null;
+            EngineInfos.Clear();
+        }
+        Game = game;
+        Analyzes = await engineService.CreateAnalyzes(Game);
+        Analyzes.EngineInfoAvailable += InfoAvailable;
+        await InvokeAsync(() => StateHasChanged());
+    }
+
     private void InfoAvailable(object? sender, EngineInfoEventArgs infoEventArgs)
     {
         var _engineInfos = infoEventArgs.Infos.ToList();

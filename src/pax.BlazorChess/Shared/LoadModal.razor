@@ -14,12 +14,12 @@
             </div>
             <div class="modal-body">
 
-@*              <div class="form-group d-flex align-items-center">
+                @*              <div class="form-group d-flex align-items-center">
                     <label for="fen" class="col col-form-label">Fen</label>
                     <div class="col-sm-8 ms-2">
-                        <input type="text" disabled="disabled" class="form-control" id="fen" value="@Game.FEN">
+                    <input type="text" disabled="disabled" class="form-control" id="fen" value="@Game.FEN">
                     </div>
-                </div>*@
+                    </div>*@
                 <div class="form-group d-flex align-items-center">
                     <label for="fen" class="col col-form-label">Fen</label>
                     <div class="col-10 ms-2">
@@ -33,12 +33,12 @@
                     <label for="pgn" class="form-label">Pgn</label>
                     <textarea class="form-control ms-2" id="pgn" rows="5" @bind="pgnString"></textarea>
                     <div class="col-auto ms-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="LoadPgn">Load Pgn</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="@(async(e) => _ = LoadPgn())">Load Pgn</button>
                     </div>
                 </div>
                 <div class="form-group d-flex align-items-center mt-2">
                     <label for="pgnfile" class="form-label">Pgn File</label>
-                    <InputFile class="ms-2" OnChange="@LoadFiles" id="pgnfile"></InputFile>
+                    <InputFile class="ms-2" OnChange="@(async(e) => _ = LoadFiles(e))" id="pgnfile"></InputFile>
                 </div>
 
             </div>
@@ -59,12 +59,12 @@
     string pgnString = String.Empty;
     string fenString = String.Empty;
 
-    private async void Close()
+    private async Task Close()
     {
         await _js.InvokeVoidAsync("modalClose");
     }
 
-    public async void Show()
+    public async Task Show()
     {
         await _js.InvokeVoidAsync("modalOpen", "loadModal");
         StateHasChanged();
@@ -74,17 +74,27 @@
     {
         Game.LoadFen(fenString);
         Loaded.InvokeAsync(Game);
-        Close();
+        _ = Close();
     }
 
-    private void LoadPgn()
+    private async Task LoadPgn()
     {
-        Game.LoadPgn(pgnString);
-        Loaded.InvokeAsync(Game);
-        Close();
+        try
+        {
+            Game.LoadPgn(pgnString);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"failed loading pgn: {ex.Message}");
+            await Close();
+            return;
+
+        }
+        await Close();
+        _ = Loaded.InvokeAsync(Game);
     }
 
-    private async void LoadFiles(InputFileChangeEventArgs e)
+    private async Task LoadFiles(InputFileChangeEventArgs e)
     {
         string? pgn = String.Empty;
         foreach (var file in e.GetMultipleFiles(1))
@@ -94,9 +104,18 @@
         }
         if (!String.IsNullOrEmpty(pgn))
         {
-            Game.LoadPgn(pgn);
-            await Loaded.InvokeAsync(Game);
-            Close();
+            try
+            {
+                Game.LoadPgn(pgn);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"failed loading pgn: {ex.Message}");
+                await Close();
+                return;
+            }
+            await Close();
+            _ = Loaded.InvokeAsync(Game);
         }
     }
 }
