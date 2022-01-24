@@ -5,8 +5,8 @@ using System.Reflection;
 namespace pax.BlazorChess.Services;
 public class ElectronService
 {
-    public static Version CurrentVersion { get; private set; } = new Version(0, 6, 2);
-    public static Version AvailableVersion { get; private set; } = new Version(0, 6, 2);
+    public static Version CurrentVersion { get; private set; } = new Version(0, 6, 3);
+    public static Version AvailableVersion { get; private set; } = new Version(0, 6, 3);
     public static string? AppPath { get; private set; } = String.Empty;
 
     public event EventHandler<DownloadEventArgs>? DownloadProgress;
