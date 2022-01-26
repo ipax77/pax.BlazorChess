@@ -133,7 +133,10 @@
         var reviewVariations = Game.GetCurrentReviewVariations().ToArray();
         for (int i = 0; i < reviewVariations.Length; i++)
         {
-            moves.Add(reviewVariations[i].Moves.First().EngineMove);
+            if (reviewVariations[i].Moves.Any())
+            {
+                moves.Add(reviewVariations[i].Moves.First().EngineMove);
+            }
         }
         return moves;
     }
