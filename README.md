@@ -21,3 +21,16 @@ Blazor Server Electron app for analyzing chess games with UCI chess engines on l
 * FEN import not tested
 
 (Debug logging enabled)
+
+# Release Notes
+
+<details open="open"><summary>v0.6.5</summary>
+
+>- Database bugfix
+>- SubVariation linebreaks fix
+</details>
+
+<details><summary>v0.6.4</summary>
+
+>- Engine dispose fix
+</details>
