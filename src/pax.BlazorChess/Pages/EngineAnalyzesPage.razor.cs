@@ -72,7 +72,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                 Analysis = engineService.CreateGameAnalyzes(game, reviewSettings.EngineString);
             }
         }
-        await InvokeAsync(() => StateHasChanged());
+        
         if (Analysis != null)
         {
             _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
@@ -81,6 +81,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                 ReviewVariations = new Dictionary<int, List<Variation>>(Analysis.Game.ReviewVariations);
             }
         }
+        await InvokeAsync(() => StateHasChanged());
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -133,6 +134,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
         chart?.UpdateLabels(_chart.data.labels);
         ReviewVariations.Clear();
+        reviewVariations.Clear();
         UpdateChart();
         Loading = false;
         await InvokeAsync(() => StateHasChanged());

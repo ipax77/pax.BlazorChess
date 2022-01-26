@@ -8,7 +8,7 @@
     @foreach (var variation in Variations.Where(x => x.RootVariation == null))
     {
         <tr>
-            <td colspan="3" style="max-width: 20vw; word-wrap: break-word;">
+            <td colspan="3" style="max-width: 15vw; word-wrap: break-word;">
                 <ContextMenuTrigger Data="variation" MenuId="variationMenu">
                     <span>
                         @if (variation.Evaluation != null)
@@ -22,7 +22,7 @@
                             var move = variation.Moves[I];
                             var subVariations = variation.ChildVariations.Where(x => x.RootStartMove == I);
                             bool isCurrent = Game.ObserverState.IsCurrentMove(move);
-                            <span class="ms-1 pointer @(isCurrent ? "bg-info" : "")" @onclick="e => GotoMove.InvokeAsync(move)">@move.PgnMove </span>
+                            <span class="ms-1 pointer @(isCurrent ? "bg-info" : "")" @onclick="e => GotoMove.InvokeAsync(move)" style="white-space: nowrap;">@move.PgnMove </span>
                             @if (subVariations.Any())
                             {
                                 <MovesVariationComponent Variations="subVariations.ToList()" Game="Game" RootVariation="variation" GotoMove="GotoMove"></MovesVariationComponent>
@@ -50,7 +50,7 @@ else
                 var move = variation.Moves[I];
                 var subsubVariations = variation.ChildVariations.Where(x => x.RootStartMove == I);
                 bool isCurrent = Game.ObserverState.IsCurrentMove(move);
-                <span class="ms-1 pointer @(isCurrent ? "bg-info" : "")" @onclick="e => GotoMove.InvokeAsync(move)">@move.PgnMove </span>
+                <span class="ms-1 pointer @(isCurrent ? "bg-info" : "")" @onclick="e => GotoMove.InvokeAsync(move)" style="white-space: nowrap;">@move.PgnMove </span>
                 @if (subsubVariations.Any())
                 {
                     <MovesVariationComponent Variations="subsubVariations.ToList()" Game="Game" RootVariation="variation" GotoMove="GotoMove"></MovesVariationComponent>

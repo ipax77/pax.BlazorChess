@@ -23,7 +23,7 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
 builder.Services.AddDbContext<ChessContext>(options =>
-    options.UseSqlite($"Data Source={Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "pax.chess", "chess.db")}",
+    options.UseSqlite($"Data Source={Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "pax.chess", "chess_v2.db")}",
        x =>
        {
            x.MigrationsAssembly("pax.BlazorChess");
@@ -56,8 +56,8 @@ app.Services.GetRequiredService<ConfigurationService>();
 
 using (var scope = app.Services.CreateScope())
 {
-    // var context = scope.ServiceProvider.GetService<ChessContext>();
-    // context?.Database.Migrate();
+    var context = scope.ServiceProvider.GetService<ChessContext>();
+    context?.Database.Migrate();
 
     // var dbService = scope.ServiceProvider.GetService<DbService>();
 }
