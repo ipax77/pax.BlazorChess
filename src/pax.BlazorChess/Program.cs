@@ -7,6 +7,7 @@ using pax.uciChessEngine;
 using ElectronNET.API;
 using ElectronNET.API.Entities;
 using Blazored.Toast;
+using pax.BlazorChartJs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,7 +45,7 @@ builder.Services.AddBlazorContextMenu(options =>
     });
 });
 
-
+builder.Services.AddChartJs();
 builder.Services.AddScoped<DbService>();
 builder.Services.AddSingleton<ConfigurationService>();
 builder.Services.AddSingleton<EngineService>();

@@ -5,7 +5,7 @@ using pax.BlazorChess.Shared;
 using pax.chess;
 using pax.uciChessEngine;
 using Blazored.Toast.Services;
-using Microsoft.AspNetCore.Components.Routing;
+using pax.BlazorChartJs;
 
 namespace pax.BlazorChess.Pages;
 public partial class EngineAnalyzesPage : ComponentBase, IDisposable
@@ -31,7 +31,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
     List<GameAnalyzes> GameAnalyzis = new List<GameAnalyzes>();
     GameAnalyzes? Analysis;
     BoardContainer? boardContainer;
-    ChartComponent? chart;
+    ChartComponent? chartComponent;
     LoadModal? loadModal;
     SettingsModal? settingModal;
     EngineComponent? engineComponent;
@@ -39,7 +39,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
 
     CancellationTokenSource cts = new CancellationTokenSource();
 
-    private Chart _chart = ChartService.GetRatingChart();
+    private ChartJsConfig chartConfig = ChartService.GetRatingChart();
     private bool Analyzing = false;
     private bool Loading = false;
 
@@ -75,7 +75,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         
         if (Analysis != null)
         {
-            _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
+            chartConfig.SetLabels(Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList());
             if (Analysis.Game.ReviewVariations.Any())
             {
                 ReviewVariations = new Dictionary<int, List<Variation>>(Analysis.Game.ReviewVariations);
@@ -131,8 +131,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                 _nav.NavigateTo(_nav.GetUriWithQueryParameter("GameId", GameId));
             }
         }
-        _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
-        chart?.UpdateLabels(_chart.data.labels);
+        chartConfig.SetLabels(Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList());
         ReviewVariations.Clear();
         reviewVariations.Clear();
         UpdateChart();
@@ -149,8 +148,9 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         }
     }
 
-    private void ChartClicked(string label)
+    private void ChartClicked(KeyValuePair<Guid, string> report)
     {
+        string label = report.Value;
         if (Analysis != null)
         {
             int i;
@@ -167,22 +167,23 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
     {
         if (Analysis != null)
         {
-            _chart.data.datasets[0].data.Clear();
+            List<object> data = new();
+            
             for (int i = 0; i < Analysis.Game.State.Moves.Count; i++)
             {
                 if (ReviewVariations.ContainsKey(i) && ReviewVariations[i].Any())
                 {
                     var chartScore = ReviewVariations[i].OrderBy(o => o.Pv).First().Evaluation?.ChartScore();
-                    _chart.data.datasets[0].data.Add(chartScore == null ? 0 : (double)chartScore);
+                    data.Add(chartScore == null ? 0 : (double)chartScore);
                 }
                 else
                 {
-                    _chart.data.datasets[0].data.Add(0);
+                    data.Add(0);
                 }
             }
-            if (!dry)
+            if (!dry && chartConfig.Data.Datasets.Any())
             {
-                chart?.UpdateDataset(_chart.data.datasets[0]);
+                chartConfig.SetData(chartConfig.Data.Datasets.First(), data);
             }
         }
     }
@@ -191,14 +192,23 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
     {
         if (Analysis != null && Analysis.Game.ObserverState.CurrentMove != null)
         {
+            var arConfig = chartConfig.Options?.Plugins?.ArbitraryLines?.FirstOrDefault();
             if (Analysis.Game.ObserverState.CurrentMove.Variation == null)
             {
-                chart?.DrawHorizontalLine(Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber);
+                if (arConfig != null)
+                {
+                    arConfig.XPosition = Analysis.Game.ObserverState.CurrentMove.HalfMoveNumber;
+                    chartComponent?.UpdateChartOptions();
+                }
             }
             else
             {
                 var startMove = Analysis.Game.ObserverState.CurrentMove.Variation?.StartMove;
-                chart?.DrawHorizontalLine(startMove ?? 0);
+                if (arConfig != null)
+                {
+                    arConfig.XPosition = startMove ?? 0;
+                    chartComponent?.UpdateChartOptions();
+                }
             }
             boardContainer?.DrawReviewHints();
             reviewVariations = Analysis.Game.GetCurrentReviewVariations().ToList();
@@ -268,8 +278,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         int i = 0;
         if (Analysis != null)
         {
-            _chart.data.labels = Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList();
-            chart?.UpdateLabels(_chart.data.labels);
+            chartConfig.SetLabels(Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList());
             Analyzing = true;
             await InvokeAsync(() => StateHasChanged());
             cts = new CancellationTokenSource();

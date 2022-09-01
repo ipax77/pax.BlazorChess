@@ -23,7 +23,7 @@
     "appId": "com.pax.BlazorChess.app",
     "productName": "pax.BlazorChess",
     "copyright": "Copyright © 2022",
-    "buildVersion": "0.6.5",
+    "buildVersion": "0.6.6",
     "compression": "maximum",
     "directories": {
       "output": "../../../bin/Desktop"

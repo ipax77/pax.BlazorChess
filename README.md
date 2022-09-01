@@ -24,7 +24,12 @@ Blazor Server Electron app for analyzing chess games with UCI chess engines on l
 
 # Release Notes
 
-<details open="open"><summary>v0.6.5</summary>
+<details open="open"><summary>v0.6.6</summary>
+
+>- pax.BlazorChartJs
+</details>
+
+<details><summary>v0.6.5</summary>
 
 >- Database bugfix
 >- SubVariation linebreaks fix
