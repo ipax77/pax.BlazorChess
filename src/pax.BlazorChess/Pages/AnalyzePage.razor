@@ -45,7 +45,7 @@
     </div>
     <div>
         <div class="btn-group mt-1">
-            <button type="button" class="btn btn-outline-light" @onclick="e => loadModal?.Show()">Import</button>
+            <button type="button" class="btn btn-outline-light" @onclick="ImportClick">Import</button>
             @if (Analyzes == null)
             {
                 <button type="button" class="btn btn-outline-info" @onclick="CreateNewAnalyzes">Start analyzing</button>
@@ -162,6 +162,11 @@
         Analyzes = await engineService.CreateAnalyzes(Game);
         Analyzes.EngineInfoAvailable += InfoAvailable;
         AvailableAnalyzes = engineService.GetAnalyzes().ToList();
+    }
+
+    private void ImportClick()
+    {
+        loadModal?.Show();
     }
 
     private void InfoAvailable(object? sender, EngineInfoEventArgs infoEventArgs)

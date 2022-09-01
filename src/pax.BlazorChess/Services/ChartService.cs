@@ -1,104 +1,111 @@
-﻿using pax.BlazorChess.Models;
+﻿using pax.BlazorChartJs;
+using pax.BlazorChess.Models;
 
 namespace pax.BlazorChess.Services;
 
 public static class ChartService
 {
-    public static Chart GetRatingChart()
+    public static ChartJsConfig GetRatingChart()
     {
-        Chart chart = new Chart()
+        return new()
         {
-            type = "line",
-            data = new Data()
+            Type = ChartType.line,
+            Data = new ChartJsData()
             {
-                labels = new List<string>(),
-                datasets = new List<Dataset>()
+                Labels = new List<string>(),
+                Datasets = new List<object>()
                 {
-                    new Dataset()
+                    new LineDataset()
                     {
-                        label = "Rating",
-                        data = new List<double>(),
-                        backgroundColor = "white",
-                        borderColor = "#ffffff",
-                        fill = true,
-                        pointBackgroundColor = "white",
-                        pointBorderColor = "yellow",
-                        pointRadius = 3,
-                        pointBorderWidth = 2,
-                        pointHitRadius = 5,
-                        tension = 0.4
+                        Label = "Rating",
+                        BackgroundColor = "white",
+                        BorderColor = "#ffffff",
+                        Fill = new
+                            {
+                                target = "origin",
+                                above = "rgb(255, 255, 255, 0.6)",
+                                below = "rgb(0, 0, 0, 0.6)"
+                            },
+                        PointBackgroundColor = "white",
+                        PointBorderColor = "yellow",
+                        PointRadius = 3,
+                        PointBorderWidth = 2,
+                        PointHitRadius = 5,
+                        Tension = 0.4
                     }
                 }
             },
-            options = new Options()
+            Options = new ChartJsOptions()
             {
-                responsive = true,
-                plugins = new Plugins()
+                Responsive = true,
+                Plugins = new Plugins()
                 {
-                    legend = new Legend()
+                    Legend = new Legend()
                     {
-                        position = "top"
+                        Position = "top"
                     },
-                    title = new Title()
+                    Title = new Title()
                     {
-                        display = true,
-                        text = "Game Evaluation",
-                        color = "yellow",
-                        font = new Font()
+                        Display = true,
+                        Text = "Game Evaluation",
+                        Color = "yellow",
+                        Font = new Font()
                         {
-                            size = 16
+                            Size = 16
                         }
                     },
-                    arbitraryLine = new ArbitraryLine()
+                    ArbitraryLines = new List<ArbitraryLineConfig>()
                     {
-                        arbitraryLineColor = "blue",
-                        xPosition = 0,
-                        xWidth = 3
+                        new ArbitraryLineConfig()
+                        {
+                            ArbitraryLineColor = "blue",
+                            XPosition = 0,
+                            XWidth = 3,
+                            Text = "Current"
+                        }
                     }
                 },
-                scales = new Scales()
+                Scales = new ChartJsOptionsScales()
                 {
-                    x = new X()
+                    X = new LinearAxis()
                     {
-                        display = true,
-                        title = new Title()
+                        Display = true,
+                        Title = new Title()
                         {
-                            display = true,
-                            text = "Moves",
-                            color = "yellow"
+                            Display = true,
+                            Text = "Moves",
+                            Color = "yellow"
                         },
-                        ticks = new Ticks()
+                        Ticks = new LinearAxisTick()
                         {
-                            color = "yellow",
-                            beginAtZero = true
+                            Color = "yellow",
                         },
-                        grid = new Grid()
+                        Grid = new ChartJsGrid()
                         {
-                            color = "grey"
+                            Color = "grey"
                         }
                     },
-                    y = new Y()
+                    Y = new LinearAxis()
                     {
-                        display = true,
-                        title = new Title()
+                        Display = true,
+                        BeginAtZero = true,
+                        Title = new Title()
                         {
-                            display = true,
-                            text = "Evaluation",
-                            color = "yellow"
+                            Display = true,
+                            Text = "Evaluation",
+                            Color = "yellow"
                         },
-                        ticks = new Ticks()
+                        Ticks = new LinearAxisTick()
                         {
-                            color = "yellow",
-                            beginAtZero = true
+                            Color = "yellow"
                         },
-                        grid = new Grid()
+                        Grid = new ChartJsGrid()
                         {
-                            color = "grey"
+                            Color = "grey"
                         }
                     }
                 }
             }
         };
-        return chart;
     }
 }
