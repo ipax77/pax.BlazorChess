@@ -148,18 +148,14 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         }
     }
 
-    private void ChartClicked(KeyValuePair<Guid, string> report)
+    private void ChartClicked(ChartJsEvent chartJsEvent)
     {
-        string label = report.Value;
-        if (Analysis != null)
+        var data = chartJsEvent.EventData as LabelEventData;
+        if (Analysis != null && data != null)
         {
-            int i;
-            if (int.TryParse(label, out i))
-            {
-                Analysis.Game.ObserverMoveTo(i);
-                ObserverMoveChanged();
-                boardContainer?.Focus();
-            }
+            Analysis.Game.ObserverMoveTo(Convert.ToInt32(data.DataX));
+            ObserverMoveChanged();
+            boardContainer?.Focus();
         }
     }
 

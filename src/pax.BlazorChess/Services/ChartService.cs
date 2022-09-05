@@ -38,6 +38,7 @@ public static class ChartService
             Options = new ChartJsOptions()
             {
                 Responsive = true,
+                OnClickEvent = true,
                 Plugins = new Plugins()
                 {
                     Legend = new Legend()
