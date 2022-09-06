@@ -13,7 +13,7 @@ public static class ChartService
             Data = new ChartJsData()
             {
                 Labels = new List<string>(),
-                Datasets = new List<object>()
+                Datasets = new List<ChartJsDataset>()
                 {
                     new LineDataset()
                     {
@@ -26,11 +26,11 @@ public static class ChartService
                                 above = "rgb(255, 255, 255, 0.6)",
                                 below = "rgb(0, 0, 0, 0.6)"
                             },
-                        PointBackgroundColor = "white",
-                        PointBorderColor = "yellow",
-                        PointRadius = 3,
-                        PointBorderWidth = 2,
-                        PointHitRadius = 5,
+                        PointBackgroundColor = new IndexableOption<string>("white"),
+                        PointBorderColor = new IndexableOption<string>("yellow"),
+                        PointRadius = new IndexableOption<double>(3),
+                        PointBorderWidth = new IndexableOption<double>(2),
+                        PointHitRadius = new IndexableOption<double>(5),
                         Tension = 0.4
                     }
                 }
