@@ -72,7 +72,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
                 Analysis = engineService.CreateGameAnalyzes(game, reviewSettings.EngineString);
             }
         }
-        
+
         if (Analysis != null)
         {
             chartConfig.SetLabels(Analysis.Game.State.Moves.Select(s => s.HalfMoveNumber.ToString()).ToList());
@@ -150,13 +150,14 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
 
     private void ChartClicked(ChartJsEvent chartJsEvent)
     {
-        var data = chartJsEvent.EventData as LabelEventData;
-        if (Analysis != null && data != null)
-        {
-            Analysis.Game.ObserverMoveTo(Convert.ToInt32(data.DataX));
-            ObserverMoveChanged();
-            boardContainer?.Focus();
-        }
+        if (chartJsEvent is ChartJsLabelClickEvent clickEvent)
+
+            if (Analysis != null)
+            {
+                Analysis.Game.ObserverMoveTo(Convert.ToInt32(clickEvent.DataX));
+                ObserverMoveChanged();
+                boardContainer?.Focus();
+            }
     }
 
     private void UpdateChart(bool dry = false)
@@ -164,7 +165,7 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
         if (Analysis != null)
         {
             List<object> data = new();
-            
+
             for (int i = 0; i < Analysis.Game.State.Moves.Count; i++)
             {
                 if (ReviewVariations.ContainsKey(i) && ReviewVariations[i].Any())
@@ -179,7 +180,8 @@ public partial class EngineAnalyzesPage : ComponentBase, IDisposable
             }
             if (!dry && chartConfig.Data.Datasets.Any())
             {
-                chartConfig.SetData(chartConfig.Data.Datasets.First(), data);
+                chartConfig.Data.Datasets.First().Data = data;
+                chartConfig.ReinitializeChart();
             }
         }
     }

@@ -48,7 +48,7 @@ public static class ChartService
                     Title = new Title()
                     {
                         Display = true,
-                        Text = "Game Evaluation",
+                        Text = new IndexableOption<string>("Game Evaluation"),
                         Color = "yellow",
                         Font = new Font()
                         {
@@ -74,7 +74,7 @@ public static class ChartService
                         Title = new Title()
                         {
                             Display = true,
-                            Text = "Moves",
+                            Text = new IndexableOption<string>("Moves"),
                             Color = "yellow"
                         },
                         Ticks = new LinearAxisTick()
@@ -93,7 +93,7 @@ public static class ChartService
                         Title = new Title()
                         {
                             Display = true,
-                            Text = "Evaluation",
+                            Text = new IndexableOption<string>("Evaluation"),
                             Color = "yellow"
                         },
                         Ticks = new LinearAxisTick()
