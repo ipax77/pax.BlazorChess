@@ -39,7 +39,11 @@
     transition: box-shadow 0.15s ease-in-out;
     width: 100%;
     height: 100%;
-    overflow: hidden;
+}
+
+.square.dragging-parent {
+    z-index: 1000 !important;
+    overflow: visible !important;
 }
 
 .square.light {
@@ -107,6 +111,17 @@
 .dark-text {
     color: #b58863;
 }
+
+.draggable {
+    touch-action: none;
+    cursor: grab;
+}
+
+    .draggable:active {
+        cursor: grabbing;
+        cursor: -moz-grabbing;
+        cursor: -webkit-grabbing;
+    }
 
 @media (max-width: 560px) {
     .chess-board-container {

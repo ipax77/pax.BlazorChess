@@ -1,7 +1,13 @@
 @using pax.chess
 
 <div class="chess-board-container @(Responsive ? "responsive" : "") @ClassName" style="--board-size: @FinalBoardSize;">
-    <div id="@BoardGuid" class="chess-board shadow-sm">
+    <div id="@BoardGuid" 
+         class="chess-board shadow-sm"
+         @onpointermove="HandlePointerMove"
+         @onpointerup="(e) => HandlePointerUp(e, default)"
+         @ondragover:preventDefault
+         @oncontextmenu:preventDefault
+         style="touch-action: none;">
         @for (int viewRank = 0; viewRank < 8; viewRank++)
         {
             var rank = WhiteAtBottom ? 7 - viewRank : viewRank;
@@ -15,16 +21,23 @@
                 var isSelected = SelectedSquare != null && SelectedSquare.Value.Index == square.Index;
                 var isLastMoveFrom = LastMoveFrom != null && LastMoveFrom.Value.Index == square.Index;
                 var isLastMoveTo = LastMoveTo != null && LastMoveTo.Value.Index == square.Index;
+                var isDragging = _draggingSquare?.Index == square.Index;
+                var squareId = $"{BoardGuid}_{square.Index}";
 
                 <button type="button"
-                        class="square @(isLightSquare ? "light" : "dark") @(isSelected ? "selected" : "") @(isLastMoveFrom || isLastMoveTo ? "last-move" : "") btn p-0 border-0"
+                        id="@squareId"
+                        class="square @(isLightSquare ? "light" : "dark") @(isSelected ? "selected" : "") @(isLastMoveFrom || isLastMoveTo ? "last-move" : "") @(isDragging ? "dragging-parent" : "") btn p-0 border-0"
                         title="@square"
                         aria-label="@GetSquareLabel(square, piece)"
-                        @onclick="() => HandleSquareClick(square)">
+                        @onclick="() => HandleSquareClick(square)"
+                        @onpointerdown="(e) => HandlePointerDown(e, square)"
+                        @onpointerup:stopPropagation
+                        @onpointerup="(e) => HandlePointerUp(e, square)">
                     @if (piece.HasValue)
                     {
                         <img src="@GetPieceSvg(piece.Value)"
-                             class="piece"
+                             class="piece @(isDragging ? "dragging" : "")"
+                             style="@(isDragging ? $"transform: translate({_dragX}px, {_dragY}px); z-index: 100;" : "")"
                              alt="@GetPieceAlt(piece.Value)"
                              draggable="false" />
                     }
