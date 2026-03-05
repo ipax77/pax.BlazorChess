@@ -52,6 +52,17 @@ public partial class ChessBoardComponent : ComponentBase
             : Task.CompletedTask;
     }
 
+    private void Move(Square from, Square to)
+    {
+        var move = new Move(from, to);
+        var moveResult = CurrentGame.TryApplyMove(move);
+        if (moveResult == MoveState.Ok)
+        {
+            LastMoveFrom = from;
+            LastMoveTo = to;
+        }
+    }
+
     private static string GetPieceAlt(Piece piece)
     {
         return $"{piece.Color} {piece.Type}";
