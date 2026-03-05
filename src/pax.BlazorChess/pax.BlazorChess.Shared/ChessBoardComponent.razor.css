@@ -1,21 +1,29 @@
-.chess-board {
+:host {
+    display: block;
+}
+
+.chess-board-container {
     --board-size: 480px;
+    width: fit-content;
+}
+
+.chess-board {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     width: var(--board-size);
     height: var(--board-size);
     border: 2px solid #2f2f2f;
-    box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+    user-select: none;
+    background-color: #f0d9b5; /* Fallback */
 }
 
 .square {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 0;
-    margin: 0;
-    padding: 0;
-    cursor: pointer;
+    border-radius: 0 !important;
+    transition: box-shadow 0.15s ease-in-out;
 }
 
 .square.light {
@@ -26,22 +34,74 @@
     background-color: #b58863;
 }
 
+.square:hover {
+    filter: brightness(1.05);
+    z-index: 1;
+}
+
+.square:active {
+    filter: brightness(0.95);
+}
+
+.square.selected {
+    box-shadow: inset 0 0 0 4px rgba(255, 255, 0, 0.5);
+    z-index: 2;
+}
+
+.square.last-move {
+    background-color: rgba(255, 255, 0, 0.4) !important;
+}
+
 .square:focus-visible {
-    outline: 2px solid #1c5fd4;
-    outline-offset: -2px;
+    outline: 3px solid #0d6efd;
+    outline-offset: -3px;
+    z-index: 3;
 }
 
 .piece {
-    width: 88%;
-    height: 88%;
-    user-select: none;
-    -webkit-user-drag: none;
+    width: 90%;
+    height: 90%;
+    object-fit: contain;
     pointer-events: none;
+    transition: transform 0.1s ease-out;
+}
+
+.coordinate {
+    position: absolute;
+    font-size: clamp(8px, 2.5%, 12px);
+    font-weight: 600;
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+.rank-label {
+    top: 2px;
+    left: 4px;
+}
+
+.file-label {
+    bottom: 2px;
+    right: 4px;
+}
+
+.light-text {
+    color: #f0d9b5;
+}
+
+.dark-text {
+    color: #b58863;
 }
 
 @media (max-width: 560px) {
+    .chess-board-container {
+        width: 100%;
+        max-width: 480px;
+        margin: 0 auto;
+    }
+    
     .chess-board {
-        width: min(var(--board-size), 96vw);
-        height: min(var(--board-size), 96vw);
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1 / 1;
     }
 }

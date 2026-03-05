@@ -1,30 +1,49 @@
 @using pax.chess
 
-<div id="@BoardGuid" class="chess-board @ClassName" style="--board-size:@($"{SizePx}px");">
-    @for (int viewRank = 0; viewRank < 8; viewRank++)
-    {
-        var rank = WhiteAtBottom ? 7 - viewRank : viewRank;
-
-        @for (int viewFile = 0; viewFile < 8; viewFile++)
+<div class="chess-board-container @ClassName" style="--board-size: @($"{SizePx}px");">
+    <div id="@BoardGuid" class="chess-board shadow-sm">
+        @for (int viewRank = 0; viewRank < 8; viewRank++)
         {
-            var file = WhiteAtBottom ? viewFile : 7 - viewFile;
-            var square = new Square(file, rank);
-            var piece = CurrentGame.CurrentPosition.Board[square.Index];
-            var isLightSquare = IsLightSquare(file, rank);
+            var rank = WhiteAtBottom ? 7 - viewRank : viewRank;
 
-            <button type="button"
-                    class="square @(isLightSquare ? "light" : "dark")"
-                    title="@square"
-                    aria-label="@GetSquareLabel(square, piece)"
-                    @onclick="() => HandleSquareClick(square)">
-                @if (piece.HasValue)
-                {
-                    <img src="@GetPieceSvg(piece.Value)"
-                         class="piece"
-                         alt="@GetPieceAlt(piece.Value)"
-                         draggable="false" />
-                }
-            </button>
+            @for (int viewFile = 0; viewFile < 8; viewFile++)
+            {
+                var file = WhiteAtBottom ? viewFile : 7 - viewFile;
+                var square = new Square(file, rank);
+                var piece = CurrentGame.CurrentPosition.Board[square.Index];
+                var isLightSquare = IsLightSquare(file, rank);
+                var isSelected = SelectedSquare != null && SelectedSquare.Value.Index == square.Index;
+                var isLastMoveFrom = LastMoveFrom != null && LastMoveFrom.Value.Index == square.Index;
+                var isLastMoveTo = LastMoveTo != null && LastMoveTo.Value.Index == square.Index;
+
+                <button type="button"
+                        class="square @(isLightSquare ? "light" : "dark") @(isSelected ? "selected" : "") @(isLastMoveFrom || isLastMoveTo ? "last-move" : "") btn p-0 border-0"
+                        title="@square"
+                        aria-label="@GetSquareLabel(square, piece)"
+                        @onclick="() => HandleSquareClick(square)">
+                    @if (piece.HasValue)
+                    {
+                        <img src="@GetPieceSvg(piece.Value)"
+                             class="piece"
+                             alt="@GetPieceAlt(piece.Value)"
+                             draggable="false" />
+                    }
+                    
+                    @if (viewFile == 0)
+                    {
+                        <span class="coordinate rank-label @(isLightSquare ? "dark-text" : "light-text")">
+                            @GetRankLabel(rank)
+                        </span>
+                    }
+                    
+                    @if (viewRank == 7)
+                    {
+                        <span class="coordinate file-label @(isLightSquare ? "dark-text" : "light-text")">
+                            @GetFileLabel(file)
+                        </span>
+                    }
+                </button>
+            }
         }
-    }
+    </div>
 </div>
