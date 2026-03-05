@@ -1,6 +1,6 @@
 @using pax.chess
 
-<div class="chess-board-container @ClassName" style="--board-size: @($"{SizePx}px");">
+<div class="chess-board-container @(Responsive ? "responsive" : "") @ClassName" style="--board-size: @FinalBoardSize;">
     <div id="@BoardGuid" class="chess-board shadow-sm">
         @for (int viewRank = 0; viewRank < 8; viewRank++)
         {

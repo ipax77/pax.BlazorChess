@@ -7,16 +7,27 @@
     width: fit-content;
 }
 
+.chess-board-container.responsive {
+    width: 100%;
+    max-width: 800px; /* Optional upper limit for desktop */
+}
+
 .chess-board {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
     width: var(--board-size);
-    height: var(--board-size);
+    height: auto;
+    aspect-ratio: 1 / 1;
     border: 2px solid #2f2f2f;
     user-select: none;
     background-color: #f0d9b5; /* Fallback */
     overflow: hidden;
+}
+
+/* Helper class for viewport height dependency */
+.max-vh-80 {
+    max-width: 80vh;
 }
 
 .square {
@@ -73,7 +84,7 @@
 
 .coordinate {
     position: absolute;
-    font-size: clamp(8px, 2.5%, 12px);
+    font-size: clamp(8px, 1.5vw, 12px);
     font-weight: 600;
     pointer-events: none;
     opacity: 0.8;
@@ -100,13 +111,6 @@
 @media (max-width: 560px) {
     .chess-board-container {
         width: 100%;
-        max-width: 480px;
         margin: 0 auto;
-    }
-    
-    .chess-board {
-        width: 100%;
-        height: auto;
-        aspect-ratio: 1 / 1;
     }
 }

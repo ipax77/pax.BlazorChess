@@ -16,7 +16,12 @@ public partial class ChessBoardComponent : ComponentBase
     public bool WhiteAtBottom { get; set; } = true;
 
     [Parameter]
-    public int SizePx { get; set; } = 480;
+    public string BoardSize { get; set; } = "60vh";
+
+    [Parameter]
+    public bool Responsive { get; set; } = true;
+
+    private string FinalBoardSize => Responsive ? "100%" : BoardSize;
 
     [Parameter]
     public string? ClassName { get; set; }
