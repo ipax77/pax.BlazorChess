@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 
 <head>
     <meta charset="utf-8" />
@@ -8,6 +8,8 @@
     <ResourcePreloader />
     <link rel="stylesheet" href="_content/pax.BlazorChess.Shared/app.css" />
     <link rel="stylesheet" href="pax.BlazorChess.Web.styles.css" />
+    <link rel="stylesheet" href="@Assets["_content/pax.BlazorChess.Shared/css/bootstrap.min.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/pax.BlazorChess.Shared/css/bootstrap-icons/bootstrap-icons.min.css"]" />
     <ImportMap />
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
@@ -16,6 +18,7 @@
     <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["_content/pax.BlazorChess.Shared/js/bootstrap.bundle.min.js"]"></script>
 </body>
 
 </html>
