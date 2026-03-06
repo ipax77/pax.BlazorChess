@@ -1,6 +1,7 @@
 ﻿@using pax.BlazorChess.Shared.Common
 @using pax.chess
 @using pax.chess.Validation
+@implements IAsyncDisposable
 
 <div class="w-100">
     <div class="chess-board">
@@ -17,9 +18,10 @@
                 var squareId = $"{BoardGuid}_{square.Index}";
 
                 <div id="@squareId"
-                     class="square @(isLightSquare ? "light" : "dark")"
+                     class="square @GetSquareCssClass(square)"
                      title="@square"
-                     aria-label="@GetSquareLabel(square, piece)">
+                     aria-label="@GetSquareLabel(square, piece)"
+                     @onclick="() => OnSquareClicked(square)">
                     @if (piece.HasValue)
                     {
                         <img src="@GetPieceSvg(piece.Value)"
@@ -57,16 +59,60 @@
     public ChessGame Game { get; set; } = new();
 
     [Parameter]
-    public PlayColor PlayColor { get; set; } = PlayColor.White | PlayColor.Black;
+    public PieceColor PlayColor { get; set; } = PieceColor.White;
 
     [Parameter]
     public EventCallback<Move> OnMovePlayed { get; set; }
 
-    bool BlackAtBottom => PlayColor == PlayColor.Black;
+    bool BlackAtBottom => PlayColor == PieceColor.Black;
+
+    private IJSObjectReference? module;
+
+    private Square? startSquare;
+    private List<Square> validDestinations = [];
+    private Move? lastMove => Game.Moves.LastOrDefault()?.Move;
+
+    protected async override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>("import",
+                "./_content/pax.BlazorChess.Shared/Components/BoardPlayComponent.razor.js");
+        }
+    }
 
     public void Update()
     {
         InvokeAsync(StateHasChanged);
+    }
+
+    private void OnSquareClicked(Square square)
+    {
+        if (startSquare == null)
+        {
+            if (IsValidPieceSelection(square))
+            {
+                validDestinations = GetValidMoveDestinations(square);
+                if (validDestinations.Count > 0)
+                    startSquare = square;
+            }
+        }
+        else
+        {
+            if (startSquare == square)
+            {
+                startSquare = null;
+                validDestinations.Clear();
+                return;
+            }
+
+            if (validDestinations.Contains(square))
+            {
+                ApplyMove(startSquare.Value, square);
+            }
+            startSquare = null;
+            validDestinations.Clear();
+        }
     }
 
     private void ApplyMove(Square from, Square to)
@@ -83,8 +129,8 @@
     private bool IsValidPieceSelection(Square square)
     {
         var piece = Game.CurrentPosition.Board[square.Index];
-        return piece.HasValue 
-            && PlayColor.HasFlag(piece.Value.Color)
+        return piece.HasValue
+            && PlayColor == piece.Value.Color
             && piece.Value.Color == Game.CurrentPosition.SideToMove;
     }
 
@@ -107,6 +153,22 @@
         return $"_content/pax.BlazorChess.Shared/Images/pieces/Chess_{pieceChar}{colorChar}t45.svg";
     }
 
+    private string GetSquareCssClass(Square square)
+    {
+        var classes = new List<string> { "square" };
+        if (IsLightSquare(square.File, square.Rank))
+            classes.Add("light");
+        else
+            classes.Add("dark");
+        if (lastMove != null && (lastMove.From == square || lastMove.To == square))
+            classes.Add("last-move");
+        if (startSquare.HasValue && startSquare.Value == square)
+            classes.Add("selected");
+        if (validDestinations.Contains(square))
+            classes.Add("valid-destination");
+        return string.Join(' ', classes);
+    }
+
     private static string GetSquareLabel(Square square, Piece? piece)
     {
         return piece.HasValue
@@ -121,4 +183,18 @@
 
     private static string GetFileLabel(int file) => ((char)('a' + file)).ToString();
     private static string GetRankLabel(int rank) => (rank + 1).ToString();
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
 }

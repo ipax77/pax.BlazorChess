@@ -83,12 +83,27 @@ h1:focus {
         z-index: 2;
     }
 
+    .square.last-move {
+        box-shadow: inset 0 0 0 4px rgba(255, 255, 0, 0.6);
+        z-index: 2;
+    }
+
+    .square.valid-destination::after {
+        content: '';
+        width: 25%;
+        height: 25%;
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
 .piece {
     width: 90%;
     height: 90%;
     object-fit: contain;
     pointer-events: none;
     transition: transform 0.1s ease-out;
+    z-index: 6;
 }
 
 .coordinate {

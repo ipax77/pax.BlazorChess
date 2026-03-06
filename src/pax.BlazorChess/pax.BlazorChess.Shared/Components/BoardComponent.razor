@@ -48,9 +48,6 @@
 @code {
     public string BoardGuid { get; } = $"board_{Guid.NewGuid():N}";
 
-    [Inject]
-    private IJSRuntime JS { get; set; } = default!;
-
     [Parameter]
     public ChessGame Game { get; set; } = new();
 
