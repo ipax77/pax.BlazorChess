@@ -1,6 +1,6 @@
 @using pax.chess
 
-<div class="chess-board-container @(Responsive ? "responsive" : "") @ClassName" style="--board-size: @FinalBoardSize;">
+<div class="w-100">
     <div id="@BoardGuid" 
          class="chess-board shadow-sm"
          @onpointermove="HandlePointerMove"

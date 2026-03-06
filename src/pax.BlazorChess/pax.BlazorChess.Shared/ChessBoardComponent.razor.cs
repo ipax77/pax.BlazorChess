@@ -14,24 +14,12 @@ public partial class ChessBoardComponent : ComponentBase, IAsyncDisposable
     [Inject]
     private IJSRuntime JS { get; set; } = default!;
 
-    private IJSObjectReference? _module;
 
     [Parameter]
     public ChessGame? Game { get; set; }
 
     [Parameter]
     public bool WhiteAtBottom { get; set; } = true;
-
-    [Parameter]
-    public string BoardSize { get; set; } = "60vh";
-
-    [Parameter]
-    public bool Responsive { get; set; } = true;
-
-    private string FinalBoardSize => Responsive ? "100%" : BoardSize;
-
-    [Parameter]
-    public string? ClassName { get; set; }
 
     [Parameter]
     public Square? SelectedSquare { get; set; }
@@ -45,6 +33,7 @@ public partial class ChessBoardComponent : ComponentBase, IAsyncDisposable
     [Parameter]
     public EventCallback<Square> OnSquareSelected { get; set; }
 
+    private IJSObjectReference? _module;
     private ChessGame CurrentGame => Game ?? DefaultGame;
 
     private Square? _draggingSquare;
@@ -63,7 +52,7 @@ public partial class ChessBoardComponent : ComponentBase, IAsyncDisposable
         }
     }
 
-    private bool IsLightSquare(int file, int rank)
+    private static bool IsLightSquare(int file, int rank)
     {
         return (file + rank) % 2 != 0;
     }
