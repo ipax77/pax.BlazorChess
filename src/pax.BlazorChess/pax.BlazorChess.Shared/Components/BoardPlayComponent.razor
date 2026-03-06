@@ -1,4 +1,6 @@
-﻿@using pax.chess
+﻿@using pax.BlazorChess.Shared.Common
+@using pax.chess
+@using pax.chess.Validation
 
 <div class="w-100">
     <div class="chess-board">
@@ -46,7 +48,7 @@
 </div>
 
 @code {
-    public string BoardGuid { get; } = $"board_{Guid.NewGuid():N}";
+    public string BoardGuid { get; } = $"playboard_{Guid.NewGuid():N}";
 
     [Inject]
     private IJSRuntime JS { get; set; } = default!;
@@ -55,11 +57,42 @@
     public ChessGame Game { get; set; } = new();
 
     [Parameter]
-    public bool BlackAtBottom { get; set; }
+    public PlayColor PlayColor { get; set; } = PlayColor.White | PlayColor.Black;
+
+    [Parameter]
+    public EventCallback<Move> OnMovePlayed { get; set; }
+
+    bool BlackAtBottom => PlayColor == PlayColor.Black;
 
     public void Update()
     {
         InvokeAsync(StateHasChanged);
+    }
+
+    private void ApplyMove(Square from, Square to)
+    {
+        var move = new Move(from, to);
+        var moveState = Game.TryApplyMove(move);
+        if (moveState == MoveState.Ok)
+        {
+            OnMovePlayed.InvokeAsync(move);
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private bool IsValidPieceSelection(Square square)
+    {
+        var piece = Game.CurrentPosition.Board[square.Index];
+        return piece.HasValue 
+            && PlayColor.HasFlag(piece.Value.Color)
+            && piece.Value.Color == Game.CurrentPosition.SideToMove;
+    }
+
+    private List<Square> GetValidMoveDestinations(Square from)
+    {
+        MoveState moveState = MoveState.Ok;
+        var moves = MoveValidator.GetValidMoves(from, Game.CurrentPosition, out moveState);
+        return moves.Select(s => s.To).ToList();
     }
 
     private static bool IsLightSquare(int file, int rank)
