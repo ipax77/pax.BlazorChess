@@ -1,0 +1,42 @@
+﻿@using pax.chess
+
+<div class="container-fluid">
+    <div class="d-flex">
+        <CascadingValue Value="game">
+            <div class="w-50">
+                <BoardPlayComponent @ref="boardComponent" Game="game" />
+            </div>
+            <div class="w-25 mt-3">
+                <AnnotationComponent @ref="annotationComponent" />
+            </div>
+        </CascadingValue>
+    </div>
+</div>
+
+
+@code {
+    ChessGame game = new();
+    BoardPlayComponent? boardComponent;
+    AnnotationComponent? annotationComponent;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        game.OnMoveApplied += OnMoveMade;
+    }
+
+    private void OnMoveMade(object? sender, EventArgs e)
+    {
+        if (annotationComponent != null)
+        {
+            var move = game.Moves.LastOrDefault();
+            var pos = game.PreviousPosition;
+            if (move != null && pos != null)
+            {
+                var moveString = PgnSerializer.ToSan(move.Move, pos);
+                annotationComponent?.Update(moveString);
+            }
+        }
+    }
+}

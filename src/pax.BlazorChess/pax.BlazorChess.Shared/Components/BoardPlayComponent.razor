@@ -303,7 +303,7 @@
         var piece = Game.CurrentPosition.Board[square.Index];
 
         return piece.HasValue
-            && PlayColor == piece.Value.Color
+            // && PlayColor == piece.Value.Color // DEBUG: allow moving opponent's pieces for testing purposes
             && piece.Value.Color == Game.CurrentPosition.SideToMove;
     }
 
