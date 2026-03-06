@@ -1,10 +1,17 @@
-﻿@using pax.BlazorChess.Shared.Common
+@using pax.BlazorChess.Shared.Common
 @using pax.chess
 @using pax.chess.Validation
+@using Microsoft.AspNetCore.Components.Web
 @implements IAsyncDisposable
 
 <div class="w-100">
-    <div class="chess-board">
+    <div id="@BoardGuid"
+         class="chess-board"
+         @ondragover:preventDefault="true"
+         @onpointermove="OnPointerMove"
+         @onpointerup="OnPointerUp"
+         @onpointercancel="OnPointerCancel">
+
         @for (int viewRank = 0; viewRank < 8; viewRank++)
         {
             var rank = BlackAtBottom ? viewRank : 7 - viewRank;
@@ -18,11 +25,12 @@
                 var squareId = $"{BoardGuid}_{square.Index}";
 
                 <div id="@squareId"
-                     class="square @GetSquareCssClass(square)"
+                     class="@GetSquareCssClass(square)"
                      title="@square"
                      aria-label="@GetSquareLabel(square, piece)"
-                     @onclick="() => OnSquareClicked(square)">
-                    @if (piece.HasValue)
+                     @onpointerdown="(e) => OnPointerDown(square, e)">
+
+                    @if (piece.HasValue && !(dragging && pointerDownSquare == square))
                     {
                         <img src="@GetPieceSvg(piece.Value)"
                              class="piece"
@@ -47,37 +55,64 @@
             }
         }
     </div>
+
+    @if (dragging && dragPieceSvg is not null)
+    {
+        <img src="@dragPieceSvg"
+             class="piece piece-drag-preview"
+             style="@GetDragPreviewStyle()"
+             alt=""
+             aria-hidden="true"
+             draggable="false" />
+    }
 </div>
 
 @code {
+
     public string BoardGuid { get; } = $"playboard_{Guid.NewGuid():N}";
 
-    [Inject]
-    private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    [Parameter]
-    public ChessGame Game { get; set; } = new();
+    [Parameter] public ChessGame Game { get; set; } = new();
 
-    [Parameter]
-    public PieceColor PlayColor { get; set; } = PieceColor.White;
+    [Parameter] public PieceColor PlayColor { get; set; } = PieceColor.White;
 
-    [Parameter]
-    public EventCallback<Move> OnMovePlayed { get; set; }
+    [Parameter] public EventCallback<Move> OnMovePlayed { get; set; }
 
     bool BlackAtBottom => PlayColor == PieceColor.Black;
 
     private IJSObjectReference? module;
 
-    private Square? startSquare;
+    private Square? selectedSquare;
     private List<Square> validDestinations = [];
+
+    private Square? pointerDownSquare;
+
+    private bool pointerDown;
+    private bool dragging;
+
+    private int? activePointerId;
+
+    private double startX;
+    private double startY;
+
+    private double dragX;
+    private double dragY;
+
+    private string? dragPieceSvg;
+
+    private const double DragThreshold = 6;
+
     private Move? lastMove => Game.Moves.LastOrDefault()?.Move;
 
-    protected async override Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            module = await JS.InvokeAsync<IJSObjectReference>("import",
+            module = await JS.InvokeAsync<IJSObjectReference>(
+                "import",
                 "./_content/pax.BlazorChess.Shared/Components/BoardPlayComponent.razor.js");
+            await module.InvokeVoidAsync("updateBoardSize", BoardGuid);
         }
     }
 
@@ -86,40 +121,177 @@
         InvokeAsync(StateHasChanged);
     }
 
-    private void OnSquareClicked(Square square)
+    private async Task OnPointerDown(Square square, PointerEventArgs e)
     {
-        if (startSquare == null)
+        if (e.Button != 0)
+            return;
+
+        pointerDown = true;
+        activePointerId = (int)e.PointerId;
+        pointerDownSquare = square;
+
+        startX = e.ClientX;
+        startY = e.ClientY;
+
+        dragX = startX;
+        dragY = startY;
+
+        var piece = Game.CurrentPosition.Board[square.Index];
+
+        if (piece.HasValue)
+            dragPieceSvg = GetPieceSvg(piece.Value);
+
+        if (module is not null)
+            await module.InvokeVoidAsync("setPointerCapture", BoardGuid, activePointerId.Value);
+    }
+
+    private Task OnPointerMove(PointerEventArgs e)
+    {
+        if (!pointerDown || activePointerId != (int)e.PointerId)
+            return Task.CompletedTask;
+
+        dragX = e.ClientX;
+        dragY = e.ClientY;
+
+        if (!dragging && pointerDownSquare.HasValue)
         {
-            if (IsValidPieceSelection(square))
+            var dx = dragX - startX;
+            var dy = dragY - startY;
+
+            if ((dx * dx + dy * dy) > DragThreshold * DragThreshold)
             {
-                validDestinations = GetValidMoveDestinations(square);
-                if (validDestinations.Count > 0)
-                    startSquare = square;
+                if (IsValidPieceSelection(pointerDownSquare.Value))
+                {
+                    dragging = true;
+                    selectedSquare = pointerDownSquare;
+                    validDestinations = GetValidMoveDestinations(pointerDownSquare.Value);
+                }
+            }
+        }
+
+        if (dragging)
+            StateHasChanged();
+
+        return Task.CompletedTask;
+    }
+
+    private async Task OnPointerUp(PointerEventArgs e)
+    {
+        if (!pointerDown || activePointerId != (int)e.PointerId)
+            return;
+
+        if (module is not null)
+            await module.InvokeVoidAsync("releasePointerCapture", BoardGuid, activePointerId.Value);
+
+        if (dragging)
+        {
+            await HandleDragDrop(e);
+        }
+        else
+        {
+            HandleClick(pointerDownSquare);
+        }
+
+        ResetPointerState();
+    }
+
+    private async Task OnPointerCancel(PointerEventArgs e)
+    {
+        if (activePointerId != (int)e.PointerId)
+            return;
+
+        if (module is not null)
+        {
+            try
+            {
+                await module.InvokeVoidAsync("releasePointerCapture", BoardGuid, activePointerId.Value);
+            }
+            catch
+            {
+                // safe to ignore if already released
+            }
+        }
+
+        ResetPointerState();
+
+        StateHasChanged();
+    }
+
+    private async Task HandleDragDrop(PointerEventArgs e)
+    {
+        if (module is null || pointerDownSquare is null)
+            return;
+
+        var index = await module.InvokeAsync<int?>(
+            "getSquareIndexFromPoint",
+            e.ClientX,
+            e.ClientY,
+            BoardGuid);
+
+        if (!index.HasValue)
+            return;
+
+        var dropSquare = new Square(index.Value % 8, index.Value / 8);
+
+        if (validDestinations.Contains(dropSquare))
+            ApplyMove(pointerDownSquare.Value, dropSquare);
+    }
+
+    private void HandleClick(Square? square)
+    {
+        if (!square.HasValue)
+            return;
+
+        if (selectedSquare == null)
+        {
+            if (IsValidPieceSelection(square.Value))
+            {
+                selectedSquare = square;
+                validDestinations = GetValidMoveDestinations(square.Value);
             }
         }
         else
         {
-            if (startSquare == square)
+            if (square == selectedSquare)
             {
-                startSquare = null;
+                selectedSquare = null;
                 validDestinations.Clear();
+                StateHasChanged();
                 return;
             }
 
-            if (validDestinations.Contains(square))
-            {
-                ApplyMove(startSquare.Value, square);
-            }
-            startSquare = null;
+            if (validDestinations.Contains(square.Value))
+                ApplyMove(selectedSquare.Value, square.Value);
+
+            selectedSquare = null;
             validDestinations.Clear();
         }
+
+        StateHasChanged();
+    }
+
+    private void ResetPointerState()
+    {
+        pointerDown = false;
+        dragging = false;
+
+        activePointerId = null;
+        pointerDownSquare = null;
+
+        dragPieceSvg = null;
+    }
+
+    private string GetDragPreviewStyle()
+    {
+        return $"left:{dragX}px;top:{dragY}px;transform:translate(-50%, -50%);";
     }
 
     private void ApplyMove(Square from, Square to)
     {
         var move = new Move(from, to);
-        var moveState = Game.TryApplyMove(move);
-        if (moveState == MoveState.Ok)
+        var state = Game.TryApplyMove(move);
+
+        if (state == MoveState.Ok)
         {
             OnMovePlayed.InvokeAsync(move);
             InvokeAsync(StateHasChanged);
@@ -129,6 +301,7 @@
     private bool IsValidPieceSelection(Square square)
     {
         var piece = Game.CurrentPosition.Board[square.Index];
+
         return piece.HasValue
             && PlayColor == piece.Value.Color
             && piece.Value.Color == Game.CurrentPosition.SideToMove;
@@ -136,52 +309,48 @@
 
     private List<Square> GetValidMoveDestinations(Square from)
     {
-        MoveState moveState = MoveState.Ok;
+        MoveState moveState;
         var moves = MoveValidator.GetValidMoves(from, Game.CurrentPosition, out moveState);
-        return moves.Select(s => s.To).ToList();
+        return moves.Select(m => m.To).ToList();
     }
 
     private static bool IsLightSquare(int file, int rank)
-    {
-        return (file + rank) % 2 != 0;
-    }
+        => (file + rank) % 2 != 0;
 
     private static string GetPieceSvg(Piece piece)
     {
         var pieceChar = FenSerializer.GetPieceString(piece.Type);
         var colorChar = piece.Color == PieceColor.White ? "l" : "d";
+
         return $"_content/pax.BlazorChess.Shared/Images/pieces/Chess_{pieceChar}{colorChar}t45.svg";
     }
 
     private string GetSquareCssClass(Square square)
     {
-        var classes = new List<string> { "square" };
-        if (IsLightSquare(square.File, square.Rank))
-            classes.Add("light");
-        else
-            classes.Add("dark");
+        var classes = new List<string>();
+
+        classes.Add(IsLightSquare(square.File, square.Rank) ? "square light" : "square dark");
+
         if (lastMove != null && (lastMove.From == square || lastMove.To == square))
             classes.Add("last-move");
-        if (startSquare.HasValue && startSquare.Value == square)
+
+        if (selectedSquare.HasValue && selectedSquare.Value == square)
             classes.Add("selected");
+
         if (validDestinations.Contains(square))
             classes.Add("valid-destination");
+
         return string.Join(' ', classes);
     }
 
     private static string GetSquareLabel(Square square, Piece? piece)
-    {
-        return piece.HasValue
-            ? $"{square}: {GetPieceAlt(piece.Value)}"
-            : $"{square}: empty";
-    }
+        => piece.HasValue ? $"{square}: {GetPieceAlt(piece.Value)}" : $"{square}: empty";
 
     private static string GetPieceAlt(Piece piece)
-    {
-        return $"{piece.Color} {piece.Type}";
-    }
+        => $"{piece.Color} {piece.Type}";
 
     private static string GetFileLabel(int file) => ((char)('a' + file)).ToString();
+
     private static string GetRankLabel(int rank) => (rank + 1).ToString();
 
     async ValueTask IAsyncDisposable.DisposeAsync()
@@ -197,4 +366,5 @@
             }
         }
     }
+
 }

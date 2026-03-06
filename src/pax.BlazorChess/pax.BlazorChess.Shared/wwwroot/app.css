@@ -1,3 +1,7 @@
+:root {
+    --board-size: 100%;
+}
+
 h1:focus {
     outline: none;
 }
@@ -41,7 +45,6 @@ h1:focus {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
-    width: var(--board-size);
     height: auto;
     aspect-ratio: 1 / 1;
     border: 2px solid #2f2f2f;
@@ -130,4 +133,13 @@ h1:focus {
 
 .dark-text {
     color: #b58863;
+}
+
+.piece-drag-preview {
+    position: fixed;
+    width: calc(var(--board-size) / 8 * 0.9);
+    height: calc(var(--board-size) / 8 * 0.9);
+    pointer-events: none;
+    z-index: 1000;
+    transform-origin: center;
 }
