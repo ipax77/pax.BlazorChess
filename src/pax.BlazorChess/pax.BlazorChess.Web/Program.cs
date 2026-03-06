@@ -1,10 +1,14 @@
+using pax.BlazorChess.Shared.Interfaces;
 using pax.BlazorChess.Web.Components;
+using pax.BlazorChess.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddScoped<IEngineGameHandler, EngineGameHandler>();
 
 var app = builder.Build();
 

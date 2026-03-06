@@ -54,6 +54,12 @@
     [Parameter]
     public bool BlackAtBottom { get; set; }
 
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();        
+        Game.OnMoveApplied += (sender, args) => InvokeAsync(StateHasChanged);
+    }
+
     public void Update()
     {
         InvokeAsync(StateHasChanged);

@@ -289,6 +289,25 @@
     private void ApplyMove(Square from, Square to)
     {
         var move = new Move(from, to);
+
+        var piece = Game.CurrentPosition.Board[from.Index];
+        if (piece?.Type == PieceType.Pawn && (to.Rank == 0 || to.Rank == 7))
+        {
+            move = new Move(from, to, PieceType.Queen);
+        }
+        else
+        {
+            var kingSquare = Game.CurrentPosition.Board.GetKingSquare(Game.CurrentPosition.SideToMove);
+            if (from == kingSquare)
+            {
+                // Handle castling moves
+                if (to.File == 6) // kingside
+                    move = new Move(from, to, null, MoveType.CastlingKingSide);
+                else if (to.File == 2) // queenside
+                    move = new Move(from, to, null, MoveType.CastlingQueenSide);
+            }
+        }
+
         var state = Game.TryApplyMove(move);
 
         if (state == MoveState.Ok)
