@@ -1,0 +1,19 @@
+﻿@using pax.chess
+
+
+
+@code {
+    [Parameter, EditorRequired]
+    public AnalysisBoard Board { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<MoveNode> OnMoveNodeClicked { get; set; }
+
+    [Parameter]
+    public EventCallback<MoveNode> OnMoveNodeDeleted { get; set; }
+
+    public void Update()
+    {
+        StateHasChanged();
+    }
+}

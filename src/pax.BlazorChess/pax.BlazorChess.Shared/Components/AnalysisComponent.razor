@@ -1,0 +1,27 @@
+﻿@using pax.chess
+
+<div class="container-fluid">
+    <div class="d-flex">
+        <div>
+            <BoardAnalysisComponent @ref="boardAnalysisComponent" Board="Board" />
+        </div>
+        <div>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ChessGame Game { get; set; }
+
+    AnalysisBoard Board = null!;
+
+    BoardAnalysisComponent? boardAnalysisComponent;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Board = new AnalysisBoard(Game);
+    }
+}
