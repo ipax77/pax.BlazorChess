@@ -3,7 +3,9 @@
 <div class="container-fluid">
     <div class="d-flex gap-3 flex-wrap">
         <div class="w-50">
-            <BoardAnalysisComponent @ref="boardAnalysisComponent" Board="Board" />
+            <BoardAnalysisComponent @ref="boardAnalysisComponent"
+                                    Board="Board"
+                                    OnBoardChanged="HandleBoardChanged" />
         </div>
         <div class="w-25">
             <AnalysisAnnotationComponent @ref="analysisAnnotationComponent"
@@ -31,11 +33,20 @@
 
     private void HandleMoveNodeClicked(MoveNode _)
     {
-        boardAnalysisComponent?.Update();
-        analysisAnnotationComponent?.Update();
+        RefreshViews();
     }
 
     private void HandleMoveNodeDeleted(MoveNode _)
+    {
+        RefreshViews();
+    }
+
+    private void HandleBoardChanged()
+    {
+        RefreshViews();
+    }
+
+    private void RefreshViews()
     {
         boardAnalysisComponent?.Update();
         analysisAnnotationComponent?.Update();

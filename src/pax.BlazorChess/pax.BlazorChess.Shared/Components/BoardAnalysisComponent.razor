@@ -2,7 +2,7 @@
 
 <div class="w-100">
     <div class="board-surface" @oncontextmenu:preventDefault>
-        <div class="chess-board" @onkeydown="KeyDown">
+        <div class="chess-board" tabindex="0" @onkeydown="KeyDown">
             @for (int viewRank = 0; viewRank < 8; viewRank++)
             {
                 var rank = BlackAtBottom ? viewRank : 7 - viewRank;
@@ -119,6 +119,9 @@
 
     [Parameter]
     public bool BlackAtBottom { get; set; }
+
+    [Parameter]
+    public EventCallback OnBoardChanged { get; set; }
 
     protected override void OnInitialized()
     {
@@ -269,15 +272,23 @@
             new(squareIndex, squareIndex, color, IsArrow: false);
     }
 
-    private void KeyDown(KeyboardEventArgs args)
+    private async Task KeyDown(KeyboardEventArgs args)
     {
+        var boardChanged = false;
+
         if (args.Key == "ArrowRight")
         {
-            Board.MoveForward();
+            boardChanged = Board.MoveForward();
         }
         else if (args.Key == "ArrowLeft")
         {
-            Board.MoveBackward();
+            boardChanged = Board.MoveBackward();
+        }
+
+        if (boardChanged && OnBoardChanged.HasDelegate)
+        {
+            await OnBoardChanged.InvokeAsync();
         }
     }
 }
+
