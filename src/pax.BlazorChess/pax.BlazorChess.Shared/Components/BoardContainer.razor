@@ -1,0 +1,10 @@
+﻿@using pax.chess
+
+<div>
+    <BoardPositionComponent Position="Game.CurrentPosition" />
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required ChessGame Game { get; set; }
+}
