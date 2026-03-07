@@ -5,55 +5,114 @@
 @implements IAsyncDisposable
 
 <div class="w-100">
-    <div id="@BoardGuid"
-         class="chess-board"
-         @ondragover:preventDefault="true"
-         @onpointermove="OnPointerMove"
-         @onpointerup="OnPointerUp"
-         @onpointercancel="OnPointerCancel">
+    <div class="board-surface" @oncontextmenu:preventDefault>
+        <div id="@BoardGuid"
+             class="chess-board"
+             @ondragover:preventDefault="true"
+             @onpointermove="OnPointerMove"
+             @onpointerup="OnPointerUp"
+             @onpointercancel="OnPointerCancel">
 
-        @for (int viewRank = 0; viewRank < 8; viewRank++)
-        {
-            var rank = BlackAtBottom ? viewRank : 7 - viewRank;
-
-            @for (int viewFile = 0; viewFile < 8; viewFile++)
+            @for (int viewRank = 0; viewRank < 8; viewRank++)
             {
-                var file = BlackAtBottom ? 7 - viewFile : viewFile;
-                var square = new Square(file, rank);
-                var piece = Game.CurrentPosition.Board[square.Index];
-                var isLightSquare = IsLightSquare(file, rank);
-                var squareId = $"{BoardGuid}_{square.Index}";
+                var rank = BlackAtBottom ? viewRank : 7 - viewRank;
 
-                <div id="@squareId"
-                     class="@GetSquareCssClass(square)"
-                     title="@square"
-                     aria-label="@GetSquareLabel(square, piece)"
-                     @onpointerdown="(e) => OnPointerDown(square, e)">
+                @for (int viewFile = 0; viewFile < 8; viewFile++)
+                {
+                    var file = BlackAtBottom ? 7 - viewFile : viewFile;
+                    var square = new Square(file, rank);
+                    var piece = Game.CurrentPosition.Board[square.Index];
+                    var isLightSquare = IsLightSquare(file, rank);
+                    var squareId = $"{BoardGuid}_{square.Index}";
 
-                    @if (piece.HasValue && !(dragging && pointerDownSquare == square))
-                    {
-                        <img src="@GetPieceSvg(piece.Value)"
-                             class="piece"
-                             alt="@GetPieceAlt(piece.Value)"
-                             draggable="false" />
-                    }
+                    <div id="@squareId"
+                         class="@GetSquareCssClass(square)"
+                         title="@square"
+                         aria-label="@GetSquareLabel(square, piece)"
+                         @onpointerdown="(e) => OnPointerDown(square, e)">
 
-                    @if (viewFile == 0)
-                    {
-                        <span class="coordinate rank-label @(isLightSquare ? "dark-text" : "light-text")">
-                            @GetRankLabel(rank)
-                        </span>
-                    }
+                        @if (piece.HasValue && !(dragging && pointerDownSquare == square))
+                        {
+                            <img src="@GetPieceSvg(piece.Value)"
+                                 class="piece"
+                                 alt="@GetPieceAlt(piece.Value)"
+                                 draggable="false" />
+                        }
 
-                    @if (viewRank == 7)
-                    {
-                        <span class="coordinate file-label @(isLightSquare ? "dark-text" : "light-text")">
-                            @GetFileLabel(file)
-                        </span>
-                    }
-                </div>
+                        @if (viewFile == 0)
+                        {
+                            <span class="coordinate rank-label @(isLightSquare ? "dark-text" : "light-text")">
+                                @GetRankLabel(rank)
+                            </span>
+                        }
+
+                        @if (viewRank == 7)
+                        {
+                            <span class="coordinate file-label @(isLightSquare ? "dark-text" : "light-text")">
+                                @GetFileLabel(file)
+                            </span>
+                        }
+                    </div>
+                }
             }
-        }
+        </div>
+
+        <svg class="board-overlay" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <defs>
+                @foreach (var markerColor in MarkerColors)
+                {
+                    <marker id="@GetMarkerId(markerColor)"
+                            markerWidth="6"
+                            markerHeight="6"
+                            refX="5.2"
+                            refY="3"
+                            orient="auto"
+                            markerUnits="strokeWidth">
+                        <path d="M0,0 L0,6 L6,3 z" fill="@markerColor"></path>
+                    </marker>
+                }
+            </defs>
+
+            @foreach (var annotation in _annotations)
+            {
+                @if (annotation.IsArrow)
+                {
+                    var (startX, startY) = GetSquareCenter(annotation.FromSquareIndex);
+                    var (endX, endY) = GetSquareCenter(annotation.ToSquareIndex);
+
+                    <line x1="@startX.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                          y1="@startY.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                          x2="@endX.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                          y2="@endY.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                          class="board-arrow"
+                          stroke="@annotation.Color"
+                          marker-end="url(#@GetMarkerId(annotation.Color))" />
+                }
+                else
+                {
+                    var (centerX, centerY) = GetSquareCenter(annotation.FromSquareIndex);
+
+                    <circle cx="@centerX.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                            cy="@centerY.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                            class="board-circle"
+                            stroke="@annotation.Color" />
+                }
+            }
+
+            @if (_activeDrawing.HasValue && _activeHoverSquareIndex.HasValue && _activeHoverSquareIndex.Value != _activeDrawing.Value.StartSquareIndex)
+            {
+                var (startX, startY) = GetSquareCenter(_activeDrawing.Value.StartSquareIndex);
+                var (endX, endY) = GetSquareCenter(_activeHoverSquareIndex.Value);
+
+                <line x1="@startX.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                      y1="@startY.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                      x2="@endX.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                      y2="@endY.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                      class="board-arrow board-arrow-preview"
+                      stroke="@_activeDrawing.Value.Color"
+                      marker-end="url(#@GetMarkerId(_activeDrawing.Value.Color))" />
+            }
+        </svg>
     </div>
 
     @if (dragging && dragPieceSvg is not null)
@@ -70,6 +129,11 @@
 @code {
 
     public string BoardGuid { get; } = $"playboard_{Guid.NewGuid():N}";
+    private static readonly string[] MarkerColors = ["#8bc34a", "#f44336", "#03a9f4", "#ff9800"];
+    private readonly List<BoardAnnotation> _annotations = [];
+    private ActiveDrawing? _activeDrawing;
+    private int? _activeHoverSquareIndex;
+    private int? drawingPointerId;
 
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
@@ -123,9 +187,23 @@
 
     private async Task OnPointerDown(Square square, PointerEventArgs e)
     {
+        if (e.Button == 2)
+        {
+            _activeDrawing = new ActiveDrawing(square.Index, SelectDrawColor(e));
+            _activeHoverSquareIndex = square.Index;
+            drawingPointerId = (int)e.PointerId;
+
+            if (module is not null)
+                await module.InvokeVoidAsync("setPointerCapture", BoardGuid, drawingPointerId.Value);
+
+            StateHasChanged();
+            return;
+        }
+
         if (e.Button != 0)
             return;
 
+        _annotations.Clear();
         pointerDown = true;
         activePointerId = (int)e.PointerId;
         pointerDownSquare = square;
@@ -145,10 +223,30 @@
             await module.InvokeVoidAsync("setPointerCapture", BoardGuid, activePointerId.Value);
     }
 
-    private Task OnPointerMove(PointerEventArgs e)
+    private async Task OnPointerMove(PointerEventArgs e)
     {
+        if (_activeDrawing.HasValue && drawingPointerId == (int)e.PointerId)
+        {
+            if (module is not null)
+            {
+                var squareIndex = await module.InvokeAsync<int?>(
+                    "getSquareIndexFromPoint",
+                    e.ClientX,
+                    e.ClientY,
+                    BoardGuid);
+
+                if (_activeHoverSquareIndex != squareIndex)
+                {
+                    _activeHoverSquareIndex = squareIndex;
+                    StateHasChanged();
+                }
+            }
+
+            return;
+        }
+
         if (!pointerDown || activePointerId != (int)e.PointerId)
-            return Task.CompletedTask;
+            return;
 
         dragX = e.ClientX;
         dragY = e.ClientY;
@@ -171,12 +269,43 @@
 
         if (dragging)
             StateHasChanged();
-
-        return Task.CompletedTask;
     }
 
     private async Task OnPointerUp(PointerEventArgs e)
     {
+        if (_activeDrawing.HasValue && drawingPointerId == (int)e.PointerId)
+        {
+            if (module is not null)
+                await module.InvokeVoidAsync("releasePointerCapture", BoardGuid, drawingPointerId.Value);
+
+            var squareIndex = _activeHoverSquareIndex;
+            if (module is not null)
+            {
+                squareIndex = await module.InvokeAsync<int?>(
+                    "getSquareIndexFromPoint",
+                    e.ClientX,
+                    e.ClientY,
+                    BoardGuid);
+            }
+
+            if (squareIndex.HasValue)
+            {
+                var drawing = _activeDrawing.Value;
+                if (drawing.StartSquareIndex == squareIndex.Value)
+                {
+                    ToggleCircle(squareIndex.Value, drawing.Color);
+                }
+                else
+                {
+                    ToggleArrow(drawing.StartSquareIndex, squareIndex.Value, drawing.Color);
+                }
+            }
+
+            ResetDrawingState();
+            StateHasChanged();
+            return;
+        }
+
         if (!pointerDown || activePointerId != (int)e.PointerId)
             return;
 
@@ -197,6 +326,25 @@
 
     private async Task OnPointerCancel(PointerEventArgs e)
     {
+        if (_activeDrawing.HasValue && drawingPointerId == (int)e.PointerId)
+        {
+            if (module is not null)
+            {
+                try
+                {
+                    await module.InvokeVoidAsync("releasePointerCapture", BoardGuid, drawingPointerId.Value);
+                }
+                catch
+                {
+                    // safe to ignore if already released
+                }
+            }
+
+            ResetDrawingState();
+            StateHasChanged();
+            return;
+        }
+
         if (activePointerId != (int)e.PointerId)
             return;
 
@@ -281,6 +429,13 @@
         dragPieceSvg = null;
     }
 
+    private void ResetDrawingState()
+    {
+        _activeDrawing = null;
+        _activeHoverSquareIndex = null;
+        drawingPointerId = null;
+    }
+
     private string GetDragPreviewStyle()
     {
         return $"left:{dragX}px;top:{dragY}px;transform:translate(-50%, -50%);";
@@ -344,6 +499,67 @@
         return $"_content/pax.BlazorChess.Shared/Images/pieces/Chess_{pieceChar}{colorChar}t45.svg";
     }
 
+    private static string GetMarkerId(string color)
+    {
+        return $"marker_{color.Replace("#", string.Empty, StringComparison.Ordinal)}";
+    }
+
+    private (double x, double y) GetSquareCenter(int squareIndex)
+    {
+        var square = new Square(squareIndex);
+        var viewFile = BlackAtBottom ? 7 - square.File : square.File;
+        var viewRank = BlackAtBottom ? square.Rank : 7 - square.Rank;
+        const double squareSize = 12.5;
+        return ((viewFile + 0.5) * squareSize, (viewRank + 0.5) * squareSize);
+    }
+
+    private static string SelectDrawColor(PointerEventArgs args)
+    {
+        if (args.ShiftKey && args.CtrlKey)
+            return MarkerColors[3];
+
+        if (args.ShiftKey)
+            return MarkerColors[1];
+
+        if (args.CtrlKey)
+            return MarkerColors[2];
+
+        return MarkerColors[0];
+    }
+
+    private void ToggleArrow(int startSquareIndex, int endSquareIndex, string color)
+    {
+        var existingIndex = _annotations.FindIndex(a =>
+            a.IsArrow &&
+            a.FromSquareIndex == startSquareIndex &&
+            a.ToSquareIndex == endSquareIndex &&
+            string.Equals(a.Color, color, StringComparison.OrdinalIgnoreCase));
+
+        if (existingIndex >= 0)
+        {
+            _annotations.RemoveAt(existingIndex);
+            return;
+        }
+
+        _annotations.Add(BoardAnnotation.Arrow(startSquareIndex, endSquareIndex, color));
+    }
+
+    private void ToggleCircle(int squareIndex, string color)
+    {
+        var existingIndex = _annotations.FindIndex(a =>
+            !a.IsArrow &&
+            a.FromSquareIndex == squareIndex &&
+            string.Equals(a.Color, color, StringComparison.OrdinalIgnoreCase));
+
+        if (existingIndex >= 0)
+        {
+            _annotations.RemoveAt(existingIndex);
+            return;
+        }
+
+        _annotations.Add(BoardAnnotation.Circle(squareIndex, color));
+    }
+
     private string GetSquareCssClass(Square square)
     {
         var classes = new List<string>();
@@ -386,4 +602,14 @@
         }
     }
 
+    private readonly record struct ActiveDrawing(int StartSquareIndex, string Color);
+
+    private readonly record struct BoardAnnotation(int FromSquareIndex, int ToSquareIndex, string Color, bool IsArrow)
+    {
+        public static BoardAnnotation Arrow(int fromSquareIndex, int toSquareIndex, string color) =>
+            new(fromSquareIndex, toSquareIndex, color, IsArrow: true);
+
+        public static BoardAnnotation Circle(int squareIndex, string color) =>
+            new(squareIndex, squareIndex, color, IsArrow: false);
+    }
 }
