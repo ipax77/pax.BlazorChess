@@ -1,27 +1,43 @@
-﻿@using pax.chess
+@using pax.chess
 
 <div class="container-fluid">
-    <div class="d-flex">
-        <div>
+    <div class="d-flex gap-3 flex-wrap">
+        <div class="w-50">
             <BoardAnalysisComponent @ref="boardAnalysisComponent" Board="Board" />
         </div>
-        <div>
-
+        <div class="w-25">
+            <AnalysisAnnotationComponent @ref="analysisAnnotationComponent"
+                                         Board="Board"
+                                         OnMoveNodeClicked="HandleMoveNodeClicked"
+                                         OnMoveNodeDeleted="HandleMoveNodeDeleted" />
         </div>
     </div>
 </div>
 
 @code {
     [Parameter, EditorRequired]
-    public ChessGame Game { get; set; }
+    public ChessGame Game { get; set; } = null!;
 
     AnalysisBoard Board = null!;
 
     BoardAnalysisComponent? boardAnalysisComponent;
+    AnalysisAnnotationComponent? analysisAnnotationComponent;
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
         Board = new AnalysisBoard(Game);
+    }
+
+    private void HandleMoveNodeClicked(MoveNode _)
+    {
+        boardAnalysisComponent?.Update();
+        analysisAnnotationComponent?.Update();
+    }
+
+    private void HandleMoveNodeDeleted(MoveNode _)
+    {
+        boardAnalysisComponent?.Update();
+        analysisAnnotationComponent?.Update();
     }
 }

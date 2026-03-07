@@ -1,6 +1,37 @@
-﻿@using pax.chess
+@using pax.chess
 
-
+<div class="chess-annotation">
+    <div class="moves-grid">
+        @if (_moves.Count == 0)
+        {
+            <div class="empty-state">No moves yet.</div>
+        }
+        else
+        {
+            @foreach (var item in _moves)
+            {
+                var moveClass = item.IsBlackMove ? "black-move" : "white-move";
+                var rowClass = $"move-row {(item.IsInCurrentPath ? "path-move" : string.Empty)} {(item.IsCurrentNode ? "current-move" : string.Empty)}";
+                <div class="@rowClass"
+                     style="@($"--variation-depth: {item.Depth}")"
+                     @key="item.Node"
+                     @onclick="(() => HandleMoveNodeClicked(item.Node))">
+                    <span class="move-number">@GetMoveNumberText(item)</span>
+                    <span class="move-cell @moveClass">@GetMoveText(item.Node)</span>
+                    <span class="variation-tag">@(item.IsVariationStart ? $"v{item.VariationIndex}" : string.Empty)</span>
+                    <button type="button"
+                            class="delete-move"
+                            title="Delete variation"
+                            aria-label="Delete variation"
+                            @onclick="(e => HandleMoveNodeDeleted(item.Node))"
+                            @onclick:stopPropagation="true">
+                        x
+                    </button>
+                </div>
+            }
+        }
+    </div>
+</div>
 
 @code {
     [Parameter, EditorRequired]
@@ -12,8 +43,135 @@
     [Parameter]
     public EventCallback<MoveNode> OnMoveNodeDeleted { get; set; }
 
+    private List<DisplayMove> _moves = [];
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        RebuildView();
+    }
+
     public void Update()
     {
+        RebuildView();
         StateHasChanged();
     }
+
+    private async Task HandleMoveNodeClicked(MoveNode node)
+    {
+        Board.GoToNode(node);
+        RebuildView();
+
+        if (OnMoveNodeClicked.HasDelegate)
+            await OnMoveNodeClicked.InvokeAsync(node);
+
+        StateHasChanged();
+    }
+
+    private async Task HandleMoveNodeDeleted(MoveNode node)
+    {
+        if (!Board.DeleteVariation(node))
+            return;
+
+        RebuildView();
+
+        if (OnMoveNodeDeleted.HasDelegate)
+            await OnMoveNodeDeleted.InvokeAsync(node);
+
+        StateHasChanged();
+    }
+
+    private void RebuildView()
+    {
+        var currentPath = BuildCurrentPathSet();
+        _moves = BuildDisplayMoves(currentPath);
+    }
+
+    private HashSet<MoveNode> BuildCurrentPathSet()
+    {
+        var path = new HashSet<MoveNode>();
+        var current = Board.CurrentNode;
+
+        while (current != null)
+        {
+            path.Add(current);
+            current = current.Parent;
+        }
+
+        return path;
+    }
+
+    private List<DisplayMove> BuildDisplayMoves(HashSet<MoveNode> currentPath)
+    {
+        var moves = new List<DisplayMove>();
+
+        if (Board.Root.Variations.Count > 0)
+        {
+            AppendBranch(moves, Board.Root.Variations[0], depth: 0, currentPath, isVariationStart: false, variationIndex: 1);
+        }
+
+        for (int i = 1; i < Board.Root.Variations.Count; i++)
+        {
+            AppendBranch(moves, Board.Root.Variations[i], depth: 1, currentPath, isVariationStart: true, variationIndex: i + 1);
+        }
+
+        return moves;
+    }
+
+    private void AppendBranch(
+        List<DisplayMove> moves,
+        MoveNode node,
+        int depth,
+        HashSet<MoveNode> currentPath,
+        bool isVariationStart,
+        int variationIndex)
+    {
+        if (node.Parent is null)
+            return;
+
+        var isBlackMove = node.Parent.Position.SideToMove == PieceColor.Black;
+        var moveNumber = node.Parent.Position.FullmoveNumber;
+
+        moves.Add(new DisplayMove(
+            node,
+            depth,
+            isBlackMove,
+            moveNumber,
+            isVariationStart,
+            variationIndex,
+            currentPath.Contains(node),
+            ReferenceEquals(node, Board.CurrentNode)));
+
+        for (int i = 1; i < node.Variations.Count; i++)
+        {
+            AppendBranch(moves, node.Variations[i], depth + 1, currentPath, isVariationStart: true, variationIndex: i + 1);
+        }
+
+        if (node.Variations.Count > 0)
+        {
+            AppendBranch(moves, node.Variations[0], depth, currentPath, isVariationStart: false, variationIndex: 1);
+        }
+    }
+
+    private static string GetMoveText(MoveNode node)
+    {
+        return node.MoveInfo?.San ?? node.Move?.ToString() ?? string.Empty;
+    }
+
+    private static string GetMoveNumberText(DisplayMove item)
+    {
+        return item.IsBlackMove
+            ? $"{item.MoveNumber}..."
+            : $"{item.MoveNumber}.";
+    }
+
+    private sealed record DisplayMove(
+        MoveNode Node,
+        int Depth,
+        bool IsBlackMove,
+        int MoveNumber,
+        bool IsVariationStart,
+        int VariationIndex,
+        bool IsInCurrentPath,
+        bool IsCurrentNode);
 }

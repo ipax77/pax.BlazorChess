@@ -1,0 +1,108 @@
+.chess-annotation {
+    background: #1a1a18;
+    border: 1px solid #3a3a35;
+    border-radius: 4px;
+    width: 100%;
+    min-width: 320px;
+    max-width: 420px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.moves-grid {
+    display: flex;
+    flex-direction: column;
+    max-height: 520px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #3a3a35 transparent;
+}
+
+.moves-grid::-webkit-scrollbar {
+    width: 4px;
+}
+
+.moves-grid::-webkit-scrollbar-thumb {
+    background: #3a3a35;
+    border-radius: 2px;
+}
+
+.move-row {
+    display: grid;
+    grid-template-columns: 3.2rem 1fr auto auto;
+    align-items: center;
+    gap: 0.4rem;
+    padding-left: calc(var(--variation-depth) * 0.9rem);
+    border-left: calc(var(--variation-depth) * 2px) solid rgba(120, 120, 110, 0.2);
+    transition: background 0.15s ease;
+    cursor: pointer;
+}
+
+.move-row:hover {
+    background: rgba(255,255,255,0.04);
+}
+
+.path-move .move-cell {
+    color: #e8e8d8;
+}
+
+.current-move {
+    background: rgba(180, 150, 80, 0.14);
+}
+
+.current-move .move-cell {
+    color: #d4a843;
+    font-weight: 700;
+}
+
+.move-number {
+    font-family: 'Cinzel', serif;
+    font-size: 0.65rem;
+    color: #5a5a50;
+    padding: 0.45rem 0 0.45rem 0.75rem;
+    user-select: none;
+    letter-spacing: 0.03em;
+}
+
+.move-cell {
+    font-size: 0.8rem;
+    padding: 0.45rem 0.2rem;
+    letter-spacing: 0.04em;
+    border-radius: 2px;
+    transition: color 0.15s;
+    white-space: nowrap;
+}
+
+.white-move {
+    color: #cfcfbf;
+    font-weight: 600;
+}
+
+.black-move {
+    color: #9a9a8a;
+    font-weight: 400;
+}
+
+.variation-tag {
+    min-width: 1.6rem;
+    font-size: 0.65rem;
+    color: #867a59;
+}
+
+.delete-move {
+    border: 0;
+    background: transparent;
+    color: #7d7d72;
+    padding: 0.15rem 0.5rem;
+    line-height: 1;
+}
+
+.delete-move:hover {
+    color: #cc5c5c;
+}
+
+.empty-state {
+    padding: 0.9rem;
+    color: #8a8a80;
+    font-size: 0.8rem;
+}

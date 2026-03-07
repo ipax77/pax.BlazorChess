@@ -1,0 +1,19 @@
+﻿@page "/analysis"
+@using pax.chess
+
+<PageTitle>Analysis</PageTitle>
+
+<pax.BlazorChess.Shared.Components.AnalysisComponent Game="Game" />
+
+@code {
+    ChessGame Game = null!;
+
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        var pgn = "1. e4 c5 2. Ne2 Nc6 3. Nbc3 Nf6 4. g3 d6 5. Bg2 g6 6. d3 Bg7 7. h3 O-O 8. O-O a6 9. f4 b5 10. Be3 Bb7 11. Qd2 Qb6 12. Rae1 a5 13. Kh2 a4 14. Nd5 Nxd5 15. exd5 Nd4 16. c3 Nxe2 17. Rxe2 Rfc8 18. f5 b4 19. Bh6 bxc3 20. bxc3 a3 21. Bxg7 Kxg7 22. Qg5 Re8 23. f6+ Kg8 24. fxe7 f5 25. Rxf5 1-0";
+        // Example game for demonstration
+        Game = PgnSerializer.Parse(pgn);
+    }
+}
