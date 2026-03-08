@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using pax.chess;
 using System.Globalization;
@@ -46,7 +46,10 @@ public sealed class BoardAnnotationCollection
 
     public bool OnPointerMove(int squareIndex, PointerEventArgs e)
     {
-        if (ActiveDrawing is null || e.Button != 2 || (int)e.PointerId != DrawingPointerId)
+        if (ActiveDrawing is null || (int)e.PointerId != DrawingPointerId)
+            return false;
+
+        if ((e.Buttons & 2) != 2)
             return false;
 
         if (ActiveHoverSquareIndex == squareIndex)
@@ -143,7 +146,7 @@ public static class BoardAnnotationCollectionExtensions
                             refY=""3""
                             orient=""auto""
                             markerUnits=""strokeWidth"" >
-                        <path d=""M0,0 L0,6 L6,3 z"" fill=""@markerColor""></path>
+                        <path d=""M0,0 L0,6 L6,3 z"" fill=""{markerColor}""></path>
                     </marker>");
         }
         sb.AppendLine("</defs>");
