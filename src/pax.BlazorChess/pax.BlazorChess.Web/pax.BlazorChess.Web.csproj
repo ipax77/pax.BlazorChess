@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\pax.uciChessEngine\src\pax.uciChessEngine\pax.uciChessEngine.csproj" />
+    <ProjectReference Include="..\..\..\..\pax.BlazorChartJs\src\pax.BlazorChartJs\pax.BlazorChartJs.csproj" />
     <ProjectReference Include="..\pax.BlazorChess.Shared\pax.BlazorChess.Shared.csproj" />
   </ItemGroup>
 

@@ -1,0 +1,310 @@
+@using pax.BlazorChartJs
+@using pax.BlazorChess.Shared.Interfaces
+@using pax.chess
+@using pax.uciChessEngine
+@inject IGameAnalysisHandler GameAnalysisHandler
+@implements IAsyncDisposable
+
+<div class="container-fluid">
+    <div class="row g-3">
+        <div class="col-12 col-xl-6">
+            <label class="form-label">PGN</label>
+            <textarea class="form-control"
+                      rows="8"
+                      @bind="PgnText"></textarea>
+            <div class="btn-group mt-2">
+                <button class="btn btn-primary" @onclick="ImportPgn">Import Game</button>
+                <button class="btn btn-success" @onclick="AnalyseGame" disabled="@(!CanAnalyse)">Analyse</button>
+                <button class="btn btn-outline-secondary" @onclick="StopAnalysis" disabled="@(!isAnalysing)">Stop</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger mt-2">@errorMessage</div>
+            }
+        </div>
+
+        <div class="col-12 col-xl-6">
+            <div class="w-100">
+                <BoardPositionComponent Position="DisplayPosition"
+                                        BlackAtBottom="false" />
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <strong>Eval Chart (cp)</strong>
+        <div class="chart-container w-100" style="min-height: 280px;">
+            <ChartComponent ChartJsConfig="evalChartConfig" />
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <strong>Move Evaluations</strong>
+            @if (isAnalysing)
+            {
+                <span>Analysing...</span>
+            }
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Move</th>
+                        <th>Eval</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="3">Import a PGN to start.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in rows)
+                        {
+                            <tr class="@(selectedMoveNumber == row.MoveNumber ? "table-active" : null)"
+                                @onclick="() => SelectMove(row.MoveNumber)">
+                                <td>@row.MoveNumber</td>
+                                <td>@row.San</td>
+                                <td>@FormatEval(row.Eval)</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string PgnText { get; set; } = "1. e4 c5 2. Ne2 Nc6 3. Nbc3 Nf6 4. g3 d6 5. Bg2 g6 6. d3 Bg7 7. h3 O-O 8. O-O a6 9. f4 b5 10. Be3 Bb7 11. Qd2 Qb6 12. Rae1 a5 13. Kh2 a4 14. Nd5 Nxd5 15. exd5 Nd4 16. c3 Nxe2 17. Rxe2 Rfc8 18. f5 b4 19. Bh6 bxc3 20. bxc3 a3 21. Bxg7 Kxg7 22. Qg5 Re8 23. f6+ Kg8 24. fxe7 f5 25. Rxf5 1-0";
+
+    private readonly List<EvalRow> rows = [];
+    private ChartJsConfig evalChartConfig = null!;
+
+    private ChessGame? importedGame;
+    private BoardPosition DisplayPosition { get; set; } = BoardPosition.CreateInitial();
+
+    private bool isAnalysing;
+    private string? errorMessage;
+    private int selectedMoveNumber;
+
+    private GameAnalysis? gameAnalysis;
+    private CancellationTokenSource? analysisCts;
+
+    private bool CanAnalyse => importedGame is not null && rows.Count > 0 && !isAnalysing;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        evalChartConfig = CreateChartConfig();
+        ImportPgn();
+    }
+
+    private void ImportPgn()
+    {
+        errorMessage = null;
+
+        try
+        {
+            _ = StopAnalysis();
+
+            importedGame = PgnSerializer.Parse(PgnText);
+            BuildRows(importedGame);
+
+            selectedMoveNumber = 0;
+            DisplayPosition = BoardPosition.CreateInitial();
+            UpdateEvalChart();
+        }
+        catch (Exception ex)
+        {
+            importedGame = null;
+            rows.Clear();
+            DisplayPosition = BoardPosition.CreateInitial();
+            errorMessage = $"PGN import failed: {ex.Message}";
+            UpdateEvalChart();
+        }
+    }
+
+    private async Task AnalyseGame()
+    {
+        if (!CanAnalyse || importedGame is null)
+            return;
+
+        errorMessage = null;
+
+        foreach (var row in rows)
+            row.Eval = null;
+
+        UpdateEvalChart();
+        isAnalysing = true;
+
+        await StopAnalysis();
+
+        analysisCts = new CancellationTokenSource();
+        gameAnalysis = GameAnalysisHandler.Create(importedGame);
+
+        try
+        {
+            await foreach (var eval in gameAnalysis.AnalyseGameStream(analysisCts.Token))
+            {
+                var row = rows.FirstOrDefault(r => r.MoveNumber == eval.MoveNumber);
+                if (row is not null)
+                {
+                    row.Eval = eval.Eval;
+                    UpdateEvalChart();
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Analysis failed: {ex.Message}";
+        }
+        finally
+        {
+            isAnalysing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task StopAnalysis()
+    {
+        if (analysisCts is not null)
+        {
+            await analysisCts.CancelAsync();
+            analysisCts.Dispose();
+            analysisCts = null;
+        }
+
+        if (gameAnalysis is not null)
+        {
+            await gameAnalysis.DisposeAsync();
+            gameAnalysis = null;
+        }
+
+        isAnalysing = false;
+    }
+
+    private void SelectMove(int moveNumber)
+    {
+        selectedMoveNumber = moveNumber;
+
+        if (moveNumber == 0)
+        {
+            DisplayPosition = BoardPosition.CreateInitial();
+            return;
+        }
+
+        var row = rows.FirstOrDefault(r => r.MoveNumber == moveNumber);
+        DisplayPosition = row?.Position.Clone() ?? BoardPosition.CreateInitial();
+    }
+
+    private void BuildRows(ChessGame game)
+    {
+        rows.Clear();
+
+        var replay = new ChessGame();
+        var moveNumber = 1;
+
+        foreach (var m in game.Moves)
+        {
+            var previousPosition = replay.CurrentPosition;
+            var san = PgnSerializer.ToSan(m.Move, previousPosition);
+
+            _ = replay.TryApplyMove(m.Move);
+
+            rows.Add(new EvalRow
+            {
+                MoveNumber = moveNumber,
+                San = san,
+                Position = replay.CurrentPosition.Clone()
+            });
+
+            moveNumber++;
+        }
+    }
+
+    private void UpdateEvalChart()
+    {
+        var labels = rows.Select(r => r.MoveNumber.ToString()).ToList();
+        var data = rows.Select(r => r.Eval is null ? (object)null! : GetChartValue(r.Eval)).ToList();
+
+        evalChartConfig.Data.Labels = labels;
+
+        if (evalChartConfig.Data.Datasets.FirstOrDefault() is LineDataset lineDataset)
+        {
+            lineDataset.Data = data;
+        }
+
+        evalChartConfig.ReinitializeChart();
+    }
+
+    private static ChartJsConfig CreateChartConfig()
+    {
+        return new ChartJsConfig
+        {
+            Type = ChartType.line,
+            Data = new ChartJsData
+            {
+                Labels = [],
+                Datasets =
+                [
+                    new LineDataset
+                    {
+                        Label = "Eval",
+                        Data = [],
+                        BorderColor = "#0d6efd",
+                        BackgroundColor = "rgba(13, 110, 253, 0.2)",
+                        BorderWidth = 2,
+                        Fill = false,
+                        Tension = 0.15,
+                        PointRadius = 2,
+                        PointHitRadius = 4
+                    }
+                ]
+            },
+            Options = new ChartJsOptions
+            {
+                Responsive = true,
+                MaintainAspectRatio = false
+            }
+        };
+    }
+
+    private static int GetChartValue(Eval eval)
+    {
+        if (eval.Mate.HasValue)
+            return eval.Mate.Value > 0 ? 500 : -500;
+
+        return eval.Score;
+    }
+
+    private static string FormatEval(Eval? eval)
+    {
+        return eval?.ToString() ?? "...";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await StopAnalysis();
+    }
+
+    private sealed class EvalRow
+    {
+        public required int MoveNumber { get; init; }
+        public required string San { get; init; }
+        public required BoardPosition Position { get; init; }
+        public Eval? Eval { get; set; }
+    }
+}
+

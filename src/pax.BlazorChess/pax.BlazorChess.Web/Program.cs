@@ -1,3 +1,4 @@
+using pax.BlazorChartJs;
 using pax.BlazorChess.Shared.Interfaces;
 using pax.BlazorChess.Web.Components;
 using pax.BlazorChess.Web.Services;
@@ -8,7 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddChartJs();
+
 builder.Services.AddScoped<IEngineGameHandler, EngineGameHandler>();
+builder.Services.AddScoped<IGameAnalysisHandler, GameAnalysisHandler>();
 
 var app = builder.Build();
 
@@ -32,3 +36,5 @@ app.MapRazorComponents<App>()
         typeof(pax.BlazorChess.Shared._Imports).Assembly);
 
 app.Run();
+
+
