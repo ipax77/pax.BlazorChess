@@ -85,6 +85,8 @@ public partial class BoardPositionComponent
         if (state == MoveState.Ok)
         {
             Position = Game.CurrentPosition;
+            selectedSquare = null;
+            validDestinations.Clear();
             boardAnnotation.Clear();
             StateHasChanged();
         }
