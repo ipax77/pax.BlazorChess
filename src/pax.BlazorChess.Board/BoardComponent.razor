@@ -4,8 +4,8 @@
 
 <div class="w-100">
     <div class="board-surface" @oncontextmenu:preventDefault>
-        <div class="chess-board" @ondragover:preventDefault="true"
-             @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="OnPointerCancel">
+        <div class="chess-board" @ondragover:preventDefault="true" @onpointermove="OnPointerMove"
+             @onpointerup="OnPointerUp" @onpointercancel="OnPointerCancel">
             @for (int viewRank = 0; viewRank < 8; viewRank++)
             {
                 var rank = BlackAtBottom ? viewRank : 7 - viewRank;
@@ -101,6 +101,9 @@
     {
         Position = boardPosition;
         LastMove = lastMove;
+        selectedSquare = null;
+        validDestinations.Clear();
+        boardAnnotation.Clear();
         InvokeAsync(StateHasChanged);
     }
 

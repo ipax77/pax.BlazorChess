@@ -1,0 +1,43 @@
+@using pax.chess
+@using pax.chess.Extensions
+
+<div class="conatiner-fluid">
+    <div class="row">
+        <div class="col-3">
+
+        </div>
+        <div class="col-6">
+            <BoardComponent @ref="boardComponent" Position="ChessGame.CurrentPosition" OnMovePlayed="ApplyMove" />
+        </div>
+        <div class="col-3">
+
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required ChessGame ChessGame { get; set; }
+
+    private BoardComponent? boardComponent;
+
+    public void ApplyMove(Move move)
+    {
+        var san = PgnSerializer.ToSan(move, ChessGame.CurrentPosition);
+        var state = ChessGame.TryApplyMove(move, san);
+
+        if (state == MoveState.Ok)
+        {
+            boardComponent?.Update(ChessGame.CurrentPosition, move);
+        }
+    }
+
+    public void ApplyEngineMove(string engineMove)
+    {
+        var move = Uci.CreateMove(engineMove, ChessGame.CurrentPosition);
+        ArgumentNullException.ThrowIfNull(move);
+        var san = PgnSerializer.ToSan(move, ChessGame.CurrentPosition);
+        ChessGame.ApplyMove(move, san);
+        boardComponent?.Update(ChessGame.CurrentPosition, move);
+    }
+}

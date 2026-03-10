@@ -1,6 +1,7 @@
 ﻿@page "/"
+@using pax.BlazorChess.Board
 @using pax.BlazorChess.Shared.Components
 
 <PageTitle>Home</PageTitle>
 
-<BoardContainer Game="new()" />
+<GameComponent ChessGame="new()" />

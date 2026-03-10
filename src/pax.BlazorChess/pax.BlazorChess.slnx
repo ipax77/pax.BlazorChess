@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="../../../pax.chess/src/pax.chess/pax.chess.csproj" />
   <Project Path="../../../pax.uciChessEngine/src/pax.uciChessEngine/pax.uciChessEngine.csproj" />
+  <Project Path="../pax.BlazorChess.Board/pax.BlazorChess.Board.csproj" />
   <Project Path="pax.BlazorChess.Shared/pax.BlazorChess.Shared.csproj" />
   <Project Path="pax.BlazorChess.Web/pax.BlazorChess.Web.csproj" />
   <Project Path="pax.BlazorChess/pax.BlazorChess.csproj">

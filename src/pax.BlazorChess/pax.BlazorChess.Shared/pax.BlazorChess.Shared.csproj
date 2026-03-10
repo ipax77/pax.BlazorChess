@@ -11,13 +11,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.*" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\pax.chess\src\pax.chess\pax.chess.csproj" />
     <ProjectReference Include="..\..\..\..\pax.uciChessEngine\src\pax.uciChessEngine\pax.uciChessEngine.csproj" />
     <ProjectReference Include="..\..\..\..\pax.BlazorChartJs\src\pax.BlazorChartJs\pax.BlazorChartJs.csproj" />
+    <ProjectReference Include="..\..\pax.BlazorChess.Board\pax.BlazorChess.Board.csproj" />
   </ItemGroup>
 
 </Project>
