@@ -6,7 +6,7 @@
 
 <div class="w-100">
     <div class="board-surface" @oncontextmenu:preventDefault>
-        <div class="chess-board"
+        <div class="chess-board" tabindex="0" @onkeydown="KeyDown"
              @ondragover:preventDefault="true"
              @onpointermove="OnPointerMove"
              @onpointerup="OnPointerUp"

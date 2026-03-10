@@ -1,0 +1,91 @@
+﻿@using pax.chess.Analyze
+
+<div class="analysis-line">
+    @RenderNode(AnalysisBoard.Root)
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public AnalysisBoard AnalysisBoard { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<MoveNode> OnMoveNodeClicked { get; set; }
+
+    RenderFragment RenderNode(MoveNode node) => builder =>
+    {
+        var current = node.MainLine;
+
+        while (current != null)
+        {
+            var moveNumber = GetMoveNumber(current);
+
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "move");
+
+            builder.OpenElement(2, "a");
+            builder.AddAttribute(3, "href", "#");
+            builder.AddAttribute(4, "onclick",
+                EventCallback.Factory.Create(this, () => OnMoveNodeClicked.InvokeAsync(current)));
+
+            builder.AddContent(5, $"{moveNumber}{current.San}");
+
+            builder.CloseElement();
+            builder.CloseElement();
+
+            // render variations
+            foreach (var variation in current.Variations)
+            {
+                builder.OpenElement(6, "span");
+                builder.AddAttribute(7, "class", "variation");
+                builder.AddContent(8, "(");
+                builder.AddContent(9, RenderVariation(variation));
+                builder.AddContent(10, ")");
+                builder.CloseElement();
+            }
+
+            current = current.MainLine;
+        }
+    };
+
+    RenderFragment RenderVariation(MoveNode start) => builder =>
+    {
+        var node = start;
+
+        while (node != null)
+        {
+            builder.OpenElement(0, "span");
+
+            builder.OpenElement(1, "a");
+            builder.AddAttribute(2, "href", "#");
+            builder.AddAttribute(3, "onclick",
+                EventCallback.Factory.Create(this, () => OnMoveNodeClicked.InvokeAsync(node)));
+
+            builder.AddContent(4, node.San);
+
+            builder.CloseElement();
+            builder.CloseElement();
+
+            foreach (var variation in node.Variations)
+            {
+                builder.AddContent(5, "(");
+                builder.AddContent(6, RenderVariation(variation));
+                builder.AddContent(7, ")");
+            }
+
+            node = node.MainLine;
+        }
+    };
+
+    int GetMoveNumber(MoveNode node)
+    {
+        int ply = 0;
+
+        while (node.Parent != null)
+        {
+            ply++;
+            node = node.Parent;
+        }
+
+        return (ply / 2) + 1;
+    }
+}

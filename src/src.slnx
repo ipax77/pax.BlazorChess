@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../../pax.chess/src/pax.chess/pax.chess.csproj" />
+  <Project Path="pax.BlazorChess.Board/pax.BlazorChess.Board.csproj" />
+</Solution>
