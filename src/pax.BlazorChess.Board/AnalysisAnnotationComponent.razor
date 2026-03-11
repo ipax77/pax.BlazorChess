@@ -1,0 +1,119 @@
+@using pax.chess
+@using pax.chess.Analyze;
+
+<div id="@AnnotationGuid" class="table-responsive" style="max-height: 75vh; max-width: 500px;">
+    <table class="table table-sm table-striped">
+        <colgroup>
+            <col width="50px;" />
+            <col width="100px;" />
+            <col width="100px;" />
+        </colgroup>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>White</th>
+                <th>Black</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                var mainLine = GetMainLine();
+            }
+            @for (int i = 0; i < mainLine.Count; i += 2)
+            {
+                var moveNumber = i / 2 + 1;
+                var whiteMove = mainLine[i];
+                var blackMove = (i + 1 < mainLine.Count) ? mainLine[i + 1] : null;
+                <tr style="cursor: pointer;">
+                    <td @onclick="() => OnNodeClicked.InvokeAsync(whiteMove)">@moveNumber.</td>
+                    <td class="@GetNodeCss(whiteMove)" @onclick="() => OnNodeClicked.InvokeAsync(whiteMove)">@whiteMove.San</td>
+                    @if (blackMove != null)
+                    {
+                        <td class="@GetNodeCss(blackMove)" @onclick="() => OnNodeClicked.InvokeAsync(whiteMove)">@blackMove.San</td>
+                    }
+                    else
+                    {
+                        <td></td>
+                    }
+                </tr>
+                @RenderVariations(whiteMove)
+                @if (blackMove != null)
+                {
+                    @RenderVariations(blackMove)
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required pax.chess.Analyze.AnalysisBoard AnalysisBoard { get; set; }
+
+    [Parameter]
+    public Guid AnnotationGuid { get; set; } = Guid.NewGuid();
+
+    [Parameter]
+    public EventCallback<pax.chess.Analyze.MoveNode> OnNodeClicked { get; set; }
+
+    private List<pax.chess.Analyze.MoveNode> GetMainLine()
+    {
+        var current = AnalysisBoard.Root.MainLine;
+        List<pax.chess.Analyze.MoveNode> mainLine = new();
+        while (current != null)
+        {
+            mainLine.Add(current);
+            current = current.MainLine;
+        }
+        return mainLine;
+    }
+
+    private string GetNodeCss(pax.chess.Analyze.MoveNode node)
+    {
+        return AnalysisBoard.CurrentNode == node ? "fw-bold" : "";
+    }
+
+    private RenderFragment RenderVariations(pax.chess.Analyze.MoveNode node, int depth = 1) => builder =>
+{
+    int seq = 0;
+
+    foreach (var variation in node.Variations)
+    {
+        var moves = new List<pax.chess.Analyze.MoveNode>();
+        var current = variation;
+
+        while (current != null)
+        {
+            moves.Add(current);
+            current = current.MainLine;
+        }
+
+        builder.OpenElement(seq++, "tr");
+        builder.AddAttribute(seq++, "style", $"font-style: italic;");
+
+        builder.OpenElement(seq++, "td");
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "td");
+        builder.AddAttribute(seq++, "colspan", "2");
+        builder.AddContent(seq++, "(");
+
+        foreach (var move in moves)
+        {
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "style", $"margin-left:{depth * 10}px; cursor:pointer;");
+            builder.AddAttribute(seq++, "onclick",
+                EventCallback.Factory.Create(this, () => OnNodeClicked.InvokeAsync(move)));
+            builder.AddContent(seq++, move.San + " ");
+            builder.CloseElement();
+
+            builder.AddContent(seq++, RenderVariations(move, depth + 1));
+        }
+
+        builder.AddContent(seq++, ")");
+        builder.CloseElement();
+
+        builder.CloseElement();
+    }
+};
+}
