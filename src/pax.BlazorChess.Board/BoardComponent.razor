@@ -352,6 +352,9 @@
         if (validDestinations.Contains(square))
             classes.Add("valid-destination");
 
+        if (dragging && pointerDownSquare.HasValue && pointerDownSquare.Value == square)
+            classes.Add("dragging-source");
+
         return string.Join(' ', classes);
     }
 

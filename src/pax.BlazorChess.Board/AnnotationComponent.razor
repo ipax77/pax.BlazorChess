@@ -1,0 +1,48 @@
+@using pax.chess;
+@inject IBoardJsInterop BoardJsInterop
+
+<div id="@AnnotationGuid" class="table-responsive" style="max-height: 75vh; max-width: 300px;">
+    <table class="table table-sm table-striped">
+        <colgroup>
+            <col width="50px;" />
+            <col width="100px;" />
+            <col width="100px;" />
+        </colgroup>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>White</th>
+                <th>Black</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (int i = 0; i < ChessGame.Moves.Count; i += 2)
+            {
+                var fullMove = i / 2 + 1;
+                var whiteMove = ChessGame.Moves[i];
+                var blackMove = ChessGame.Moves.Count > i + 1 ? ChessGame.Moves[i + 1] : null;
+                <tr id="@($"{AnnotationGuid}_{fullMove}")" class="fw-bold" style="scroll-margin-bottom: 20px;">
+                    <td>@fullMove.</td>
+                    <td>@whiteMove.San</td>
+                    <td>@blackMove?.San</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required ChessGame ChessGame { get; set; }
+
+    [Parameter]
+    public Guid AnnotationGuid { get; set; } = Guid.NewGuid();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+        var fullMove = ChessGame.Moves.Count / 2 + 1;
+        var elementId = $"{AnnotationGuid}_{fullMove}";
+        BoardJsInterop.ScrollToBottom(elementId, AnnotationGuid.ToString());
+    }
+}

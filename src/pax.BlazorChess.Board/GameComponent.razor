@@ -1,16 +1,18 @@
 @using pax.chess
 @using pax.chess.Extensions
 
-<div class="conatiner-fluid">
+<div class="container-fluid">
     <div class="row">
-        <div class="col-3">
-
+        <div class="col-2">
         </div>
-        <div class="col-6">
+        <div class="col-5 mt-3">
             <BoardComponent @ref="boardComponent" Position="ChessGame.CurrentPosition" OnMovePlayed="ApplyMove" />
         </div>
         <div class="col-3">
-
+            <div class="mt-3 mb-3">
+                <ClockComponent @ref="clockComponent" />
+            </div>
+            <AnnotationComponent @ref="annotationComponent" ChessGame="ChessGame" />
         </div>
     </div>
 </div>
@@ -20,6 +22,25 @@
     public required ChessGame ChessGame { get; set; }
 
     private BoardComponent? boardComponent;
+    private AnnotationComponent? annotationComponent;
+    private ClockComponent? clockComponent;
+    private ChessClock? chessClock;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+        if (firstRender)
+        {
+            chessClock = new(TimeSpan.FromSeconds(300), TimeSpan.FromSeconds(5), clockComponent);
+            ChessGame.SetClock(chessClock);
+            chessClock.Start();
+        }
+    }
 
     public void ApplyMove(Move move)
     {

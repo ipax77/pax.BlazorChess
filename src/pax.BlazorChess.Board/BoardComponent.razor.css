@@ -97,6 +97,10 @@
         pointer-events: none;
     }
 
+    .square.dragging-source .piece {
+        visibility: hidden;
+    }
+
 .piece {
     width: 90%;
     height: 90%;
