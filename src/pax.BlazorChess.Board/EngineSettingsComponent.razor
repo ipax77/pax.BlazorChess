@@ -1,0 +1,101 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using pax.uciChessEngine
+
+<div class="container-fluid">
+    <EditForm EditContext="editContext" FormName="EngineRunOptions" OnValidSubmit="() => OnSaved.InvokeAsync()">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-light" @onclick="SetStockfishDefaults">Set Stockfish defaults</button>
+            <button type="button" class="btn btn-sm btn-outline-light" @onclick="SetLc0Defaults">Set LC0 defaults</button>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Engine Name</label>
+            <InputText class="form-control"
+                       @bind-Value="EngineRunOptions.Name" />
+        </div>
+        <div class="mb-3">
+            <label for="engineBinaryPath" class="form-label">Engine Binary Path</label>
+            <InputText class="form-control" id="engineBinaryPath" aria-describedby="engineBinaryPathHelp" @bind-Value="EngineRunOptions.BinaryPath" />
+            <div id="engineBinaryPathHelp" class="form-text">
+                The full file path to the engine binary. E.g. from <a href="https://github.com/official-stockfish/Stockfish/releases">Stockfish</a> or
+                <a href="https://github.com/LeelaChessZero/lc0/releases">lc0</a>. Make sure you pick the right binary depending on your hardware.
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="engineThreads" class="form-label">Threads</label>
+            <InputNumber class="form-control" id="engineThreads" aria-describedby="engineThreadsHelp" @bind-Value="EngineRunOptions.Threads" />
+            <div id="engineThreadsHelp" class="form-text">
+                The number of threads used by one instance of this engine. Depends on how many engines you want to run in parallel and the CPU core count of you hardware.
+                0 = Engine Default
+                Typical values:
+                <ul>
+                    <li>Stockfish: CPU cores / pool size</li>
+                    <li>Lc0: usually 1–2</li>
+                </ul>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="MultiPVs" class="form-label">MultiPV</label>
+            <InputNumber class="form-control" id="MultiPVs" aria-describedby="MultiPVsHelp" @bind-Value="EngineRunOptions.Pvs" />
+            <div id="MultiPVsHelp" class="form-text">
+                The number of lines the engine should calculate by default. 0 = Engine Default
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="hash" class="form-label">Hash size in MB</label>
+            <InputNumber class="form-control" id="hash" aria-describedby="hashHelp" @bind-Value="EngineRunOptions.HashMb" />
+            <div id="hashHelp" class="form-text">
+                The size of the hash one instance should use. Depends on how many engines you want to run in parallel and the RAM size of you hardware. 0 = Engine Default
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="poolSize" class="form-label">Maximum Pool Size</label>
+            <InputNumber class="form-control" id="poolSize" aria-describedby="poolSizeHelp" @bind-Value="EngineRunOptions.PoolSize" />
+            <div id="poolSizeHelp" class="form-text">
+                The maximum number of this engines instances.
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">
+            Save
+        </button>
+    </EditForm>
+</div>
+
+
+
+@code {
+    [Parameter, EditorRequired]
+    public EngineRunOptions EngineRunOptions { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnSaved { get; set; }
+
+    EditContext editContext = null!;
+
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        editContext = new(EngineRunOptions);
+    }
+
+    void SetStockfishDefaults()
+    {
+        EngineRunOptions.Name = "Stockfish";
+        EngineRunOptions.Threads = Math.Max(2, Environment.ProcessorCount / 8);
+        EngineRunOptions.HashMb = 1024;
+        EngineRunOptions.Pvs = 2;
+        EngineRunOptions.PoolSize = 8;
+    }
+
+    void SetLc0Defaults()
+    {
+        EngineRunOptions.Name = "LC0";
+        EngineRunOptions.Threads = 2;
+        EngineRunOptions.Pvs = 2;
+        EngineRunOptions.PoolSize = 2;
+    }
+}

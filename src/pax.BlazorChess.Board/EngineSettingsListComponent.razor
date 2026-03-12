@@ -1,0 +1,72 @@
+@using pax.uciChessEngine
+<div class="row">
+    <div class="col-4">
+
+        <ul class="list-group">
+            @foreach (var engine in EngineRunOptions)
+            {
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>@engine.Name</span>
+
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-primary"
+                                @onclick="() => SelectEngine(engine)">
+                            Edit
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => DeleteEngine(engine)">
+                            Delete
+                        </button>
+                    </div>
+                </li>
+            }
+        </ul>
+
+        <button class="btn btn-success mt-3" @onclick="AddEngine">
+            Add Engine
+        </button>
+
+    </div>
+
+    <div class="col-8">
+        @if (currentOptions != null)
+        {
+            <EngineSettingsComponent EngineRunOptions="currentOptions" OnSaved="Saved" />
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<EngineRunOptions> EngineRunOptions { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<List<EngineRunOptions>> OnOptionsUpdated { get; set; }
+
+    EngineRunOptions? currentOptions = null;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+    }
+    private void AddEngine(MouseEventArgs args)
+    {
+        EngineRunOptions.Add(new() { Name = "New Engine" });
+    }
+
+    private void SelectEngine(EngineRunOptions engine)
+    {
+        currentOptions = engine;
+    }
+
+    private void DeleteEngine(EngineRunOptions engine)
+    {
+        EngineRunOptions.Remove(engine);
+    }
+
+    private void Saved()
+    {
+        currentOptions = null;
+        OnOptionsUpdated.InvokeAsync(EngineRunOptions);
+    }
+}
