@@ -1,6 +1,8 @@
 @using pax.chess
 @using pax.chess.Analyze
 @using pax.chess.Extensions
+@using pax.uciChessEngine
+@inject IChessBoardRepository ChessBoardRepository
 
 <div class="container-fluid">
     <div class="row" tabindex="0" @onkeydown="KeyDown">
@@ -11,6 +13,9 @@
         </div>
         <div class="col-3">
             <div class="mt-3 mb-3">
+                <LiveEvalComponent AnalysisBoard="AnalysisBoard" EngineRunOptions="engineRunOptions" IsActive="false" />
+            </div>
+            <div class="mb-3">
                 <AnalysisAnnotationComponent @ref="annotationComponent" AnalysisBoard="AnalysisBoard" OnNodeClicked="NodeClicked" />
             </div>
         </div>
@@ -24,10 +29,12 @@
     private BoardComponent? boardComponent;
     private AnalysisAnnotationComponent? annotationComponent;
     private ClockComponent? clockComponent;
+    List<EngineRunOptions> engineRunOptions = [];
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        base.OnInitialized();
+        await base.OnInitializedAsync();
+        engineRunOptions = await ChessBoardRepository.GetEngineRunOptions();
     }
 
     public void ApplyMove(Move move)

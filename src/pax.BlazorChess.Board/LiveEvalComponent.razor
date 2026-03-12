@@ -1,0 +1,146 @@
+@using pax.chess.Analyze
+@using pax.uciChessEngine
+@implements IAsyncDisposable
+
+<div>
+    <div>
+        <select class="form-select" aria-label="Engines" @bind="currentId" @bind:after="SwitchEngine">
+            @foreach (var options in EngineRunOptions)
+            {
+                <option value="@options.Id">@options.Name</option>
+            }
+        </select>
+    </div>
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="switchCheckDefault" @bind="IsActive" @bind:after="StartStop">
+        <label class="form-check-label" for="switchCheckDefault">@currentRunOptions?.Name</label>
+    </div>
+    <div>
+        @foreach (var eval in evals)
+        {
+            <div>
+                @eval.ChartScore @eval.Depth
+                <span class="text-truncate" style="width: 300px;">@string.Join(" ", eval.PvInfo.Moves)</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public AnalysisBoard AnalysisBoard { get; set; }
+
+    [Parameter, EditorRequired]
+    public List<EngineRunOptions> EngineRunOptions { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public bool IsActive { get; set; }
+
+    Guid currentId;
+    private EngineRunOptions? currentRunOptions;
+    private IEngineSessionProvider? engineSessionProvider;
+
+    private readonly List<Eval> evals = [];
+
+    private readonly CancellationTokenSource cts = new();
+    private CancellationTokenSource? calcCts;
+    private readonly SemaphoreSlim ss = new(1, 1);
+
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        if (IsActive)
+            _ = Calculate();
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        currentRunOptions = EngineRunOptions.FirstOrDefault();
+        currentId = currentRunOptions?.Id ?? Guid.Empty;
+    }
+
+    private async Task Calculate()
+    {
+        if (!IsActive || currentRunOptions is null)
+            return;
+
+        var old = Interlocked.Exchange(
+            ref calcCts,
+            CancellationTokenSource.CreateLinkedTokenSource(cts.Token));
+
+        old?.Cancel();
+
+        await ss.WaitAsync();
+
+        try
+        {
+            var token = calcCts!.Token;
+
+            engineSessionProvider = EngineService
+                .GetEngineSessionProvider(currentRunOptions);
+
+            var lease = await engineSessionProvider.AcquireAsync(token);
+
+            await lease.Session.UseAsync<Task>(async engine =>
+            {
+                var moves = AnalysisBoard.GetCurrentEngineMoves();
+                var sideToMove = AnalysisBoard.CurrentPosition.SideToMove;
+
+                await foreach (var evals in EngineService
+                    .GetContinualEvaluation(moves, sideToMove, engine, token))
+                {
+                    UpdateEval(evals);
+                }
+
+                return Task.CompletedTask;
+
+            }, token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            ss.Release();
+            old?.Dispose();
+        }
+    }
+
+    private void Stop()
+    {
+        calcCts?.Cancel();
+    }
+
+    private void UpdateEval(List<Eval> evals)
+    {
+        this.evals.Clear();
+        this.evals.AddRange(evals);
+        InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        cts.Cancel();
+        cts.Dispose();
+        ss.Dispose();
+    }
+    private void StartStop()
+    {
+        if (IsActive)
+        {
+            _ = Calculate();
+        }
+        else
+        {
+            Stop();
+        }
+    }
+    private void SwitchEngine()
+    {
+        currentRunOptions = EngineRunOptions.FirstOrDefault(f => f.Id == currentId);
+        if (IsActive)
+            _ = Calculate();
+    }
+}

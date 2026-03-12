@@ -14,7 +14,7 @@ builder.Services.AddChartJs();
 
 builder.Services.AddScoped<IEngineGameHandler, EngineGameHandler>();
 builder.Services.AddScoped<IGameAnalysisHandler, GameAnalysisHandler>();
-builder.Services.AddScoped<IBoardJsInterop, BoardJsInterop>();
+builder.Services.AddChessBoard();
 
 var app = builder.Build();
 
