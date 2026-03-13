@@ -4,7 +4,7 @@
 
 <div class="w-100">
     <div class="board-surface" @oncontextmenu:preventDefault>
-        <div class="chess-board" @ondragover:preventDefault="true" @onpointermove="OnPointerMove"
+        <div id="@BoardGuid" class="chess-board" @ondragover:preventDefault="true" @onpointermove="OnPointerMove"
              @onpointerup="OnPointerUp" @onpointercancel="OnPointerCancel">
             @for (int viewRank = 0; viewRank < 8; viewRank++)
             {
@@ -42,7 +42,12 @@
                 }
             }
         </div>
-        @boardAnnotation.GenerateSvg(BlackAtBottom)
+        <div class="board-overlay">
+            @if (boardAnnotation.Annotations.Count > 0)
+            {
+                @boardAnnotation.GenerateSvg(BlackAtBottom)
+            }
+        </div>
     </div>
 
     @if (dragging && dragPieceSvg is not null)
@@ -301,7 +306,7 @@
 
         dragPieceSvg = null;
     }
-    
+
     private static bool IsLightSquare(int file, int rank)
     {
         return (file + rank) % 2 != 0;

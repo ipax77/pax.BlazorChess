@@ -20,7 +20,7 @@ public sealed record BoardAnnotation(int FromSquareIndex, int ToSquareIndex, str
 public sealed class BoardAnnotationCollection
 {
     public static readonly string[] MarkerColors = ["#8bc34a", "#f44336", "#03a9f4", "#ff9800"];
-    public static readonly string[] BestMoveColors = ["#666666", "#808080", "#969696", "#ADADAD"];
+    public static readonly string[] BestMoveColors = ["#666666E6", "#808080B3", "#96969680", "#ADADAD4D"];
     private readonly List<BoardAnnotation> annotations = [];
     public int? DrawingPointerId { get; private set; }
 

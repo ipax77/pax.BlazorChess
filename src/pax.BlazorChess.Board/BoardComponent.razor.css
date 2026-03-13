@@ -6,17 +6,21 @@
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
+    width: 100%;
     height: auto;
     aspect-ratio: 1 / 1;
     border: 2px solid #2f2f2f;
     user-select: none;
     background-color: #f0d9b5; /* Fallback */
     overflow: hidden;
+    z-index: 1;
 }
 
 
 .board-surface {
     position: relative;
+    width: var(--board-size);
+    height: var(--board-size);
 }
 
 .board-overlay {

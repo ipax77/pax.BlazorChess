@@ -39,7 +39,7 @@ public class ChessBoardRepository : IChessBoardRepository
                 BinaryPath = @"C:\data\chess\engines\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe",
                 Name = "Stockfish 18",
                 Threads = 4,
-                Pvs = 2,
+                Pvs = 4,
                 PoolSize = 8,
             },
             new() {

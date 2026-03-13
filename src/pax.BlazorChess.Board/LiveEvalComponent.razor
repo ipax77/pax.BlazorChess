@@ -1,10 +1,12 @@
 @using System.Globalization
 @using System.Text
+@using Microsoft.Extensions.Logging
 @using pax.chess
 @using pax.chess.Analyze
 @using pax.chess.Extensions
 @using pax.uciChessEngine
 @using pax.uciChessEngine.EngineServices
+@inject ILogger<LiveEvalComponent> Logger
 @implements IAsyncDisposable
 
 <div>
@@ -180,13 +182,21 @@
         StringBuilder sb = new();
         foreach (var engineMove in engineMoves)
         {
-            var move = Uci.CreateMove(engineMove, pos);
-            if (move is null) continue;
-            var san = PgnSerializer.ToSan(move, pos);
-            sb.Append(san + " ");
-            pos = pos.MakeMove(move);
+            try
+            {
+                var move = Uci.CreateMove(engineMove, pos);
+                ArgumentNullException.ThrowIfNull(move);
+                var san = PgnSerializer.ToSan(move, pos);
+                sb.Append(san + " ");
+                pos = pos.MakeMove(move);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("invalid move {move}", engineMove, ex);
+            }
         }
-        sb.Length--;
+        if (sb.Length > 0)
+            sb.Length--;
         return sb.ToString();
     }
 
