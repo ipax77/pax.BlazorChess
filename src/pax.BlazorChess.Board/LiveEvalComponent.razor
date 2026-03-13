@@ -1,3 +1,4 @@
+@using System.Globalization
 @using pax.chess.Analyze
 @using pax.uciChessEngine
 @implements IAsyncDisposable
@@ -19,8 +20,8 @@
         @foreach (var eval in evals)
         {
             <div>
-                @eval.ChartScore @eval.Depth
-                <span class="text-truncate" style="width: 300px;">@string.Join(" ", eval.PvInfo.Moves)</span>
+                @GetEvalString(eval) @eval.Depth
+                <span class="d-inline-block text-truncate" style="width: 300px;">@string.Join(" ", eval.PvInfo.Moves)</span>
             </div>
         }
     </div>
@@ -33,7 +34,7 @@
     [Parameter, EditorRequired]
     public List<EngineRunOptions> EngineRunOptions { get; set; } = [];
 
-    [Parameter, EditorRequired]
+    [Parameter]
     public bool IsActive { get; set; }
 
     Guid currentId;
@@ -120,12 +121,7 @@
         InvokeAsync(StateHasChanged);
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        cts.Cancel();
-        cts.Dispose();
-        ss.Dispose();
-    }
+
     private void StartStop()
     {
         if (IsActive)
@@ -142,5 +138,21 @@
         currentRunOptions = EngineRunOptions.FirstOrDefault(f => f.Id == currentId);
         if (IsActive)
             _ = Calculate();
+    }
+
+    private string GetEvalString(Eval eval)
+    {
+        if (eval.Mate != 0)
+        {
+            return $"M{eval.Mate}";
+        }
+        return (eval.Score / 100.0).ToString("N2", CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        cts.Cancel();
+        cts.Dispose();
+        ss.Dispose();
     }
 }

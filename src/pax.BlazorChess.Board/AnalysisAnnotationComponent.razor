@@ -29,7 +29,7 @@
                     <td class="@GetNodeCss(whiteMove)" @onclick="() => OnNodeClicked.InvokeAsync(whiteMove)">@whiteMove.San</td>
                     @if (blackMove != null)
                     {
-                        <td class="@GetNodeCss(blackMove)" @onclick="() => OnNodeClicked.InvokeAsync(whiteMove)">@blackMove.San</td>
+                        <td class="@GetNodeCss(blackMove)" @onclick="() => OnNodeClicked.InvokeAsync(blackMove)">@blackMove.San</td>
                     }
                     else
                     {

@@ -8,6 +8,13 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddChessBoard(this IServiceCollection services)
     {
         services.AddScoped<IBoardJsInterop, BoardJsInterop>();
+
+        //if (!services.Any(s => s.ServiceType == typeof(IChessBoardRepository)))
+        //{
+        //    throw new InvalidOperationException(
+        //        "No IChessBoardRepository implementation registered. " +
+        //        "Please register one before calling AddChessBoard().");
+        //}
         services.AddSingleton<IChessBoardRepository, ChessBoardRepository>();
         return services;
     }
@@ -49,9 +56,9 @@ public class ChessBoardRepository : IChessBoardRepository
         return engineRunOptions;
     }
 
-    public async Task StoreEngineRunOptions(List<EngineRunOptions> engineRunOptions)
+    public async Task StoreEngineRunOptions(List<EngineRunOptions> options)
     {
         engineRunOptions.Clear();
-        engineRunOptions.AddRange(engineRunOptions);
+        engineRunOptions.AddRange(options);
     }
 }
