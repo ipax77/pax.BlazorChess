@@ -8,18 +8,19 @@ using pax.chess;
 namespace pax.BlazorChess.Board;
 
 public sealed record ActiveDrawing(int StartSquareIndex, string Color);
-public sealed record BoardAnnotation(int FromSquareIndex, int ToSquareIndex, string Color, bool IsArrow)
+public sealed record BoardAnnotation(int FromSquareIndex, int ToSquareIndex, string Color, bool IsArrow, bool IsBestMove)
 {
-    public static BoardAnnotation Arrow(int fromSquareIndex, int toSquareIndex, string color) =>
-    new(fromSquareIndex, toSquareIndex, color, IsArrow: true);
+    public static BoardAnnotation Arrow(int fromSquareIndex, int toSquareIndex, string color, bool isBestMove = false) =>
+    new(fromSquareIndex, toSquareIndex, color, IsArrow: true, isBestMove);
 
     public static BoardAnnotation Circle(int squareIndex, string color) =>
-        new(squareIndex, squareIndex, color, IsArrow: false);
+        new(squareIndex, squareIndex, color, IsArrow: false, IsBestMove: false);
 }
 
 public sealed class BoardAnnotationCollection
 {
     public static readonly string[] MarkerColors = ["#8bc34a", "#f44336", "#03a9f4", "#ff9800"];
+    public static readonly string[] BestMoveColors = ["#666666", "#808080", "#969696", "#ADADAD"];
     private readonly List<BoardAnnotation> annotations = [];
     public int? DrawingPointerId { get; private set; }
 
@@ -34,6 +35,22 @@ public sealed class BoardAnnotationCollection
         ActiveDrawing = null;
         ActiveHoverSquareIndex = null;
         DrawingPointerId = null;
+    }
+
+    public void AddBestMoveArrows(List<Move> moves)
+    {
+        var bestMoveAnnotations = annotations.Where(x => x.IsBestMove).ToList();
+        foreach (var bmA in bestMoveAnnotations)
+        {
+            annotations.Remove(bmA);
+        }
+
+        for (int i = 0; i < Math.Min(4, moves.Count); i++)
+        {
+            var move = moves[i];
+            var color = BestMoveColors[i];
+            annotations.Add(BoardAnnotation.Arrow(move.From.Index, move.To.Index, color, true));
+        }
     }
 
     public void OnPointerDown(int squareIndex, PointerEventArgs e)
@@ -55,7 +72,7 @@ public sealed class BoardAnnotationCollection
 
         if (ActiveHoverSquareIndex == squareIndex)
             return false;
-        
+
         ActiveHoverSquareIndex = squareIndex;
         return true;
     }
@@ -138,7 +155,7 @@ public static class BoardAnnotationCollectionExtensions
         StringBuilder sb = new();
         sb.AppendLine("<svg class=\"board-overlay\" viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\">");
         sb.AppendLine("<defs>");
-        foreach (var markerColor in BoardAnnotationCollection.MarkerColors)
+        foreach (var markerColor in BoardAnnotationCollection.MarkerColors.Concat(BoardAnnotationCollection.BestMoveColors))
         {
             sb.AppendLine(@$"<marker id=""{GetMarkerId(markerColor)}""
                             markerWidth=""6""

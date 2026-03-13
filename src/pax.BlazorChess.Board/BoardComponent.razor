@@ -130,6 +130,12 @@
         OnMovePlayed.InvokeAsync(move);
     }
 
+    public void AddBestMoveAnnotations(List<Move> moves)
+    {
+        boardAnnotation.AddBestMoveArrows(moves);
+        InvokeAsync(StateHasChanged);
+    }
+
     private async Task OnPointerDown(Square square, PointerEventArgs e)
     {
         if (e.Button == 2)

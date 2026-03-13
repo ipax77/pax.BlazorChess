@@ -14,7 +14,7 @@
         </div>
         <div class="col-3">
             <div class="mt-3 mb-3">
-                <LiveEvalComponent AnalysisBoard="AnalysisBoard" EngineRunOptions="engineRunOptions" />
+                <LiveEvalComponent @ref="liveEvalComponent" AnalysisBoard="AnalysisBoard" EngineRunOptions="engineRunOptions" OnBestMovesReady="BestMovesReady" />
             </div>
             <div class="mb-3">
                 <AnalysisAnnotationComponent @ref="annotationComponent" AnalysisBoard="AnalysisBoard" OnNodeClicked="NodeClicked" />
@@ -30,6 +30,8 @@
     private BoardComponent? boardComponent;
     private AnalysisAnnotationComponent? annotationComponent;
     private ClockComponent? clockComponent;
+    private LiveEvalComponent? liveEvalComponent;
+
     List<EngineRunOptions> engineRunOptions = [];
 
     protected override async Task OnInitializedAsync()
@@ -43,6 +45,7 @@
         var san = PgnSerializer.ToSan(move, AnalysisBoard.CurrentPosition);
         AnalysisBoard.AddVariation(move);
         boardComponent?.Update(AnalysisBoard.CurrentPosition, move);
+        liveEvalComponent?.Update();
     }
 
     public void ApplyEngineMove(string engineMove)
@@ -52,20 +55,30 @@
         var san = PgnSerializer.ToSan(move, AnalysisBoard.CurrentPosition);
         AnalysisBoard.AddVariation(move);
         boardComponent?.Update(AnalysisBoard.CurrentPosition, move);
+        liveEvalComponent?.Update();
     }
+
     private void NodeClicked(chess.Analyze.MoveNode args)
     {
         AnalysisBoard.MoveToNode(args);
+        liveEvalComponent?.Update();
     }
+
     private void KeyDown(KeyboardEventArgs args)
     {
         if (args.Key == "ArrowLeft")
         {
             AnalysisBoard.MoveBackward();
+            liveEvalComponent?.Update();
         }
         else if (args.Key == "ArrowRight")
         {
             AnalysisBoard.MoveForward();
+            liveEvalComponent?.Update();
         }
+    }
+    private void BestMovesReady(List<Move> args)
+    {
+        boardComponent?.AddBestMoveAnnotations(args);
     }
 }

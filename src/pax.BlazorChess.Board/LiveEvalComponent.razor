@@ -27,9 +27,9 @@
         {
             <div class="d-flex">
                 <span class="text-secondary text-end me-2">#@(i++)</span>
-                <span class="fw-semibold me-2">@GetEvalString(eval)</span>
-                <span class="text-secondary me-2">depth @eval.Depth</span>
-                <div class="text-truncate" style="width: 200px;">@GetMoves(eval.PvInfo.Moves)</div>
+                <span class="fw-semibold me-2">@GetEvalString(eval.Item1)</span>
+                <span class="text-secondary me-2">depth @eval.Item1.Depth</span>
+                <div class="text-truncate" style="width: 200px;">@GetMoves(eval.Item1.PvInfo.Moves, eval.Item2)</div>
             </div>
         }
     </div>
@@ -45,29 +45,30 @@
     [Parameter]
     public bool IsActive { get; set; }
 
+    [Parameter]
+    public EventCallback<List<Move>> OnBestMovesReady { get; set; }
+
     Guid currentId;
     private EngineRunOptions? currentRunOptions;
     private IEngineSessionProvider? engineSessionProvider;
 
-    private readonly List<Eval> evals = [];
+    private readonly List<(Eval, BoardPosition)> evals = [];
 
     private readonly CancellationTokenSource cts = new();
     private CancellationTokenSource? calcCts;
     private readonly SemaphoreSlim ss = new(1, 1);
-
-
-    protected override void OnParametersSet()
-    {
-        base.OnParametersSet();
-        if (IsActive)
-            _ = Calculate();
-    }
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
         currentRunOptions = EngineRunOptions.FirstOrDefault();
         currentId = currentRunOptions?.Id ?? Guid.Empty;
+    }
+
+    public void Update()
+    {
+        if (IsActive)
+            _ = Calculate();
     }
 
     private async Task Calculate()
@@ -78,10 +79,11 @@
         var old = Interlocked.Exchange(
             ref calcCts,
             CancellationTokenSource.CreateLinkedTokenSource(cts.Token));
-
         old?.Cancel();
 
         await ss.WaitAsync();
+        var pos = AnalysisBoard.CurrentPosition.Clone();
+        var moves = AnalysisBoard.GetCurrentEngineMoves();
 
         try
         {
@@ -94,13 +96,26 @@
 
             await lease.Session.UseAsync<Task>(async engine =>
             {
-                var moves = AnalysisBoard.GetCurrentEngineMoves();
-                var sideToMove = AnalysisBoard.CurrentPosition.SideToMove;
+
 
                 await foreach (var evals in EngineService
-                    .GetContinualEvaluation(moves, sideToMove, engine, token))
+                    .GetContinualEvaluation(moves, pos.SideToMove, engine, token))
                 {
-                    UpdateEval(evals);
+                    List<Move> bestMoves = [];
+                    foreach (var eval in evals)
+                    {
+                        var firstEngineMove = eval.PvInfo.Moves.FirstOrDefault();
+                        if (firstEngineMove != null)
+                        {
+                            var bestMove = Uci.CreateMove(firstEngineMove, AnalysisBoard.CurrentPosition);
+                            if (bestMove != null)
+                            {
+                                bestMoves.Add(bestMove);
+                            }
+                        }
+                    }
+                    UpdateEval(evals, pos);
+                    await OnBestMovesReady.InvokeAsync(bestMoves);
                 }
 
                 return Task.CompletedTask;
@@ -122,10 +137,13 @@
         calcCts?.Cancel();
     }
 
-    private void UpdateEval(List<Eval> evals)
+    private void UpdateEval(List<Eval> evals, BoardPosition pos)
     {
         this.evals.Clear();
-        this.evals.AddRange(evals);
+        foreach (var eval in evals)
+        {
+            this.evals.Add((eval, pos));
+        }
         InvokeAsync(StateHasChanged);
     }
 
@@ -157,9 +175,8 @@
         return (eval.Score / 100.0).ToString("N2", CultureInfo.InvariantCulture);
     }
 
-    private string GetMoves(IReadOnlyList<string> engineMoves)
+    private string GetMoves(IReadOnlyList<string> engineMoves, BoardPosition pos)
     {
-        var pos = AnalysisBoard.CurrentPosition;
         StringBuilder sb = new();
         foreach (var engineMove in engineMoves)
         {
