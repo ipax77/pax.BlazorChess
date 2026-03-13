@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using pax.uciChessEngine;
+using pax.uciChessEngine.EngineServices;
 
 namespace pax.BlazorChess.Board;
 

@@ -1,10 +1,17 @@
 @using System.Globalization
+@using System.Text
+@using pax.chess
 @using pax.chess.Analyze
+@using pax.chess.Extensions
 @using pax.uciChessEngine
+@using pax.uciChessEngine.EngineServices
 @implements IAsyncDisposable
 
 <div>
-    <div>
+    <div class="d-flex align-items-center gap-2">
+        <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="switchCheckDefault" @bind="IsActive" @bind:after="StartStop">
+        </div>
         <select class="form-select" aria-label="Engines" @bind="currentId" @bind:after="SwitchEngine">
             @foreach (var options in EngineRunOptions)
             {
@@ -12,16 +19,17 @@
             }
         </select>
     </div>
-    <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" role="switch" id="switchCheckDefault" @bind="IsActive" @bind:after="StartStop">
-        <label class="form-check-label" for="switchCheckDefault">@currentRunOptions?.Name</label>
-    </div>
-    <div>
+    <div class="mt-2">
+        @{
+            int i = 1;
+        }
         @foreach (var eval in evals)
         {
-            <div>
-                @GetEvalString(eval) @eval.Depth
-                <span class="d-inline-block text-truncate" style="width: 300px;">@string.Join(" ", eval.PvInfo.Moves)</span>
+            <div class="d-flex">
+                <span class="text-secondary text-end me-2">#@(i++)</span>
+                <span class="fw-semibold me-2">@GetEvalString(eval)</span>
+                <span class="text-secondary me-2">depth @eval.Depth</span>
+                <div class="text-truncate" style="width: 200px;">@GetMoves(eval.PvInfo.Moves)</div>
             </div>
         }
     </div>
@@ -147,6 +155,22 @@
             return $"M{eval.Mate}";
         }
         return (eval.Score / 100.0).ToString("N2", CultureInfo.InvariantCulture);
+    }
+
+    private string GetMoves(IReadOnlyList<string> engineMoves)
+    {
+        var pos = AnalysisBoard.CurrentPosition;
+        StringBuilder sb = new();
+        foreach (var engineMove in engineMoves)
+        {
+            var move = Uci.CreateMove(engineMove, pos);
+            if (move is null) continue;
+            var san = PgnSerializer.ToSan(move, pos);
+            sb.Append(san + " ");
+            pos = pos.MakeMove(move);
+        }
+        sb.Length--;
+        return sb.ToString();
     }
 
     public async ValueTask DisposeAsync()
