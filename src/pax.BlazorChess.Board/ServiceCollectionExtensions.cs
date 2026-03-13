@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using pax.BlazorChartJs;
 using pax.uciChessEngine;
 using pax.uciChessEngine.EngineServices;
 
@@ -8,6 +9,12 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddChessBoard(this IServiceCollection services)
     {
+        services.AddChartJs(options =>
+        {
+            options.ChartJsLocation = "/_content/pax.BlazorChess.Board/chart.umd.min.js";
+            options.ChartJsPluginDatalabelsLocation = "/_content/pax.BlazorChess.Board/chartjs-plugin-datalabels.min.js";
+        });
+
         services.AddScoped<IBoardJsInterop, BoardJsInterop>();
 
         //if (!services.Any(s => s.ServiceType == typeof(IChessBoardRepository)))

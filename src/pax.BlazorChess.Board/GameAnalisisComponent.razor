@@ -1,0 +1,266 @@
+@using System.Collections.Concurrent
+@using pax.BlazorChartJs
+@using pax.chess
+@using pax.chess.Analyze
+@using pax.uciChessEngine
+@using pax.uciChessEngine.EngineServices
+@implements IDisposable
+
+<div class="position-relative">
+    <div class="@(isAnalysing ? "opacity-50" : "opacity-100") transition-opacity">
+        <ChartComponent ChartJsConfig="chartJsConfig" OnEventTriggered="ChartEventTriggerd" />
+    </div>
+
+    @if (isAnalysing)
+    {
+        <div class="position-absolute top-50 start-50 translate-middle d-flex align-items-center bg-white border rounded-pill px-3 py-2 shadow-sm">
+            <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <small class="fw-bold text-secondary">Engine Analyzing...</small>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required ChessGame ChessGame { get; set; }
+
+    [Parameter, EditorRequired]
+    public required EngineRunOptions EngineRunOptions { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnMoveClicked { get; set; }
+
+    CancellationTokenSource cts = new();
+
+    ConcurrentDictionary<int, Eval> evals = [];
+
+    ChartJsConfig chartJsConfig = null!;
+
+    private bool chartReady;
+    private bool isAnalysing;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        chartJsConfig = GetChartJsConfig();
+        List<string> labels = ChessGame.Moves.Select((s, i) => (i + 1).ToString()).ToList();
+        chartJsConfig.SetLabels(labels);
+        var lineDataSet = chartJsConfig.Data.Datasets.FirstOrDefault() as LineDataset;
+        if (lineDataSet is not null)
+        {
+            lineDataSet.Data = ChessGame.Moves.Select(s => 0 as object).ToList();
+        }
+        _ = Analyse();
+    }
+
+    private async Task StartChartRefreshLoop()
+    {
+        isAnalysing = true;
+        while (isAnalysing && !cts.IsCancellationRequested)
+        {
+            await Task.Delay(500);
+            RefreshChartData();
+        }
+    }
+
+    private void RefreshChartData()
+    {
+        if (!chartReady) return;
+
+        var lineDataSet = chartJsConfig.Data.Datasets.FirstOrDefault() as LineDataset;
+        if (lineDataSet?.Data == null) return;
+
+        bool hasChanges = false;
+
+        foreach (var kvp in evals)
+        {
+            int index = kvp.Key - 1;
+            if (index >= 0 && index < lineDataSet.Data.Count)
+            {
+                var newScore = kvp.Value.ChartScore;
+                if (!lineDataSet.Data[index].Equals(newScore))
+                {
+                    lineDataSet.Data[index] = newScore;
+                    hasChanges = true;
+                }
+            }
+        }
+
+        if (hasChanges)
+        {
+            chartJsConfig.UpdateDatasetSmooth(lineDataSet);
+        }
+    }
+
+    private void ChartEventTriggerd(ChartJsEvent args)
+    {
+        if (args is ChartJsInitEvent)
+        {
+            chartReady = true;
+        }
+        else if (args is ChartJsLabelClickEvent clickEvent)
+        {
+            if (int.TryParse(clickEvent.Label, out int index))
+            {
+                OnMoveClicked.InvokeAsync(index);
+            }
+        }
+    }
+
+    private async Task Analyse()
+    {
+        var provider = EngineService.GetEngineSessionProvider(EngineRunOptions);
+        var gameAnalysis = new GameAnalysis(provider, ChessGame);
+
+        _ = StartChartRefreshLoop();
+
+        try
+        {
+            await foreach (var result in gameAnalysis.AnalyseGameStream(cts.Token))
+            {
+                if (result.Eval == null) continue;
+                evals.AddOrUpdate(result.MoveNumber, result.Eval, (k, v) => result.Eval);
+            }
+        }
+        finally
+        {
+            isAnalysing = false;
+            RefreshChartData();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void UpdateChart(int moveNumber, int score)
+    {
+        var lineDataSet = chartJsConfig.Data.Datasets.FirstOrDefault() as LineDataset;
+
+        if (lineDataSet is null)
+        {
+            return;
+        }
+        int index = moveNumber - 1;
+        if (index >= 0 && index < lineDataSet.Data.Count)
+        {
+            lineDataSet.Data[index] = score;
+
+            if (chartReady)
+            {
+                chartJsConfig.UpdateDatasetSmooth(lineDataSet);
+            }
+        }
+    }
+
+    private ChartJsConfig GetChartJsConfig()
+    {
+        return new()
+        {
+            Type = ChartType.line,
+            Data = new ChartJsData()
+            {
+                Labels = new List<string>(),
+                Datasets = new List<ChartJsDataset>()
+                {
+                    new LineDataset()
+                    {
+                        Label = "Rating",
+                        BackgroundColor = "white",
+                        BorderColor = "#ffffff",
+                        Fill = new
+                            {
+                                target = "origin",
+                                above = "rgb(255, 255, 255, 0.6)",
+                                below = "rgb(0, 0, 0, 0.6)"
+                            },
+                        PointBackgroundColor = new IndexableOption<string>("white"),
+                        PointBorderColor = new IndexableOption<string>("yellow"),
+                        PointRadius = new IndexableOption<double>(3),
+                        PointBorderWidth = new IndexableOption<double>(2),
+                        PointHitRadius = new IndexableOption<double>(5),
+                        Tension = 0.4
+                    }
+                }
+            },
+            Options = new ChartJsOptions()
+            {
+                Responsive = true,
+                OnClickEvent = true,
+                Plugins = new Plugins()
+                {
+                    Legend = new Legend()
+                    {
+                        Position = "top"
+                    },
+                    Title = new Title()
+                    {
+                        Display = true,
+                        Text = new IndexableOption<string>("Game Evaluation"),
+                        Color = "yellow",
+                        Font = new Font()
+                        {
+                            Size = 16
+                        }
+                    },
+                    ArbitraryLines = new List<ArbitraryLineConfig>()
+                    {
+                        new ArbitraryLineConfig()
+                        {
+                            ArbitraryLineColor = "blue",
+                            XPosition = 0,
+                            XWidth = 3,
+                            Text = "Current"
+                        }
+                    }
+                },
+                Scales = new ChartJsOptionsScales()
+                {
+                    X = new LinearAxis()
+                    {
+                        Display = true,
+                        Title = new Title()
+                        {
+                            Display = true,
+                            Text = new IndexableOption<string>("Moves"),
+                            Color = "yellow"
+                        },
+                        Ticks = new LinearAxisTick()
+                        {
+                            Color = "yellow",
+                        },
+                        Grid = new ChartJsGrid()
+                        {
+                            Color = "grey"
+                        }
+                    },
+                    Y = new LinearAxis()
+                    {
+                        Display = true,
+                        BeginAtZero = true,
+                        Title = new Title()
+                        {
+                            Display = true,
+                            Text = new IndexableOption<string>("Evaluation"),
+                            Color = "yellow"
+                        },
+                        Ticks = new LinearAxisTick()
+                        {
+                            Color = "yellow"
+                        },
+                        Grid = new ChartJsGrid()
+                        {
+                            Color = "grey"
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    public void Dispose()
+    {
+        isAnalysing = false;
+        cts.Cancel();
+        cts.Dispose();
+    }
+}

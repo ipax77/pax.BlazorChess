@@ -21,6 +21,15 @@
             </div>
         </div>
     </div>
+    <div>
+        <button type="button" class="btn btn-outline-light" @onclick="() => showChart = !showChart">Show Chart</button>
+    </div>
+    @if (showChart && engineRunOptions.Count > 0)
+    {
+        <div>
+            <GameAnalisisComponent ChessGame="AnalysisBoard.ChessGame" EngineRunOptions="engineRunOptions.First()" OnMoveClicked="ChartMoveClicked" />
+        </div>
+    }
 </div>
 
 @code {
@@ -33,6 +42,8 @@
     private LiveEvalComponent? liveEvalComponent;
 
     List<EngineRunOptions> engineRunOptions = [];
+
+    private bool showChart;
 
     protected override async Task OnInitializedAsync()
     {
@@ -80,5 +91,28 @@
     private void BestMovesReady(List<Move> args)
     {
         boardComponent?.AddBestMoveAnnotations(args);
+    }
+
+    private void ChartMoveClicked(int args)
+    {
+        var mainLine = GetMainLine();
+        var index = args - 1;
+        if (mainLine.Count > index)
+        {
+            var node = mainLine[index];
+            NodeClicked(node);
+        }
+    }
+
+    private List<pax.chess.Analyze.MoveNode> GetMainLine()
+    {
+        var current = AnalysisBoard.Root.MainLine;
+        List<pax.chess.Analyze.MoveNode> mainLine = new();
+        while (current != null)
+        {
+            mainLine.Add(current);
+            current = current.MainLine;
+        }
+        return mainLine;
     }
 }
