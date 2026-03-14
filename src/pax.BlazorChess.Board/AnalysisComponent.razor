@@ -7,7 +7,11 @@
 
 <div class="container-fluid">
     <div class="row" tabindex="0" @onkeydown="KeyDown">
-        <div class="col-2">
+        <div class="col-2 mt-3 d-flex flex-column gap-2">
+            <button type="button" class="btn btn-primary" @onclick="OpenImportModal">Import PGN</button>
+            <button type="button" class="btn btn-outline-light" @onclick="() => showChart = !showChart">
+                @(showChart ? "Hide Chart" : "Show Chart")
+            </button>
         </div>
         <div class="col-5 mt-3">
             <BoardComponent @ref="boardComponent" Position="AnalysisBoard.CurrentPosition" OnMovePlayed="ApplyMove" />
@@ -21,13 +25,38 @@
             </div>
         </div>
     </div>
-    <div>
-        <button type="button" class="btn btn-outline-light" @onclick="() => showChart = !showChart">Show Chart</button>
-    </div>
     @if (showChart && engineRunOptions.Count > 0)
     {
         <div>
             <GameAnalisisComponent ChessGame="AnalysisBoard.ChessGame" EngineRunOptions="engineRunOptions.First()" OnMoveClicked="ChartMoveClicked" />
+        </div>
+    }
+
+    @if (showImportModal)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Import PGN</h5>
+                        <button type="button" class="btn-close" @onclick="CloseImportModal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="pgnTextarea">Paste PGN</label>
+                            <textarea id="pgnTextarea" class="form-control" rows="10" @bind="pgnText"></textarea>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(importError))
+                        {
+                            <div class="alert alert-danger mb-0">@importError</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseImportModal">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="ImportPgn" disabled="@(string.IsNullOrWhiteSpace(pgnText))">Import</button>
+                    </div>
+                </div>
+            </div>
         </div>
     }
 </div>
@@ -44,6 +73,9 @@
     List<EngineRunOptions> engineRunOptions = [];
 
     private bool showChart;
+    private bool showImportModal;
+    private string pgnText = string.Empty;
+    private string? importError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -114,5 +146,38 @@
             current = current.MainLine;
         }
         return mainLine;
+    }
+
+    private void OpenImportModal()
+    {
+        pgnText = string.Empty;
+        importError = null;
+        showImportModal = true;
+    }
+
+    private void CloseImportModal()
+    {
+        showImportModal = false;
+        importError = null;
+    }
+
+    private void ImportPgn()
+    {
+        try
+        {
+            var game = PgnSerializer.Parse(pgnText);
+            AnalysisBoard = new pax.chess.Analyze.AnalysisBoard(game);
+            showChart = false;
+            showImportModal = false;
+            importError = null;
+
+            boardComponent?.Update(AnalysisBoard.CurrentPosition, null);
+            liveEvalComponent?.Update();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            importError = $"Could not import PGN: {ex.Message}";
+        }
     }
 }
