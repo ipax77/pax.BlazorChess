@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using pax.BlazorChess.Board;
+using pax.BlazorChess.Board.Storage;
 using pax.BlazorChess.Db;
 using pax.BlazorChess.Web.Components;
 
@@ -20,6 +21,7 @@ builder.Services.AddDbContext<ChessContext>(options => options
 //.EnableSensitiveDataLogging()
 );
 
+builder.Services.AddScoped<IChessBoardRepository, EfChessBoardRepository>();
 builder.Services.AddChessBoard();
 
 var app = builder.Build();

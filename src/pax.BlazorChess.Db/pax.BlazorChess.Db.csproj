@@ -15,4 +15,10 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\\pax.BlazorChess.Board\\pax.BlazorChess.Board.csproj" />
+    <ProjectReference Include="..\\..\\..\\pax.chess\\src\\pax.chess\\pax.chess.csproj" />
+    <ProjectReference Include="..\\..\\..\\pax.uciChessEngine\\src\\pax.uciChessEngine\\pax.uciChessEngine.csproj" />
+  </ItemGroup>
+
 </Project>
