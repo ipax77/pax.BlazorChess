@@ -1,0 +1,72 @@
+@using pax.chess
+@using pax.chess.Analyze
+
+@foreach (var variation in Node.Variations)
+{
+    var moves = GetLine(variation);
+    <tr style="font-style: italic;">
+        <td></td>
+        <td colspan="2">
+            (
+            @foreach (var move in moves)
+            {
+                <span style="margin-left:@(Depth * 10)px; cursor:pointer;"
+                      @onclick="() => OnNodeClicked.InvokeAsync(move)">
+                    @GetLabel(move)
+                </span>
+                <VariationList Node="move" Depth="@(Depth + 1)" CurrentNode="CurrentNode" OnNodeClicked="OnNodeClicked" />
+            }
+            )
+        </td>
+    </tr>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public required MoveNode Node { get; set; }
+
+    [Parameter]
+    public int Depth { get; set; } = 1;
+
+    [Parameter]
+    public MoveNode? CurrentNode { get; set; }
+
+    [Parameter]
+    public EventCallback<MoveNode> OnNodeClicked { get; set; }
+
+    private static List<MoveNode> GetLine(MoveNode start)
+    {
+        var list = new List<MoveNode>();
+        var current = start;
+        while (current != null)
+        {
+            list.Add(current);
+            current = current.MainLine;
+        }
+        return list;
+    }
+
+    private string GetLabel(MoveNode move)
+    {
+        var parts = new List<string> { move.San };
+        if (!string.IsNullOrEmpty(move.Note))
+            parts.Add($"[{move.Note}]");
+
+        var evalText = GetEvalText(move);
+        if (!string.IsNullOrEmpty(evalText))
+            parts.Add(evalText);
+
+        return string.Join(" ", parts);
+    }
+
+    private static string GetEvalText(MoveNode move)
+    {
+        if (move.Evaluation.HasValue)
+        {
+            var cp = move.Evaluation.Value / 100.0;
+            var depth = move.Depth.HasValue ? $" d{move.Depth.Value}" : "";
+            return $"({cp:N2}{depth})";
+        }
+        return string.Empty;
+    }
+}
