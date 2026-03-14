@@ -43,8 +43,7 @@ export function updateBoardSize(boardId) {
     if (!board) return;
 
     const rect = board.getBoundingClientRect();
-    const root = document.documentElement;
-    root.style.setProperty("--board-size", rect.width + "px");
+    board.style.setProperty("--board-size", rect.width + "px");
 }
 
 export function scrollToElement(elementId) {
