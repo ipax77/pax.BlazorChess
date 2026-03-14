@@ -2,6 +2,7 @@
 @using pax.BlazorChartJs
 @using pax.chess
 @using pax.chess.Analyze
+@using pax.chess.Extensions
 @using pax.uciChessEngine
 @using pax.uciChessEngine.EngineServices
 @implements IDisposable
@@ -71,11 +72,20 @@
     [Parameter, EditorRequired]
     public required ChessGame ChessGame { get; set; }
 
+    [Parameter]
+    public AnalysisBoard? AnalysisBoard { get; set; }
+
     [Parameter, EditorRequired]
     public required EngineRunOptions EngineRunOptions { get; set; }
 
     [Parameter]
     public EventCallback<int> OnMoveClicked { get; set; }
+
+    [Parameter]
+    public EventCallback OnAnnotationsChanged { get; set; }
+
+    [Parameter]
+    public int ThinkTimePerMoveMs { get; set; } = 1000;
 
     CancellationTokenSource cts = new();
 
@@ -169,7 +179,8 @@
     private async Task Analyse()
     {
         var provider = EngineService.GetEngineSessionProvider(EngineRunOptions);
-        var gameAnalysis = new GameAnalysis(provider, ChessGame);
+        var threads = EngineRunOptions.Threads > 0 ? EngineRunOptions.Threads : 8;
+        var gameAnalysis = new GameAnalysis(provider, ChessGame, threads, ThinkTimePerMoveMs);
 
         _ = StartChartRefreshLoop();
 
@@ -185,6 +196,7 @@
         {
             isAnalysing = false;
             CalculateSummary();
+            AddCategoryVariations();
             RefreshChartData();
             await InvokeAsync(StateHasChanged);
         }
@@ -219,6 +231,81 @@
                 prevScore = currentScore;
             }
         }
+    }
+
+    private void AddCategoryVariations()
+    {
+        if (AnalysisBoard is null)
+            return;
+
+        HashSet<int> criticalMoves = new(whiteSummary.BlunderMoves);
+        criticalMoves.UnionWith(whiteSummary.MistakeMoves);
+        criticalMoves.UnionWith(blackSummary.BlunderMoves);
+        criticalMoves.UnionWith(blackSummary.MistakeMoves);
+
+        foreach (var move in criticalMoves)
+        {
+            if (evals.TryGetValue(move, out var eval))
+            {
+                var label = GetCategoryLabel(move);
+                AddVariationToAnalysisBoard(move, eval, label);
+            }
+        }
+    }
+
+    private string? GetCategoryLabel(int moveNumber)
+    {
+        if (whiteSummary.BlunderMoves.Contains(moveNumber)) return "White blunder";
+        if (whiteSummary.MistakeMoves.Contains(moveNumber)) return "White mistake";
+        if (blackSummary.BlunderMoves.Contains(moveNumber)) return "Black blunder";
+        if (blackSummary.MistakeMoves.Contains(moveNumber)) return "Black mistake";
+        return null;
+    }
+
+    private void AddVariationToAnalysisBoard(int moveNumber, Eval eval, string? label)
+    {
+        if (AnalysisBoard is null || eval?.PvInfo?.Moves is null || eval.PvInfo.Moves.Count == 0)
+            return;
+
+        var node = GetMainLineNode(moveNumber);
+        if (node is null)
+            return;
+
+        try
+        {
+            AnalysisBoard.AddVariation(node, eval.PvInfo);
+
+            var firstMoveUci = eval.PvInfo.Moves.First();
+            var firstNode = node.Children
+                .FirstOrDefault(c => c.Move != null && string.Equals(Uci.GetUci(c.Move), firstMoveUci, StringComparison.Ordinal));
+            if (firstNode != null)
+            {
+                firstNode.Note = label;
+                firstNode.Evaluation = eval.Score;
+                firstNode.Depth = eval.PvInfo.Depth;
+            }
+
+            _ = OnAnnotationsChanged.InvokeAsync();
+        }
+        catch
+        {
+            // best-effort; ignore PVs that fail to apply
+        }
+    }
+
+    private MoveNode? GetMainLineNode(int moveNumber)
+    {
+        if (AnalysisBoard is null || moveNumber <= 0)
+            return null;
+
+        var node = AnalysisBoard.Root.MainLine;
+        var current = 1;
+        while (node != null && current < moveNumber)
+        {
+            node = node.MainLine;
+            current++;
+        }
+        return node;
     }
 
     private double GetScore(Eval eval)

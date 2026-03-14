@@ -73,6 +73,17 @@
         return AnalysisBoard.CurrentNode == node ? "fw-bold" : "";
     }
 
+    private string GetEvalText(pax.chess.Analyze.MoveNode node)
+    {
+        if (node.Evaluation.HasValue)
+        {
+            var cp = node.Evaluation.Value / 100.0;
+            var depth = node.Depth.HasValue ? $" d{node.Depth.Value}" : "";
+            return $"({cp:N2}{depth})";
+        }
+        return string.Empty;
+    }
+
     private RenderFragment RenderVariations(pax.chess.Analyze.MoveNode node, int depth = 1) => builder =>
 {
     int seq = 0;
@@ -104,7 +115,14 @@
             builder.AddAttribute(seq++, "style", $"margin-left:{depth * 10}px; cursor:pointer;");
             builder.AddAttribute(seq++, "onclick",
                 EventCallback.Factory.Create(this, () => OnNodeClicked.InvokeAsync(move)));
-            builder.AddContent(seq++, move.San + " ");
+            var evalText = GetEvalText(move);
+            var parts = new List<string> { move.San };
+            if (!string.IsNullOrEmpty(move.Note))
+                parts.Add($"[{move.Note}]");
+            if (!string.IsNullOrEmpty(evalText))
+                parts.Add(evalText);
+            var label = string.Join(" ", parts);
+            builder.AddContent(seq++, label + " ");
             builder.CloseElement();
 
             builder.AddContent(seq++, RenderVariations(move, depth + 1));

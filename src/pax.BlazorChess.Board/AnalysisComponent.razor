@@ -12,6 +12,10 @@
             <button type="button" class="btn btn-outline-light" @onclick="() => showChart = !showChart">
                 @(showChart ? "Hide Chart" : "Show Chart")
             </button>
+            <div class="d-flex flex-column">
+                <label class="form-label mb-1 small text-secondary">Think time per move (ms)</label>
+                <input type="number" class="form-control form-control-sm" min="100" step="100" @bind="thinkTimePerMoveMs" @bind:after="ClampThinkTime" />
+            </div>
         </div>
         <div class="col-5 mt-3">
             <BoardComponent @ref="boardComponent" Position="AnalysisBoard.CurrentPosition" OnMovePlayed="ApplyMove" />
@@ -28,7 +32,12 @@
     @if (showChart && engineRunOptions.Count > 0)
     {
         <div>
-            <GameAnalisisComponent ChessGame="AnalysisBoard.ChessGame" EngineRunOptions="engineRunOptions.First()" OnMoveClicked="ChartMoveClicked" />
+            <GameAnalisisComponent ChessGame="AnalysisBoard.ChessGame"
+                                   AnalysisBoard="AnalysisBoard"
+                                   EngineRunOptions="engineRunOptions.First()"
+                                   ThinkTimePerMoveMs="thinkTimePerMoveMs"
+                                   OnMoveClicked="ChartMoveClicked"
+                                   OnAnnotationsChanged="AnnotationsChanged" />
         </div>
     }
 
@@ -76,6 +85,7 @@
     private bool showImportModal;
     private string pgnText = string.Empty;
     private string? importError;
+    private int thinkTimePerMoveMs = 1000;
 
     protected override async Task OnInitializedAsync()
     {
@@ -179,5 +189,17 @@
         {
             importError = $"Could not import PGN: {ex.Message}";
         }
+    }
+
+    private void ClampThinkTime()
+    {
+        if (thinkTimePerMoveMs < 100)
+            thinkTimePerMoveMs = 100;
+    }
+
+    private Task AnnotationsChanged()
+    {
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 }
