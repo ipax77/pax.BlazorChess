@@ -28,12 +28,12 @@
         <div class="card-body">
             <div class="row">
                 <div class="col-6">
-                    <BoardComponent @ref="Session.BoardComponent"
+                    <BoardComponent @ref="boardRef"
                                     Position="Session.Game.CurrentPosition"
                                     OnMovePlayed="IgnoreMove" />
                 </div>
                 <div class="col-6">
-                    <ClockComponent @ref="Session.ClockComponent" />
+                    <ClockComponent @ref="clockRef" />
                     <div class="mt-3 small text-secondary">Side to move: @Session.Game.CurrentPosition.SideToMove</div>
                     <div class="small text-secondary">Moves played: @Session.Game.Moves.Count</div>
                     @if (!string.IsNullOrEmpty(Session.Result))
@@ -57,6 +57,9 @@ else
     [Parameter]
     public EventCallback OnStopRequested { get; set; }
 
+    private BoardComponent? boardRef;
+    private ClockComponent? clockRef;
+
     private Task IgnoreMove(Move move) => Task.CompletedTask;
 
     private Task OnStop()
@@ -71,5 +74,20 @@ else
         if (eval.Mate.HasValue && eval.Mate.Value != 0)
             return $"M{eval.Mate.Value}";
         return (eval.Score / 100.0).ToString("N2");
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (Session != null)
+        {
+            Session.BoardComponent = boardRef;
+            Session.ClockComponent = clockRef;
+            if (clockRef != null)
+            {
+                Session.Clock.AttachDisplay(clockRef);
+                clockRef.OnClockUpdated(Session.Clock.WhiteTime, Session.Clock.BlackTime, Session.Game.CurrentPosition.SideToMove);
+            }
+        }
+        base.OnAfterRender(firstRender);
     }
 }

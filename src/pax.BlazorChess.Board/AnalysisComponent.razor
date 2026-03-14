@@ -398,10 +398,15 @@
     {
         foreach (var game in engineGameSessions)
         {
-            if (!game.DisplayAttached && game.ClockComponent != null)
+            if (game.ClockComponent != null)
             {
                 game.Clock.AttachDisplay(game.ClockComponent);
+                game.ClockComponent.OnClockUpdated(game.Clock.WhiteTime, game.Clock.BlackTime, game.Game.CurrentPosition.SideToMove);
                 game.DisplayAttached = true;
+            }
+            else
+            {
+                game.DisplayAttached = false;
             }
         }
 
