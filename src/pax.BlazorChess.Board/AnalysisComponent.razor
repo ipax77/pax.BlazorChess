@@ -352,6 +352,14 @@
     private void OnEngineMoveReady(EngineGameSession session, EngineMoveEventArgs e)
     {
         var lastMove = session.Game.Moves.LastOrDefault()?.Move;
+        var sideToMove = session.Game.CurrentPosition.SideToMove;
+        if (e.Eval != null)
+        {
+            if (sideToMove == PieceColor.White)
+                session.WhiteEval = e.Eval;
+            else
+                session.BlackEval = e.Eval;
+        }
         session.BoardComponent?.Update(session.Game.CurrentPosition, lastMove);
         InvokeAsync(StateHasChanged);
     }
@@ -373,7 +381,14 @@
         if (session is null || !session.IsRunning)
             return;
 
-        await session.EngineGame.StopGame();
+        try
+        {
+            await session.EngineGame.StopGame();
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when the engine loop is cancelled; safely ignore.
+        }
         session.IsRunning = false;
         session.Result ??= "Stopped";
         await InvokeAsync(StateHasChanged);
@@ -400,6 +415,5 @@
             await session.EngineGame.DisposeAsync();
         }
     }
-
 
 }

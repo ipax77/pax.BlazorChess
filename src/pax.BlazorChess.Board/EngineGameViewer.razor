@@ -8,6 +8,10 @@
             <div>
                 <div class="fw-bold">White: @Session.WhiteEngine</div>
                 <div class="fw-bold">Black: @Session.BlackEngine</div>
+                <div class="mt-1 d-flex gap-2 small">
+                    <span class="badge bg-light text-dark">W: @FormatEval(Session.WhiteEval)</span>
+                    <span class="badge bg-secondary">B: @FormatEval(Session.BlackEval)</span>
+                </div>
             </div>
             <div class="d-flex align-items-center gap-2">
                 @if (Session.IsRunning)
@@ -58,5 +62,14 @@ else
     private Task OnStop()
     {
         return OnStopRequested.HasDelegate ? OnStopRequested.InvokeAsync() : Task.CompletedTask;
+    }
+
+    private static string FormatEval(Eval? eval)
+    {
+        if (eval == null)
+            return "…";
+        if (eval.Mate.HasValue && eval.Mate.Value != 0)
+            return $"M{eval.Mate.Value}";
+        return (eval.Score / 100.0).ToString("N2");
     }
 }

@@ -1,4 +1,4 @@
-﻿using pax.chess;
+using pax.chess;
 using pax.uciChessEngine;
 
 namespace pax.BlazorChess.Board;
@@ -17,4 +17,6 @@ public sealed class EngineGameSession
     public string WhiteEngine { get; init; } = string.Empty;
     public string BlackEngine { get; init; } = string.Empty;
     public string? Result { get; set; }
+    public Eval? WhiteEval { get; set; }
+    public Eval? BlackEval { get; set; }
 }
