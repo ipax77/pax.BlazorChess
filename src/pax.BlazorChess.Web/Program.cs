@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using pax.BlazorChess.Board;
+using pax.BlazorChess.Db;
 using pax.BlazorChess.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,9 +9,24 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+var sqliteConnectionString = $"Data Source={Path.Combine("/data/chess", "blazorChess.db")}";
+builder.Services.AddDbContext<ChessContext>(options => options
+    .UseSqlite(sqliteConnectionString, sqlOptions =>
+    {
+        sqlOptions.MigrationsAssembly("pax.BlazorChess.Db");
+        sqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SingleQuery);
+    })
+//.EnableDetailedErrors()
+//.EnableSensitiveDataLogging()
+);
+
 builder.Services.AddChessBoard();
 
 var app = builder.Build();
+
+using var scope = app.Services.CreateScope();
+var context = scope.ServiceProvider.GetRequiredService<ChessContext>();
+context.Database.Migrate();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

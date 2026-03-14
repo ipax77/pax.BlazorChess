@@ -118,7 +118,7 @@
                     </ul>
 
                     <EngineGameViewer Session="ActiveEngineGame"
-                                      OnStopRequested="() => StopEngineGame(ActiveEngineGame)" />
+                                      OnStopRequested="async () => await StopEngineGame(ActiveEngineGame)" />
                 }
             </div>
         </div>
@@ -392,6 +392,10 @@
         catch (OperationCanceledException)
         {
             // Expected when the engine loop is cancelled; safely ignore.
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"failed stopping game: {ex.Message}");
         }
         session.IsRunning = false;
         session.Result ??= "Stopped";

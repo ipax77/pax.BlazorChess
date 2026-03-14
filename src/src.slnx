@@ -1,7 +1,7 @@
 <Solution>
-  <Project Path="../../pax.BlazorChartJs/src/pax.BlazorChartJs/pax.BlazorChartJs.csproj" />
   <Project Path="../../pax.chess/src/pax.chess/pax.chess.csproj" />
   <Project Path="../../pax.uciChessEngine/src/pax.uciChessEngine/pax.uciChessEngine.csproj" />
   <Project Path="pax.BlazorChess.Board/pax.BlazorChess.Board.csproj" />
+  <Project Path="pax.BlazorChess.Db/pax.BlazorChess.Db.csproj" />
   <Project Path="pax.BlazorChess.Web/pax.BlazorChess.Web.csproj" />
 </Solution>

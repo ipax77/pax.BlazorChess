@@ -22,7 +22,7 @@
                 {
                     <span class="badge bg-secondary">Stopped</span>
                 }
-                <button class="btn btn-sm btn-outline-light" @onclick="OnStop">Stop</button>
+                <button class="btn btn-sm btn-outline-light" @onclick="async() => await OnStop()">Stop</button>
             </div>
         </div>
         <div class="card-body">
@@ -40,7 +40,9 @@
                     {
                         <div class="mt-2">Result: @Session.Result</div>
                     }
-                    <AnnotationComponent @ref="annotationRef" ChessGame="Session.Game" />
+                    <div style="height: 600px !important;">
+                        <AnnotationComponent @ref="annotationRef" ChessGame="Session.Game" />
+                    </div>
                 </div>
             </div>
         </div>
