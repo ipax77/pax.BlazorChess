@@ -1,12 +1,15 @@
 @using System.Globalization
 @using System.Text
 @using Microsoft.Extensions.Logging
+@using Microsoft.JSInterop
 @using pax.chess
 @using pax.chess.Analyze
 @using pax.chess.Extensions
 @using pax.uciChessEngine
 @using pax.uciChessEngine.EngineServices
+@using pax.BlazorChess.Board.Modals
 @inject ILogger<LiveEvalComponent> Logger
+@inject IJSRuntime JS
 @implements IAsyncDisposable
 
 <div>
@@ -22,20 +25,97 @@
         </select>
     </div>
     <div class="mt-2">
-        @{
-            int i = 1;
-        }
-        @foreach (var eval in evals)
+        @for (int index = 0; index < evals.Count; index++)
         {
-            <div class="d-flex">
-                <span class="text-secondary text-end me-2">#@(i++)</span>
-                <span class="fw-semibold me-2">@GetEvalString(eval.Item1)</span>
-                <span class="text-secondary me-2">depth @eval.Item1.Depth</span>
-                <div class="text-truncate" style="width: 200px;">@GetMoves(eval.Item1.PvInfo.Moves, eval.Item2)</div>
+            var eval = evals[index];
+            <div class="live-eval-row live-eval-clickable"
+                 @onclick="() => OpenEvalModal(index + 1, eval.Item1, eval.Item3, eval.Item1.PvInfo.Moves)">
+                <span class="live-eval-rank">#@(index + 1)</span>
+                <span class="live-eval-score">@GetEvalString(eval.Item1)</span>
+                <span class="live-eval-depth">depth @eval.Item1.Depth</span>
+                <div class="live-eval-moves">@GetMoves(eval.Item1.PvInfo.Moves, eval.Item2)</div>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary live-eval-copy"
+                        title="Copy line"
+                        aria-label="Copy line"
+                        @onclick="() => CopyEvalLine(eval.Item1, eval.Item2, eval.Item3)"
+                        @onclick:stopPropagation="true">
+                    <span class="bi bi-clipboard" aria-hidden="true"></span>
+                    <span class="visually-hidden">Copy</span>
+                </button>
             </div>
         }
     </div>
 </div>
+
+@if (showEvalModal && selectedEval is not null && selectedStartingMoves is not null && selectedPvMoves is not null)
+{
+    <EvalModal EvalIndex="selectedEvalIndex"
+               Eval="selectedEval"
+               StartingMoves="selectedStartingMoves"
+               PvMoves="selectedPvMoves"
+               OnClose="CloseEvalModal" />
+}
+
+<style>
+    .live-eval-row {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+        min-width: 0;
+        flex-wrap: nowrap;
+    }
+
+    .live-eval-clickable {
+        cursor: pointer;
+    }
+
+    .live-eval-rank {
+        color: var(--bs-secondary-color, #6c757d);
+        text-align: right;
+        width: 2.5rem;
+        flex: 0 0 auto;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .live-eval-score {
+        font-weight: 600;
+        text-align: right;
+        width: 4.5rem;
+        flex: 0 0 auto;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .live-eval-depth {
+        color: var(--bs-secondary-color, #6c757d);
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+
+    .live-eval-moves {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .live-eval-copy {
+        flex: 0 0 auto;
+        line-height: 1;
+        padding: 0.2rem 0.35rem;
+    }
+
+    @@media (max-width: 576px) {
+        .live-eval-score {
+            width: 3.5rem;
+        }
+
+        .live-eval-depth {
+            font-size: 0.9rem;
+        }
+    }
+</style>
 
 @code {
     [Parameter, EditorRequired]
@@ -54,8 +134,13 @@
     private EngineRunOptions? currentRunOptions;
     private IEngineSessionProvider? engineSessionProvider;
 
-    private readonly List<(Eval, BoardPosition)> evals = [];
+    private readonly List<(Eval, BoardPosition, List<string>)> evals = [];
     private Move? lastBestMove;
+    private bool showEvalModal;
+    private Eval? selectedEval;
+    private List<string>? selectedStartingMoves;
+    private IReadOnlyList<string>? selectedPvMoves;
+    private int selectedEvalIndex;
 
     private readonly CancellationTokenSource cts = new();
     private CancellationTokenSource? calcCts;
@@ -110,6 +195,8 @@
         await ss.WaitAsync();
         var pos = AnalysisBoard.CurrentPosition.Clone();
         var moves = AnalysisBoard.GetCurrentEngineMoves();
+        var startingMoves = moves.Split(" ", StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
 
         try
         {
@@ -134,7 +221,7 @@
                         var firstEngineMove = eval.PvInfo.Moves.FirstOrDefault();
                         if (firstEngineMove != null)
                         {
-                            var bestMoveCandidate = Uci.CreateMove(firstEngineMove, AnalysisBoard.CurrentPosition);
+                            var bestMoveCandidate = Uci.CreateMove(firstEngineMove, pos);
                             if (bestMoveCandidate != null)
                             {
                                 bestMoves.Add(bestMoveCandidate);
@@ -143,7 +230,7 @@
                         }
                     }
                     lastBestMove = bestMove;
-                    UpdateEval(evals, pos);
+                    UpdateEval(evals, pos, startingMoves);
                     await OnBestMovesReady.InvokeAsync(bestMoves);
                 }
 
@@ -166,12 +253,12 @@
         calcCts?.Cancel();
     }
 
-    private void UpdateEval(List<Eval> evals, BoardPosition pos)
+    private void UpdateEval(List<Eval> evals, BoardPosition pos, List<string> startingMoves)
     {
         this.evals.Clear();
         foreach (var eval in evals)
         {
-            this.evals.Add((eval, pos));
+            this.evals.Add((eval, pos, new List<string>(startingMoves)));
         }
         InvokeAsync(StateHasChanged);
     }
@@ -201,6 +288,27 @@
     }
 
     public Move? GetBestMove() => lastBestMove;
+
+    private async Task CopyEvalLine(Eval eval, BoardPosition pos, List<string> startingMoves)
+    {
+        var moves = GetMovesFromStart(startingMoves, eval.PvInfo.Moves);
+        var line = $"{GetEvalString(eval)} depth {eval.Depth} {moves}";
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", line.Trim());
+    }
+
+    private string GetEvalPgn(IReadOnlyList<string> startingMoves, IReadOnlyList<string> pvMoves)
+    {
+        ChessGame game = new();
+        var moves = startingMoves.Concat(pvMoves);
+        foreach (var engineMove in moves)
+        {
+            var move = Uci.CreateMove(engineMove, game.CurrentPosition);
+            if (move is null) continue;
+            game.ApplyMove(move);
+        }
+        return PgnSerializer.Serialize(game);
+    }
+
     private void SwitchEngine()
     {
         currentRunOptions = EngineRunOptions.FirstOrDefault(f => f.Id == currentId);
@@ -238,6 +346,52 @@
         if (sb.Length > 0)
             sb.Length--;
         return sb.ToString();
+    }
+
+    private string GetMovesFromStart(IReadOnlyList<string> startingMoves, IReadOnlyList<string> pvMoves)
+    {
+        StringBuilder sb = new();
+        ChessGame game = new();
+
+        var moves = startingMoves.Concat(pvMoves);
+        foreach (var engineMove in moves)
+        {
+            try
+            {
+                var move = Uci.CreateMove(engineMove, game.CurrentPosition);
+                ArgumentNullException.ThrowIfNull(move);
+                var san = PgnSerializer.ToSan(move, game.CurrentPosition);
+                sb.Append(san + " ");
+                game.ApplyMove(move);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("invalid move {move}", engineMove, ex);
+            }
+        }
+
+        if (sb.Length > 0)
+            sb.Length--;
+
+        return sb.ToString();
+    }
+
+    private void OpenEvalModal(int evalIndex, Eval eval, List<string> startingMoves, IReadOnlyList<string> pvMoves)
+    {
+        selectedEvalIndex = evalIndex;
+        selectedEval = eval;
+        selectedStartingMoves = new List<string>(startingMoves);
+        selectedPvMoves = pvMoves.ToList();
+        showEvalModal = true;
+    }
+
+    private void CloseEvalModal()
+    {
+        showEvalModal = false;
+        selectedEval = null;
+        selectedStartingMoves = null;
+        selectedPvMoves = null;
+        selectedEvalIndex = 0;
     }
 
     public async ValueTask DisposeAsync()

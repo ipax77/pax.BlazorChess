@@ -1,0 +1,86 @@
+@using pax.chess
+@using pax.chess.Analyze
+@using pax.chess.Extensions
+@using pax.uciChessEngine
+
+<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">Evaluation #@EvalIndex</h5>
+                    <div class="text-secondary small">@GetEvalString(Eval) · depth @Eval.Depth</div>
+                </div>
+                <button type="button" class="btn-close" @onclick="OnClose" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-6">
+                        @if (evalGame is not null)
+                        {
+                            <BoardComponent Position="evalGame.CurrentPosition" />
+                        }
+                    </div>
+                    <div class="col-6">
+                        @if (evalGame is not null)
+                        {
+                            <div style="max-height: 70vh;">
+                                <AnnotationComponent ChessGame="evalGame" />
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="OnClose">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public Eval Eval { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public int EvalIndex { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> StartingMoves { get; set; } = Array.Empty<string>();
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> PvMoves { get; set; } = Array.Empty<string>();
+
+    [Parameter, EditorRequired]
+    public EventCallback OnClose { get; set; }
+
+    private ChessGame? evalGame;
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        evalGame = BuildEvalGame(StartingMoves, PvMoves);
+    }
+
+    private ChessGame BuildEvalGame(IReadOnlyList<string> startingMoves, IReadOnlyList<string> pvMoves)
+    {
+        ChessGame game = new();
+        foreach (var engineMove in startingMoves.Concat(pvMoves))
+        {
+            var move = Uci.CreateMove(engineMove, game.CurrentPosition);
+            if (move is null) continue;
+            var san = PgnSerializer.ToSan(move, game.CurrentPosition);
+            game.ApplyMove(move, san);
+        }
+        return game;
+    }
+
+    private string GetEvalString(Eval eval)
+    {
+        if (eval.Mate != 0)
+        {
+            return $"M{eval.Mate}";
+        }
+        return (eval.Score / 100.0).ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
+    }
+}
