@@ -23,6 +23,8 @@
         <div class="row" tabindex="0" @onkeydown="KeyDown">
             <div class="col-2 mt-3 d-flex flex-column gap-2">
                 <button type="button" class="btn btn-primary" @onclick="OpenImportModal">Import PGN</button>
+                <button type="button" class="btn btn-secondary" @onclick="OpenSaveModal">Save analysis</button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="OpenLoadModal">Load analysis</button>
                 <button type="button" class="btn btn-outline-light" @onclick="ShowAnalysis">
                     @(showChart ? "Stop Analysis" : "Start Analysis")
                 </button>
@@ -151,6 +153,74 @@
             </div>
         </div>
     }
+
+    @if (showSaveModal)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Save analysis</h5>
+                        <button type="button" class="btn-close" @onclick="CloseSaveModal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" @bind="saveName" />
+                        @if (!string.IsNullOrWhiteSpace(saveError))
+                        {
+                            <div class="alert alert-danger mt-2 mb-0">@saveError</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CloseSaveModal">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveAnalysis" disabled="@(string.IsNullOrWhiteSpace(saveName))">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (showLoadModal)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Load saved analysis</h5>
+                        <button type="button" class="btn-close" @onclick="CloseLoadModal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (loadError is not null)
+                        {
+                            <div class="alert alert-danger">@loadError</div>
+                        }
+                        @if (savedAnalyses.Count == 0)
+                        {
+                            <div class="text-muted">No saved analyses yet.</div>
+                        }
+                        else
+                        {
+                            <div class="list-group">
+                                @foreach (var saved in savedAnalyses)
+                                {
+                                    <button type="button"
+                                            class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(saved.Id == selectedLoadId ? "active" : "")"
+                                            @onclick="() => selectedLoadId = saved.Id">
+                                        <span>@saved.Name</span>
+                                        <small class="text-secondary">@saved.UpdatedAt.LocalDateTime.ToString("g")</small>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CloseLoadModal">Cancel</button>
+                        <button class="btn btn-primary" @onclick="LoadSelectedAnalysis" disabled="@(selectedLoadId == null)">Load</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -173,8 +243,13 @@
 
     private bool showChart;
     private bool showImportModal;
+    private bool showSaveModal;
+    private bool showLoadModal;
     private string pgnText = string.Empty;
     private string? importError;
+    private string saveName = string.Empty;
+    private string? saveError;
+    private string? loadError;
     private int thinkTimePerMoveMs = 1000;
     private AnalysisTab activeTab = AnalysisTab.Analysis;
 
@@ -184,6 +259,8 @@
     private int engineIncrementSeconds = 3;
     private Guid? activeEngineGameId;
     private readonly List<EngineGameSession> engineGameSessions = [];
+    private readonly List<AnalyzedGameSummary> savedAnalyses = [];
+    private Guid? selectedLoadId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -270,6 +347,89 @@
     {
         showImportModal = false;
         importError = null;
+    }
+
+    private void OpenSaveModal()
+    {
+        saveName = string.Empty;
+        saveError = null;
+        showSaveModal = true;
+    }
+
+    private void CloseSaveModal()
+    {
+        showSaveModal = false;
+        saveError = null;
+    }
+
+    private async Task SaveAnalysis()
+    {
+        try
+        {
+            await ChessBoardRepository.SaveAnalyzedGame(saveName, AnalysisBoard);
+            showSaveModal = false;
+            saveError = null;
+        }
+        catch (Exception ex)
+        {
+            saveError = ex.Message;
+        }
+    }
+
+    private async Task LoadSavedList()
+    {
+        savedAnalyses.Clear();
+        loadError = null;
+        try
+        {
+            var list = await ChessBoardRepository.ListAnalyzedGames();
+            savedAnalyses.AddRange(list);
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        selectedLoadId = savedAnalyses.FirstOrDefault()?.Id;
+    }
+
+    private async Task LoadSelectedAnalysis()
+    {
+        if (selectedLoadId is null)
+            return;
+
+        try
+        {
+            var board = await ChessBoardRepository.LoadAnalyzedGame(selectedLoadId.Value);
+            if (board is null)
+            {
+                loadError = "Selected analysis not found.";
+                return;
+            }
+
+            AnalysisBoard = board;
+            showLoadModal = false;
+            loadError = null;
+
+            boardComponent?.Update(AnalysisBoard.CurrentPosition, null);
+            liveEvalComponent?.Update();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+    }
+
+    private async Task OpenLoadModal()
+    {
+        await LoadSavedList();
+        showLoadModal = true;
+    }
+
+    private void CloseLoadModal()
+    {
+        showLoadModal = false;
+        loadError = null;
     }
 
     private void ImportPgn()

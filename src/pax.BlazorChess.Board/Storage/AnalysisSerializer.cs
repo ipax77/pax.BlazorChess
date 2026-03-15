@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using pax.chess;
 using pax.chess.Analyze;
 using pax.chess.Extensions;
@@ -10,7 +11,9 @@ public static class AnalysisSerializer
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
+        WriteIndented = false,
+        MaxDepth = 256,
+        ReferenceHandler = ReferenceHandler.IgnoreCycles
     };
 
     public static AnalysisSnapshot CreateSnapshot(AnalysisBoard board)

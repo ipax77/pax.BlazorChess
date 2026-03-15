@@ -3,6 +3,7 @@ using pax.BlazorChess.Board;
 using pax.BlazorChess.Board.Storage;
 using pax.BlazorChess.Db;
 using pax.BlazorChess.Web.Components;
+using pax.uciChessEngine.EngineServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,6 +30,33 @@ var app = builder.Build();
 using var scope = app.Services.CreateScope();
 var context = scope.ServiceProvider.GetRequiredService<ChessContext>();
 context.Database.Migrate();
+
+// DEBUG
+if (context.EngineRunOptions.Count() == 0)
+{
+    List<EngineRunOptions> engineRunOptions =
+    [
+        new()
+        {
+            BinaryPath = @"C:\data\chess\engines\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe",
+            Name = "Stockfish 18",
+            Threads = 4,
+            Pvs = 4,
+            PoolSize = 8,
+        },
+        new()
+        {
+            BinaryPath = @"C:\data\chess\engines\lc0-v0.32.1-windows-gpu-nvidia-cuda11\lc0.exe",
+            Name = "LC0 v0.32.1",
+            Threads = 2,
+            Pvs = 2,
+            PoolSize = 2,
+        }
+    ];
+    var repo = scope.ServiceProvider.GetRequiredService<IChessBoardRepository>();
+    await repo.StoreEngineRunOptions(engineRunOptions);
+}
+
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

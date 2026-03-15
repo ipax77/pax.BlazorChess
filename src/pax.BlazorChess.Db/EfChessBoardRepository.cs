@@ -61,11 +61,12 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
     {
         var items = await _context.AnalyzedGames
             .AsNoTracking()
-            .OrderByDescending(a => a.UpdatedAt)
             .Select(a => new AnalyzedGameSummary(a.Id, a.Name, a.UpdatedAt))
             .ToListAsync(cancellationToken);
 
-        return items;
+        return items
+            .OrderByDescending(a => a.UpdatedAt)
+            .ToList();
     }
 
     public async Task<AnalysisBoard?> LoadAnalyzedGame(Guid id, CancellationToken cancellationToken = default)

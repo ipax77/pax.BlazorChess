@@ -4,4 +4,5 @@
   <Project Path="pax.BlazorChess.Board/pax.BlazorChess.Board.csproj" />
   <Project Path="pax.BlazorChess.Db/pax.BlazorChess.Db.csproj" />
   <Project Path="pax.BlazorChess.Web/pax.BlazorChess.Web.csproj" />
+  <Project Path="pax.BlazorChess.Tests/pax.BlazorChess.Tests.csproj" />
 </Solution>
