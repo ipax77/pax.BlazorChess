@@ -353,15 +353,13 @@
     private Guid? selectedLoadId;
     private int engineMatchCount = 10;
     private bool engineMatchReverseEngines = true;
-    private bool engineMatchesRunning;
     private int engineMatchMaxConcurrentDisplay = 1;
-    private readonly List<EngineMatchSummary> engineMatchResults = [];
+    private readonly EngineMatchBatch engineMatchBatch = new();
+    private IReadOnlyList<EngineMatchSummary> engineMatchResults => engineMatchBatch.Matches;
     private AnalysisBoard? engineMatchViewBoard;
     private string engineMatchViewLabel = string.Empty;
     private BoardComponent? engineMatchBoardRef;
-    private CancellationTokenSource? engineMatchCts;
-    private readonly Dictionary<Guid, EngineMatchRuntime> engineMatchRuntimes = [];
-    private readonly object engineMatchLock = new();
+    private bool engineMatchesRunning => engineMatchBatch.IsRunning;
 
     protected override async Task OnInitializedAsync()
     {
@@ -371,6 +369,8 @@
         selectedBlackEngineId = engineRunOptions.Skip(1).FirstOrDefault()?.Id
             ?? engineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
         UpdateEngineMatchConcurrency();
+        engineMatchBatch.MatchUpdated += OnEngineMatchUpdated;
+        engineMatchBatch.BatchFinished += OnEngineMatchBatchFinished;
     }
 
     public void ApplyMove(Move move)
@@ -707,6 +707,9 @@
         {
             await session.EngineGame.DisposeAsync();
         }
+        engineMatchBatch.MatchUpdated -= OnEngineMatchUpdated;
+        engineMatchBatch.BatchFinished -= OnEngineMatchBatchFinished;
+        await engineMatchBatch.DisposeAsync();
     }
     private void ShowAnalysis(MouseEventArgs args)
     {
@@ -755,13 +758,7 @@
             return;
         }
 
-        engineMatchMaxConcurrentDisplay = ComputeMaxConcurrent(white, black);
-    }
-
-    private int ComputeMaxConcurrent(EngineRunOptions white, EngineRunOptions black)
-    {
-        var poolSize = Math.Min(white.PoolSize, black.PoolSize);
-        return Math.Max(1, poolSize / 2);
+        engineMatchMaxConcurrentDisplay = EngineMatchBatch.ComputeMaxConcurrent(white, black);
     }
 
     private int engineMatchWhiteWins => engineMatchResults.Count(r => r.Result == GameResult.WhiteWin);
@@ -783,194 +780,36 @@
             return;
 
         UpdateEngineMatchConcurrency();
-        var maxConcurrent = engineMatchMaxConcurrentDisplay;
         engineMatchCount = Math.Max(1, engineMatchCount);
-        engineMatchResults.Clear();
-        engineMatchCts?.Cancel();
-        engineMatchCts?.Dispose();
-        engineMatchCts = new CancellationTokenSource();
-        engineMatchesRunning = true;
+        engineMatchViewBoard = null;
+        engineMatchViewLabel = string.Empty;
 
-        var semaphore = new SemaphoreSlim(maxConcurrent, maxConcurrent);
-        var tasks = new List<Task>(engineMatchCount);
+        var request = new EngineMatchBatchRequest(
+            AnalysisBoard.CurrentPosition.Clone(),
+            white,
+            black,
+            engineMatchCount,
+            TimeSpan.FromMinutes(Math.Max(1, engineBaseMinutes)),
+            TimeSpan.FromSeconds(Math.Max(0, engineIncrementSeconds)),
+            engineMatchReverseEngines);
 
-        for (var i = 0; i < engineMatchCount; i++)
-        {
-            var index = i + 1;
-            var reverse = engineMatchReverseEngines && (i % 2 == 1);
-            var matchWhite = reverse ? black : white;
-            var matchBlack = reverse ? white : black;
-
-            var summary = new EngineMatchSummary
-            {
-                Index = index,
-                WhiteEngine = !string.IsNullOrEmpty(matchWhite.Name) ? matchWhite.Name! : matchWhite.BinaryPath,
-                BlackEngine = !string.IsNullOrEmpty(matchBlack.Name) ? matchBlack.Name! : matchBlack.BinaryPath,
-                Status = EngineMatchStatus.Queued,
-                ReverseEngines = reverse
-            };
-
-            engineMatchResults.Add(summary);
-            tasks.Add(RunEngineMatch(summary, matchWhite, matchBlack, semaphore, engineMatchCts.Token));
-        }
-
-        await InvokeAsync(StateHasChanged);
-
-        try
-        {
-            await Task.WhenAll(tasks);
-        }
-        finally
-        {
-            engineMatchesRunning = false;
-            engineMatchCts?.Dispose();
-            engineMatchCts = null;
-            await InvokeAsync(StateHasChanged);
-        }
+        await engineMatchBatch.RunAsync(request);
     }
 
     private async Task StopEngineMatches()
     {
-        if (!engineMatchesRunning || engineMatchCts is null)
-            return;
-
-        engineMatchCts.Cancel();
-        List<EngineMatchRuntime> runtimes;
-        lock (engineMatchLock)
-        {
-            runtimes = engineMatchRuntimes.Values.ToList();
-        }
-
-        foreach (var runtime in runtimes)
-        {
-            try
-            {
-                await runtime.EngineGame.StopGame();
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"failed stopping match: {ex.Message}");
-            }
-            runtime.Completion.TrySetResult();
-        }
+        await engineMatchBatch.StopAsync();
     }
 
-    private async Task RunEngineMatch(
-        EngineMatchSummary summary,
-        EngineRunOptions white,
-        EngineRunOptions black,
-        SemaphoreSlim semaphore,
-        CancellationToken cancellationToken)
+    private void OnEngineMatchUpdated(object? sender, EngineMatchSummary summary)
     {
-        try
-        {
-            await semaphore.WaitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            summary.Status = EngineMatchStatus.Cancelled;
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
-
-        try
-        {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                summary.Status = EngineMatchStatus.Cancelled;
-                return;
-            }
-
-            summary.Status = EngineMatchStatus.Running;
-            await InvokeAsync(StateHasChanged);
-
-            var startPosition = AnalysisBoard.CurrentPosition.Clone();
-            var clock = new ChessClock(
-                TimeSpan.FromMinutes(Math.Max(1, engineBaseMinutes)),
-                TimeSpan.FromSeconds(Math.Max(0, engineIncrementSeconds)));
-
-            var game = new ChessGame(startPosition, new GameMetadata(), clock);
-            game.ActivatePositionHashing();
-
-            var whiteEngine = new UciEngine(white.BinaryPath);
-            var blackEngine = new UciEngine(black.BinaryPath);
-            var threads = Math.Max(1, Math.Max(white.Threads, black.Threads));
-            var engineGame = new EngineGame(whiteEngine, blackEngine, game, threads);
-
-            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            engineGame.GameFinished += (_, _) => completion.TrySetResult();
-
-            RegisterMatchRuntime(summary.Id, engineGame, completion);
-            await engineGame.Start(clock);
-            await completion.Task;
-
-            summary.Result = game.Result;
-            summary.Status = cancellationToken.IsCancellationRequested
-                ? EngineMatchStatus.Cancelled
-                : EngineMatchStatus.Finished;
-            summary.Game = game;
-
-            await engineGame.DisposeAsync();
-        }
-        catch (OperationCanceledException)
-        {
-            summary.Status = EngineMatchStatus.Cancelled;
-        }
-        catch (Exception ex)
-        {
-            summary.Status = EngineMatchStatus.Error;
-            summary.ErrorMessage = ex.Message;
-        }
-        finally
-        {
-            UnregisterMatchRuntime(summary.Id);
-            semaphore.Release();
-            await InvokeAsync(StateHasChanged);
-        }
+        InvokeAsync(StateHasChanged);
     }
 
-    private void RegisterMatchRuntime(Guid id, EngineGame engineGame, TaskCompletionSource completion)
+    private void OnEngineMatchBatchFinished(object? sender, EventArgs args)
     {
-        lock (engineMatchLock)
-        {
-            engineMatchRuntimes[id] = new EngineMatchRuntime(engineGame, completion);
-        }
+        InvokeAsync(StateHasChanged);
     }
-
-    private void UnregisterMatchRuntime(Guid id)
-    {
-        lock (engineMatchLock)
-        {
-            engineMatchRuntimes.Remove(id);
-        }
-    }
-
-    private enum EngineMatchStatus
-    {
-        Queued,
-        Running,
-        Finished,
-        Cancelled,
-        Error
-    }
-
-    private sealed class EngineMatchSummary
-    {
-        public Guid Id { get; } = Guid.NewGuid();
-        public int Index { get; init; }
-        public string WhiteEngine { get; init; } = string.Empty;
-        public string BlackEngine { get; init; } = string.Empty;
-        public bool ReverseEngines { get; init; }
-        public GameResult? Result { get; set; }
-        public EngineMatchStatus Status { get; set; } = EngineMatchStatus.Queued;
-        public string? ErrorMessage { get; set; }
-        public ChessGame? Game { get; set; }
-    }
-
-    private sealed record EngineMatchRuntime(EngineGame EngineGame, TaskCompletionSource Completion);
 
     private void ViewEngineMatch(EngineMatchSummary match)
     {
