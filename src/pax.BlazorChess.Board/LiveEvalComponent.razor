@@ -55,6 +55,7 @@
     private IEngineSessionProvider? engineSessionProvider;
 
     private readonly List<(Eval, BoardPosition)> evals = [];
+    private Move? lastBestMove;
 
     private readonly CancellationTokenSource cts = new();
     private CancellationTokenSource? calcCts;
@@ -99,6 +100,8 @@
         if (!IsActive || currentRunOptions is null)
             return;
 
+        lastBestMove = null;
+
         var old = Interlocked.Exchange(
             ref calcCts,
             CancellationTokenSource.CreateLinkedTokenSource(cts.Token));
@@ -125,18 +128,21 @@
                     .GetContinualEvaluation(moves, pos.SideToMove, engine, token))
                 {
                     List<Move> bestMoves = [];
+                    Move? bestMove = null;
                     foreach (var eval in evals)
                     {
                         var firstEngineMove = eval.PvInfo.Moves.FirstOrDefault();
                         if (firstEngineMove != null)
                         {
-                            var bestMove = Uci.CreateMove(firstEngineMove, AnalysisBoard.CurrentPosition);
-                            if (bestMove != null)
+                            var bestMoveCandidate = Uci.CreateMove(firstEngineMove, AnalysisBoard.CurrentPosition);
+                            if (bestMoveCandidate != null)
                             {
-                                bestMoves.Add(bestMove);
+                                bestMoves.Add(bestMoveCandidate);
+                                bestMove ??= bestMoveCandidate;
                             }
                         }
                     }
+                    lastBestMove = bestMove;
                     UpdateEval(evals, pos);
                     await OnBestMovesReady.InvokeAsync(bestMoves);
                 }
@@ -182,6 +188,19 @@
             Stop();
         }
     }
+
+    public bool IsRunning => IsActive;
+
+    public void StartAnalysis()
+    {
+        if (IsActive)
+            return;
+
+        IsActive = true;
+        StartStop();
+    }
+
+    public Move? GetBestMove() => lastBestMove;
     private void SwitchEngine()
     {
         currentRunOptions = EngineRunOptions.FirstOrDefault(f => f.Id == currentId);

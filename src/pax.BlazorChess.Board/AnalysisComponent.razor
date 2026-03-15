@@ -29,7 +29,7 @@
 
     @if (activeTab == AnalysisTab.Analysis)
     {
-        <div class="row" tabindex="0" @onkeydown="KeyDown">
+        <div class="row analysis-keyboard-focus" tabindex="0" @onkeydown="KeyDown" @onkeydown:preventDefault="true">
             <div class="col-2 mt-3 d-flex flex-column gap-2">
                 <button type="button" class="btn btn-primary" @onclick="OpenImportModal">Import PGN</button>
                 <button type="button" class="btn btn-secondary" @onclick="OpenSaveModal">Save analysis</button>
@@ -57,7 +57,7 @@
         </div>
         @if (engineRunOptions.Count > 0)
         {
-            <div>
+            <div class="mt-1">
                 <GameAnalisisComponent @ref="gameAnalisisComponent" ChessGame="AnalysisBoard.ChessGame"
                                        AnalysisBoard="AnalysisBoard"
                                        EngineRunOptions="engineRunOptions.First()"
@@ -172,6 +172,13 @@
     }
 </div>
 
+<style>
+    .analysis-keyboard-focus:focus {
+        outline: none;
+        box-shadow: none;
+    }
+</style>
+
 @code {
     private enum AnalysisTab
     {
@@ -257,7 +264,25 @@
             AnalysisBoard.MoveForward();
             liveEvalComponent?.Update();
         }
+        else if (args.Key == " " || args.Key == "Spacebar" || args.Key == "Space")
+        {
+            if (liveEvalComponent is null)
+                return;
+
+            if (!liveEvalComponent.IsRunning)
+            {
+                liveEvalComponent.StartAnalysis();
+                return;
+            }
+
+            var bestMove = liveEvalComponent.GetBestMove();
+            if (bestMove is not null)
+            {
+                ApplyMove(bestMove);
+            }
+        }
     }
+
     private void BestMovesReady(List<Move> args)
     {
         boardComponent?.AddBestMoveAnnotations(args);
