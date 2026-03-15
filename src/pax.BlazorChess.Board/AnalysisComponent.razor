@@ -19,6 +19,14 @@
         </li>
     </ul>
 
+    @if (engineRunOptions.Count == 0)
+    {
+        <div class="alert alert-warning">
+            No engine settings found. Please add at least one engine.
+            <button type="button" class="btn btn-outline-primary" @onclick="OpenEngineSettingsModal">Engine settings</button>
+        </div>
+    }
+
     @if (activeTab == AnalysisTab.Analysis)
     {
         <div class="row" tabindex="0" @onkeydown="KeyDown">
@@ -26,6 +34,7 @@
                 <button type="button" class="btn btn-primary" @onclick="OpenImportModal">Import PGN</button>
                 <button type="button" class="btn btn-secondary" @onclick="OpenSaveModal">Save analysis</button>
                 <button type="button" class="btn btn-outline-secondary" @onclick="OpenLoadModal">Load analysis</button>
+                <button type="button" class="btn btn-outline-primary" @onclick="OpenEngineSettingsModal">Engine settings</button>
                 <button type="button" class="btn btn-outline-light" @onclick="ShowAnalysis">
                     @(showChart ? "Stop Analysis" : "Start Analysis")
                 </button>
@@ -154,6 +163,13 @@
                            OnClose="CloseLoadModal"
                            OnLoad="LoadSelectedAnalysis" />
     }
+
+    @if (showEngineSettingsModal)
+    {
+        <EngineSettingsModal EngineRunOptions="engineRunOptions"
+                             OnOptionsUpdated="StoreEngineRunOptions"
+                             OnClose="CloseEngineSettingsModal" />
+    }
 </div>
 
 @code {
@@ -178,6 +194,7 @@
     private bool showImportModal;
     private bool showSaveModal;
     private bool showLoadModal;
+    private bool showEngineSettingsModal;
     private string pgnText = string.Empty;
     private string? importError;
     private string saveName = string.Empty;
@@ -531,5 +548,26 @@
         else
         {
         }
+    }
+
+    private void OpenEngineSettingsModal()
+    {
+        showEngineSettingsModal = true;
+    }
+
+    private void CloseEngineSettingsModal()
+    {
+        showEngineSettingsModal = false;
+    }
+
+    private async Task StoreEngineRunOptions(List<EngineRunOptions> options)
+    {
+        await ChessBoardRepository.StoreEngineRunOptions(options);
+        engineRunOptions = options;
+        selectedWhiteEngineId = engineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
+        selectedBlackEngineId = engineRunOptions.Skip(1).FirstOrDefault()?.Id
+            ?? engineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
+        liveEvalComponent?.RefreshEngineOptions();
+        StateHasChanged();
     }
 }

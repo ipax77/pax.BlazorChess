@@ -67,6 +67,27 @@
         currentId = currentRunOptions?.Id ?? Guid.Empty;
     }
 
+    public void RefreshEngineOptions()
+    {
+        if (EngineRunOptions.Count == 0)
+        {
+            currentRunOptions = null;
+            currentId = Guid.Empty;
+            return;
+        }
+
+        if (!EngineRunOptions.Any(o => o.Id == currentId))
+        {
+            currentRunOptions = EngineRunOptions.FirstOrDefault();
+            currentId = currentRunOptions?.Id ?? Guid.Empty;
+
+            if (IsActive && currentRunOptions is not null)
+            {
+                _ = Calculate();
+            }
+        }
+    }
+
     public void Update()
     {
         if (IsActive)
