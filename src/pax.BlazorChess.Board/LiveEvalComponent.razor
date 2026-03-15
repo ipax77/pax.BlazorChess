@@ -29,6 +29,7 @@
         {
             var eval = evals[index];
             <div class="live-eval-row live-eval-clickable"
+                 title="Click for details"
                  @onclick="() => OpenEvalModal(index + 1, eval.Item1, eval.Item3, eval.Item1.PvInfo.Moves)">
                 <span class="live-eval-rank">#@(index + 1)</span>
                 <span class="live-eval-score">@GetEvalString(eval.Item1)</span>
@@ -43,17 +44,19 @@
                     <span class="bi bi-clipboard" aria-hidden="true"></span>
                     <span class="visually-hidden">Copy</span>
                 </button>
+                <span class="live-eval-open bi bi-chevron-right" aria-hidden="true"></span>
             </div>
         }
     </div>
 </div>
 
-@if (showEvalModal && selectedEval is not null && selectedStartingMoves is not null && selectedPvMoves is not null)
+@if (showEvalModal && selectedEvalSnapshot is not null)
 {
-    <EvalModal EvalIndex="selectedEvalIndex"
-               Eval="selectedEval"
-               StartingMoves="selectedStartingMoves"
-               PvMoves="selectedPvMoves"
+    <EvalModal EvalIndex="selectedEvalSnapshot.EvalIndex"
+               EvalString="selectedEvalSnapshot.EvalString"
+               Depth="selectedEvalSnapshot.Depth"
+               StartingMoves="selectedEvalSnapshot.StartingMoves"
+               PvMoves="selectedEvalSnapshot.PvMoves"
                OnClose="CloseEvalModal" />
 }
 
@@ -68,6 +71,17 @@
 
     .live-eval-clickable {
         cursor: pointer;
+    }
+
+    .live-eval-clickable:hover {
+        background-color: var(--bs-tertiary-bg, #f8f9fa);
+        border-radius: 0.25rem;
+    }
+
+    .live-eval-clickable:focus-visible {
+        outline: 2px solid var(--bs-primary, #0d6efd);
+        outline-offset: 2px;
+        border-radius: 0.25rem;
     }
 
     .live-eval-rank {
@@ -106,6 +120,12 @@
         padding: 0.2rem 0.35rem;
     }
 
+    .live-eval-open {
+        color: var(--bs-secondary-color, #6c757d);
+        flex: 0 0 auto;
+        font-size: 0.85rem;
+    }
+
     @@media (max-width: 576px) {
         .live-eval-score {
             width: 3.5rem;
@@ -137,10 +157,7 @@
     private readonly List<(Eval, BoardPosition, List<string>)> evals = [];
     private Move? lastBestMove;
     private bool showEvalModal;
-    private Eval? selectedEval;
-    private List<string>? selectedStartingMoves;
-    private IReadOnlyList<string>? selectedPvMoves;
-    private int selectedEvalIndex;
+    private EvalSnapshot? selectedEvalSnapshot;
 
     private readonly CancellationTokenSource cts = new();
     private CancellationTokenSource? calcCts;
@@ -378,20 +395,30 @@
 
     private void OpenEvalModal(int evalIndex, Eval eval, List<string> startingMoves, IReadOnlyList<string> pvMoves)
     {
-        selectedEvalIndex = evalIndex;
-        selectedEval = eval;
-        selectedStartingMoves = new List<string>(startingMoves);
-        selectedPvMoves = pvMoves.ToList();
+        selectedEvalSnapshot = new EvalSnapshot
+        {
+            EvalIndex = evalIndex,
+            EvalString = GetEvalString(eval),
+            Depth = eval.Depth,
+            StartingMoves = new List<string>(startingMoves),
+            PvMoves = pvMoves.ToList()
+        };
         showEvalModal = true;
     }
 
     private void CloseEvalModal()
     {
         showEvalModal = false;
-        selectedEval = null;
-        selectedStartingMoves = null;
-        selectedPvMoves = null;
-        selectedEvalIndex = 0;
+        selectedEvalSnapshot = null;
+    }
+
+    private sealed class EvalSnapshot
+    {
+        public int EvalIndex { get; init; }
+        public string EvalString { get; init; } = string.Empty;
+        public int Depth { get; init; }
+        public List<string> StartingMoves { get; init; } = [];
+        public List<string> PvMoves { get; init; } = [];
     }
 
     public async ValueTask DisposeAsync()

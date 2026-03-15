@@ -1,7 +1,9 @@
+@using System.Text
 @using pax.chess
 @using pax.chess.Analyze
 @using pax.chess.Extensions
 @using pax.uciChessEngine
+@using Microsoft.JSInterop
 
 <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
     <div class="modal-dialog modal-xl">
@@ -9,27 +11,31 @@
             <div class="modal-header">
                 <div>
                     <h5 class="modal-title">Evaluation #@EvalIndex</h5>
-                    <div class="text-secondary small">@GetEvalString(Eval) · depth @Eval.Depth</div>
+                    <div class="text-secondary small">@EvalString · depth @Depth</div>
                 </div>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary me-2"
+                        title="Copy line"
+                        aria-label="Copy line"
+                        @onclick="CopyEvalLine">
+                    <span class="bi bi-clipboard" aria-hidden="true"></span>
+                </button>
                 <button type="button" class="btn-close" @onclick="OnClose" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="row">
-                    <div class="col-6">
-                        @if (evalGame is not null)
-                        {
-                            <BoardComponent Position="evalGame.CurrentPosition" />
-                        }
-                    </div>
-                    <div class="col-6">
-                        @if (evalGame is not null)
-                        {
+                @if (evalBoard is not null)
+                {
+                    <div class="row eval-modal-focus" tabindex="0" @onkeydown="KeyDown" @onkeydown:stopPropagation="true" @onkeydown:preventDefault="true">
+                        <div class="col-6">
+                            <BoardComponent @ref="boardComponent" Position="evalBoard.CurrentPosition" />
+                        </div>
+                        <div class="col-6">
                             <div style="max-height: 70vh;">
-                                <AnnotationComponent ChessGame="evalGame" />
+                                <AnalysisAnnotationComponent AnalysisBoard="evalBoard" OnNodeClicked="NodeClicked" />
                             </div>
-                        }
+                        </div>
                     </div>
-                </div>
+                }
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" @onclick="OnClose">Close</button>
@@ -40,10 +46,13 @@
 
 @code {
     [Parameter, EditorRequired]
-    public Eval Eval { get; set; } = default!;
+    public int EvalIndex { get; set; }
 
     [Parameter, EditorRequired]
-    public int EvalIndex { get; set; }
+    public string EvalString { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public int Depth { get; set; }
 
     [Parameter, EditorRequired]
     public IReadOnlyList<string> StartingMoves { get; set; } = Array.Empty<string>();
@@ -54,15 +63,19 @@
     [Parameter, EditorRequired]
     public EventCallback OnClose { get; set; }
 
-    private ChessGame? evalGame;
+    [Inject]
+    public IJSRuntime JS { get; set; } = default!;
+
+    private AnalysisBoard? evalBoard;
+    private BoardComponent? boardComponent;
 
     protected override void OnParametersSet()
     {
         base.OnParametersSet();
-        evalGame = BuildEvalGame(StartingMoves, PvMoves);
+        evalBoard = BuildEvalBoard(StartingMoves, PvMoves);
     }
 
-    private ChessGame BuildEvalGame(IReadOnlyList<string> startingMoves, IReadOnlyList<string> pvMoves)
+    private AnalysisBoard BuildEvalBoard(IReadOnlyList<string> startingMoves, IReadOnlyList<string> pvMoves)
     {
         ChessGame game = new();
         foreach (var engineMove in startingMoves.Concat(pvMoves))
@@ -72,15 +85,71 @@
             var san = PgnSerializer.ToSan(move, game.CurrentPosition);
             game.ApplyMove(move, san);
         }
-        return game;
+        var board = new AnalysisBoard(game);
+        while (board.CurrentNode.MainLine != null)
+        {
+            board.MoveForward();
+        }
+        return board;
     }
 
-    private string GetEvalString(Eval eval)
+    private async Task CopyEvalLine()
     {
-        if (eval.Mate != 0)
+        var moves = GetMovesFromStart(StartingMoves, PvMoves);
+        var line = $"{EvalString} depth {Depth} {moves}";
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", line.Trim());
+    }
+
+    private void NodeClicked(MoveNode node)
+    {
+        if (evalBoard is null)
+            return;
+
+        evalBoard.MoveToNode(node);
+        boardComponent?.Update(evalBoard.CurrentPosition, node.Move);
+    }
+
+    private void KeyDown(KeyboardEventArgs args)
+    {
+        if (evalBoard is null)
+            return;
+
+        if (args.Key == "ArrowLeft")
         {
-            return $"M{eval.Mate}";
+            evalBoard.MoveBackward();
+            boardComponent?.Update(evalBoard.CurrentPosition, evalBoard.CurrentNode.Move);
         }
-        return (eval.Score / 100.0).ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
+        else if (args.Key == "ArrowRight")
+        {
+            evalBoard.MoveForward();
+            boardComponent?.Update(evalBoard.CurrentPosition, evalBoard.CurrentNode.Move);
+        }
+    }
+
+    private string GetMovesFromStart(IReadOnlyList<string> startingMoves, IReadOnlyList<string> pvMoves)
+    {
+        StringBuilder sb = new();
+        ChessGame game = new();
+
+        foreach (var engineMove in startingMoves.Concat(pvMoves))
+        {
+            try
+            {
+                var move = Uci.CreateMove(engineMove, game.CurrentPosition);
+                ArgumentNullException.ThrowIfNull(move);
+                var san = PgnSerializer.ToSan(move, game.CurrentPosition);
+                sb.Append(san + " ");
+                game.ApplyMove(move, san);
+            }
+            catch (Exception)
+            {
+                // Ignore invalid moves in this context.
+            }
+        }
+
+        if (sb.Length > 0)
+            sb.Length--;
+
+        return sb.ToString();
     }
 }
