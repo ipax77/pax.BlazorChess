@@ -1,5 +1,6 @@
-﻿@using pax.chess
+@using pax.chess
 @using pax.chess.Validation
+@using pax.BlazorChess.Board.Modals
 @inject IBoardJsInterop boardJsInterop
 
 <div class="w-100">
@@ -57,6 +58,13 @@
     }
 </div>
 
+@if (showPromotionModal && pendingPromotionColor.HasValue)
+{
+    <PromotionModal Color="pendingPromotionColor.Value"
+                    OnSelect="OnPromotionSelected"
+                    OnClose="OnPromotionClosed" />
+}
+
 @code {
     [Parameter, EditorRequired]
     public required BoardPosition Position { get; set; }
@@ -94,6 +102,11 @@
 
     private readonly BoardAnnotationCollection boardAnnotation = new();
 
+    private bool showPromotionModal;
+    private Square? pendingPromotionFrom;
+    private Square? pendingPromotionTo;
+    private PieceColor? pendingPromotionColor;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -114,13 +127,14 @@
 
     public void ApplyMove(Square from, Square to, PieceType? promotion = null)
     {
-        var move = new Move(from, to, promotion);
         var piece = Position.Board[from.Index];
         if (promotion is null && piece?.Type == PieceType.Pawn && (to.Rank == 0 || to.Rank == 7))
         {
-            move = new Move(from, to, PieceType.Queen);
+            OpenPromotionModal(from, to, piece.Value.Color);
+            return;
         }
-        else
+        var move = new Move(from, to, promotion);
+        if (promotion is null)
         {
             var kingSquare = Position.Board.GetKingSquare(Position.SideToMove);
             if (from == kingSquare)
@@ -307,6 +321,41 @@
         dragPieceSvg = null;
     }
 
+    private void OpenPromotionModal(Square from, Square to, PieceColor color)
+    {
+        pendingPromotionFrom = from;
+        pendingPromotionTo = to;
+        pendingPromotionColor = color;
+        showPromotionModal = true;
+        selectedSquare = null;
+        validDestinations.Clear();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnPromotionSelected(PieceType pieceType)
+    {
+        if (!pendingPromotionFrom.HasValue || !pendingPromotionTo.HasValue)
+            return;
+
+        var move = new Move(pendingPromotionFrom.Value, pendingPromotionTo.Value, pieceType);
+        ClosePromotionModal();
+        await OnMovePlayed.InvokeAsync(move);
+    }
+
+    private void OnPromotionClosed()
+    {
+        ClosePromotionModal();
+    }
+
+    private void ClosePromotionModal()
+    {
+        showPromotionModal = false;
+        pendingPromotionFrom = null;
+        pendingPromotionTo = null;
+        pendingPromotionColor = null;
+        InvokeAsync(StateHasChanged);
+    }
+
     private static bool IsLightSquare(int file, int rank)
     {
         return (file + rank) % 2 != 0;
@@ -384,3 +433,5 @@
     private static string GetFileLabel(int file) => ((char)('a' + file)).ToString();
     private static string GetRankLabel(int rank) => (rank + 1).ToString();
 }
+
+

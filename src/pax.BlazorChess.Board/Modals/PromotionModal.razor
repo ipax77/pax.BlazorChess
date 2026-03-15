@@ -1,0 +1,56 @@
+@using pax.chess
+
+<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select promotion</h5>
+                <button type="button" class="btn-close" @onclick="OnClose" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-around gap-2">
+                    @foreach (var pieceType in PromotionOptions)
+                    {
+                        <button type="button" class="btn btn-outline-primary" @onclick="() => OnSelect.InvokeAsync(pieceType)">
+                            <img src="@GetPieceSvg(pieceType)" class="piece" alt="@GetPieceAlt(pieceType)" draggable="false" />
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="OnClose">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private static readonly PieceType[] PromotionOptions =
+    [
+        PieceType.Queen,
+        PieceType.Rook,
+        PieceType.Bishop,
+        PieceType.Knight
+    ];
+
+    [Parameter, EditorRequired]
+    public PieceColor Color { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<PieceType> OnSelect { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback OnClose { get; set; }
+
+    private string GetPieceSvg(PieceType pieceType)
+    {
+        var pieceChar = FenSerializer.GetPieceString(pieceType);
+        var colorChar = Color == PieceColor.White ? "l" : "d";
+        return $"_content/pax.BlazorChess.Board/Images/pieces/Chess_{pieceChar}{colorChar}t45.svg";
+    }
+
+    private string GetPieceAlt(PieceType pieceType)
+    {
+        return $"{Color} {pieceType}";
+    }
+}
