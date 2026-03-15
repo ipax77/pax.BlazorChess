@@ -17,6 +17,9 @@
         <li class="nav-item">
             <button class="nav-link @(activeTab == AnalysisTab.EngineGames ? "active" : "")" @onclick="() => activeTab = AnalysisTab.EngineGames">Engine Games</button>
         </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == AnalysisTab.EngineMatches ? "active" : "")" @onclick="() => activeTab = AnalysisTab.EngineMatches">Engine Matches</button>
+        </li>
     </ul>
 
     @if (engineRunOptions.Count == 0)
@@ -67,7 +70,7 @@
             </div>
         }
     }
-    else
+    else if (activeTab == AnalysisTab.EngineGames)
     {
         <div class="row g-3">
             <div class="col-12 col-lg-4 col-xl-3">
@@ -76,7 +79,7 @@
                         <h6 class="card-title">Start Engine Game from this position</h6>
                         <div class="mb-2">
                             <label class="form-label small text-secondary">White engine</label>
-                            <select class="form-select form-select-sm" @bind="selectedWhiteEngineId">
+                            <select class="form-select form-select-sm" @bind="selectedWhiteEngineId" @bind:after="UpdateEngineMatchConcurrency">
                                 @foreach (var opt in engineRunOptions)
                                 {
                                     <option value="@opt.Id">@(!string.IsNullOrEmpty(opt.Name) ? opt.Name : opt.BinaryPath)</option>
@@ -85,7 +88,7 @@
                         </div>
                         <div class="mb-2">
                             <label class="form-label small text-secondary">Black engine</label>
-                            <select class="form-select form-select-sm" @bind="selectedBlackEngineId">
+                            <select class="form-select form-select-sm" @bind="selectedBlackEngineId" @bind:after="UpdateEngineMatchConcurrency">
                                 @foreach (var opt in engineRunOptions)
                                 {
                                     <option value="@opt.Id">@(!string.IsNullOrEmpty(opt.Name) ? opt.Name : opt.BinaryPath)</option>
@@ -135,6 +138,142 @@
             </div>
         </div>
     }
+    else
+    {
+        <div class="row g-3">
+            <div class="col-12 col-lg-4 col-xl-3">
+                <div class="card bg-dark text-light mb-3 border-secondary">
+                    <div class="card-body">
+                        <h6 class="card-title">Run engine matches from this position</h6>
+                        <div class="mb-2">
+                            <label class="form-label small text-secondary">White engine</label>
+                            <select class="form-select form-select-sm" @bind="selectedWhiteEngineId" @bind:after="UpdateEngineMatchConcurrency">
+                                @foreach (var opt in engineRunOptions)
+                                {
+                                    <option value="@opt.Id">@(!string.IsNullOrEmpty(opt.Name) ? opt.Name : opt.BinaryPath)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-secondary">Black engine</label>
+                            <select class="form-select form-select-sm" @bind="selectedBlackEngineId" @bind:after="UpdateEngineMatchConcurrency">
+                                @foreach (var opt in engineRunOptions)
+                                {
+                                    <option value="@opt.Id">@(!string.IsNullOrEmpty(opt.Name) ? opt.Name : opt.BinaryPath)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-secondary">Matches</label>
+                            <input type="number" class="form-control form-control-sm" min="1" max="200" @bind="engineMatchCount" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-secondary">Base time (minutes)</label>
+                            <input type="number" class="form-control form-control-sm" min="1" max="180" @bind="engineBaseMinutes" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-secondary">Increment (seconds)</label>
+                            <input type="number" class="form-control form-control-sm" min="0" max="120" @bind="engineIncrementSeconds" />
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="reverseEngines" @bind="engineMatchReverseEngines" />
+                            <label class="form-check-label small text-secondary" for="reverseEngines">
+                                Reverse engines every other game
+                            </label>
+                        </div>
+                        <div class="small text-secondary mb-3">
+                            Max concurrent: @engineMatchMaxConcurrentDisplay
+                        </div>
+                        <button class="btn btn-primary w-100 mb-2" @onclick="StartEngineMatches" disabled="@(engineRunOptions.Count < 1 || engineMatchesRunning)">
+                            @(engineMatchesRunning ? "Running..." : "Run matches")
+                        </button>
+                        <button class="btn btn-outline-light w-100" @onclick="StopEngineMatches" disabled="@(!engineMatchesRunning)">Stop matches</button>
+                    </div>
+                    <div style="width: 100% !important;">
+                        <BoardComponent Position="AnalysisBoard.CurrentPosition.Clone()" />
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-8 col-xl-9">
+                @if (engineMatchResults.Count == 0)
+                {
+                    <div class="alert alert-secondary">No matches yet. Start a batch from the left.</div>
+                }
+                else
+                {
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <span class="badge bg-secondary">Total: @engineMatchResults.Count</span>
+                        <span class="badge bg-success">White wins: @engineMatchWhiteWins</span>
+                        <span class="badge bg-danger">Black wins: @engineMatchBlackWins</span>
+                        <span class="badge bg-warning text-dark">Draws: @engineMatchDraws</span>
+                        @if (engineMatchesRunning)
+                        {
+                            <span class="badge bg-info text-dark">Running: @engineMatchRunningCount</span>
+                        }
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-dark table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>White</th>
+                                    <th>Black</th>
+                                    <th>Result</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var match in engineMatchResults)
+                                {
+                                    <tr>
+                                        <td>@match.Index</td>
+                                        <td>@match.WhiteEngine</td>
+                                        <td>@match.BlackEngine</td>
+                                        <td>@(match.Result?.ToString() ?? "-")</td>
+                                        <td>@match.Status</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-light" disabled="@(match.Game is null)" @onclick="() => ViewEngineMatch(match)">
+                                                View game
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (engineMatchViewBoard is not null)
+                    {
+                        <div class="card bg-dark text-light border-secondary mt-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div class="fw-bold">Match @engineMatchViewLabel</div>
+                                <button class="btn btn-sm btn-outline-light" @onclick="ClearEngineMatchView">Close</button>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <BoardComponent @ref="engineMatchBoardRef" Position="engineMatchViewBoard.CurrentPosition" />
+                                    </div>
+                                    <div class="col-5">
+                                        <div class="small text-secondary">Side to move: @engineMatchViewBoard.CurrentPosition.SideToMove</div>
+                                        <div class="small text-secondary">Moves played: @engineMatchViewBoard.ChessGame.Moves.Count</div>
+                                        <div class="mt-2">Result: @(engineMatchViewBoard.ChessGame.Result?.ToString() ?? "-")</div>
+                                        <div class="mt-3" style="height: 600px !important;">
+                                            <AnalysisAnnotationComponent AnalysisBoard="engineMatchViewBoard" OnNodeClicked="EngineMatchNodeClicked" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2 mt-3">
+                                    <button class="btn btn-sm btn-outline-light" @onclick="EngineMatchBack">Back</button>
+                                    <button class="btn btn-sm btn-outline-light" @onclick="EngineMatchForward">Forward</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    }
 
     @if (showImportModal)
     {
@@ -176,7 +315,8 @@
     private enum AnalysisTab
     {
         Analysis,
-        EngineGames
+        EngineGames,
+        EngineMatches
     }
 
     [Parameter, EditorRequired]
@@ -211,6 +351,17 @@
     private readonly List<EngineGameSession> engineGameSessions = [];
     private readonly List<AnalyzedGameSummary> savedAnalyses = [];
     private Guid? selectedLoadId;
+    private int engineMatchCount = 10;
+    private bool engineMatchReverseEngines = true;
+    private bool engineMatchesRunning;
+    private int engineMatchMaxConcurrentDisplay = 1;
+    private readonly List<EngineMatchSummary> engineMatchResults = [];
+    private AnalysisBoard? engineMatchViewBoard;
+    private string engineMatchViewLabel = string.Empty;
+    private BoardComponent? engineMatchBoardRef;
+    private CancellationTokenSource? engineMatchCts;
+    private readonly Dictionary<Guid, EngineMatchRuntime> engineMatchRuntimes = [];
+    private readonly object engineMatchLock = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -219,6 +370,7 @@
         selectedWhiteEngineId = engineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
         selectedBlackEngineId = engineRunOptions.Skip(1).FirstOrDefault()?.Id
             ?? engineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
+        UpdateEngineMatchConcurrency();
     }
 
     public void ApplyMove(Move move)
@@ -586,6 +738,277 @@
         selectedBlackEngineId = engineRunOptions.Skip(1).FirstOrDefault()?.Id
             ?? engineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
         liveEvalComponent?.RefreshEngineOptions();
+        UpdateEngineMatchConcurrency();
         StateHasChanged();
+    }
+
+    private void UpdateEngineMatchConcurrency()
+    {
+        var white = engineRunOptions.FirstOrDefault(o => o.Id == selectedWhiteEngineId)
+            ?? engineRunOptions.FirstOrDefault();
+        var black = engineRunOptions.FirstOrDefault(o => o.Id == selectedBlackEngineId)
+            ?? engineRunOptions.FirstOrDefault();
+
+        if (white is null || black is null)
+        {
+            engineMatchMaxConcurrentDisplay = 1;
+            return;
+        }
+
+        engineMatchMaxConcurrentDisplay = ComputeMaxConcurrent(white, black);
+    }
+
+    private int ComputeMaxConcurrent(EngineRunOptions white, EngineRunOptions black)
+    {
+        var poolSize = Math.Min(white.PoolSize, black.PoolSize);
+        return Math.Max(1, poolSize / 2);
+    }
+
+    private int engineMatchWhiteWins => engineMatchResults.Count(r => r.Result == GameResult.WhiteWin);
+    private int engineMatchBlackWins => engineMatchResults.Count(r => r.Result == GameResult.BlackWin);
+    private int engineMatchDraws => engineMatchResults.Count(r => r.Result == GameResult.Draw);
+    private int engineMatchRunningCount => engineMatchResults.Count(r => r.Status == EngineMatchStatus.Running);
+
+    private async Task StartEngineMatches()
+    {
+        if (engineMatchesRunning)
+            return;
+
+        var white = engineRunOptions.FirstOrDefault(o => o.Id == selectedWhiteEngineId)
+            ?? engineRunOptions.FirstOrDefault();
+        var black = engineRunOptions.FirstOrDefault(o => o.Id == selectedBlackEngineId)
+            ?? engineRunOptions.FirstOrDefault();
+
+        if (white is null || black is null)
+            return;
+
+        UpdateEngineMatchConcurrency();
+        var maxConcurrent = engineMatchMaxConcurrentDisplay;
+        engineMatchCount = Math.Max(1, engineMatchCount);
+        engineMatchResults.Clear();
+        engineMatchCts?.Cancel();
+        engineMatchCts?.Dispose();
+        engineMatchCts = new CancellationTokenSource();
+        engineMatchesRunning = true;
+
+        var semaphore = new SemaphoreSlim(maxConcurrent, maxConcurrent);
+        var tasks = new List<Task>(engineMatchCount);
+
+        for (var i = 0; i < engineMatchCount; i++)
+        {
+            var index = i + 1;
+            var reverse = engineMatchReverseEngines && (i % 2 == 1);
+            var matchWhite = reverse ? black : white;
+            var matchBlack = reverse ? white : black;
+
+            var summary = new EngineMatchSummary
+            {
+                Index = index,
+                WhiteEngine = !string.IsNullOrEmpty(matchWhite.Name) ? matchWhite.Name! : matchWhite.BinaryPath,
+                BlackEngine = !string.IsNullOrEmpty(matchBlack.Name) ? matchBlack.Name! : matchBlack.BinaryPath,
+                Status = EngineMatchStatus.Queued,
+                ReverseEngines = reverse
+            };
+
+            engineMatchResults.Add(summary);
+            tasks.Add(RunEngineMatch(summary, matchWhite, matchBlack, semaphore, engineMatchCts.Token));
+        }
+
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await Task.WhenAll(tasks);
+        }
+        finally
+        {
+            engineMatchesRunning = false;
+            engineMatchCts?.Dispose();
+            engineMatchCts = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task StopEngineMatches()
+    {
+        if (!engineMatchesRunning || engineMatchCts is null)
+            return;
+
+        engineMatchCts.Cancel();
+        List<EngineMatchRuntime> runtimes;
+        lock (engineMatchLock)
+        {
+            runtimes = engineMatchRuntimes.Values.ToList();
+        }
+
+        foreach (var runtime in runtimes)
+        {
+            try
+            {
+                await runtime.EngineGame.StopGame();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"failed stopping match: {ex.Message}");
+            }
+            runtime.Completion.TrySetResult();
+        }
+    }
+
+    private async Task RunEngineMatch(
+        EngineMatchSummary summary,
+        EngineRunOptions white,
+        EngineRunOptions black,
+        SemaphoreSlim semaphore,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await semaphore.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            summary.Status = EngineMatchStatus.Cancelled;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        try
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                summary.Status = EngineMatchStatus.Cancelled;
+                return;
+            }
+
+            summary.Status = EngineMatchStatus.Running;
+            await InvokeAsync(StateHasChanged);
+
+            var startPosition = AnalysisBoard.CurrentPosition.Clone();
+            var clock = new ChessClock(
+                TimeSpan.FromMinutes(Math.Max(1, engineBaseMinutes)),
+                TimeSpan.FromSeconds(Math.Max(0, engineIncrementSeconds)));
+
+            var game = new ChessGame(startPosition, new GameMetadata(), clock);
+            game.ActivatePositionHashing();
+
+            var whiteEngine = new UciEngine(white.BinaryPath);
+            var blackEngine = new UciEngine(black.BinaryPath);
+            var threads = Math.Max(1, Math.Max(white.Threads, black.Threads));
+            var engineGame = new EngineGame(whiteEngine, blackEngine, game, threads);
+
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            engineGame.GameFinished += (_, _) => completion.TrySetResult();
+
+            RegisterMatchRuntime(summary.Id, engineGame, completion);
+            await engineGame.Start(clock);
+            await completion.Task;
+
+            summary.Result = game.Result;
+            summary.Status = cancellationToken.IsCancellationRequested
+                ? EngineMatchStatus.Cancelled
+                : EngineMatchStatus.Finished;
+            summary.Game = game;
+
+            await engineGame.DisposeAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            summary.Status = EngineMatchStatus.Cancelled;
+        }
+        catch (Exception ex)
+        {
+            summary.Status = EngineMatchStatus.Error;
+            summary.ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            UnregisterMatchRuntime(summary.Id);
+            semaphore.Release();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void RegisterMatchRuntime(Guid id, EngineGame engineGame, TaskCompletionSource completion)
+    {
+        lock (engineMatchLock)
+        {
+            engineMatchRuntimes[id] = new EngineMatchRuntime(engineGame, completion);
+        }
+    }
+
+    private void UnregisterMatchRuntime(Guid id)
+    {
+        lock (engineMatchLock)
+        {
+            engineMatchRuntimes.Remove(id);
+        }
+    }
+
+    private enum EngineMatchStatus
+    {
+        Queued,
+        Running,
+        Finished,
+        Cancelled,
+        Error
+    }
+
+    private sealed class EngineMatchSummary
+    {
+        public Guid Id { get; } = Guid.NewGuid();
+        public int Index { get; init; }
+        public string WhiteEngine { get; init; } = string.Empty;
+        public string BlackEngine { get; init; } = string.Empty;
+        public bool ReverseEngines { get; init; }
+        public GameResult? Result { get; set; }
+        public EngineMatchStatus Status { get; set; } = EngineMatchStatus.Queued;
+        public string? ErrorMessage { get; set; }
+        public ChessGame? Game { get; set; }
+    }
+
+    private sealed record EngineMatchRuntime(EngineGame EngineGame, TaskCompletionSource Completion);
+
+    private void ViewEngineMatch(EngineMatchSummary match)
+    {
+        if (match.Game is null)
+            return;
+
+        engineMatchViewBoard = new AnalysisBoard(match.Game);
+        engineMatchViewLabel = $"{match.WhiteEngine} vs {match.BlackEngine} (#{match.Index})";
+        engineMatchBoardRef?.Update(engineMatchViewBoard.CurrentPosition, null);
+    }
+
+    private void ClearEngineMatchView()
+    {
+        engineMatchViewBoard = null;
+        engineMatchViewLabel = string.Empty;
+    }
+
+    private void EngineMatchNodeClicked(chess.Analyze.MoveNode node)
+    {
+        if (engineMatchViewBoard is null)
+            return;
+        engineMatchViewBoard.MoveToNode(node);
+        engineMatchBoardRef?.Update(engineMatchViewBoard.CurrentPosition, null);
+    }
+
+    private void EngineMatchBack()
+    {
+        if (engineMatchViewBoard is null)
+            return;
+        engineMatchViewBoard.MoveBackward();
+        engineMatchBoardRef?.Update(engineMatchViewBoard.CurrentPosition, null);
+    }
+
+    private void EngineMatchForward()
+    {
+        if (engineMatchViewBoard is null)
+            return;
+        engineMatchViewBoard.MoveForward();
+        engineMatchBoardRef?.Update(engineMatchViewBoard.CurrentPosition, null);
     }
 }
