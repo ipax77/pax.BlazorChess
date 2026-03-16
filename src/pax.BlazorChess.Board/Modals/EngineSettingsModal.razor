@@ -1,29 +1,47 @@
 @using pax.uciChessEngine.EngineServices
 
-<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Engine settings</h5>
-                <button type="button" class="btn-close" @onclick="OnClose" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <EngineSettingsListComponent EngineRunOptions="EngineRunOptions" OnOptionsUpdated="OnOptionsUpdated" />
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="OnClose">Close</button>
+@if (isVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Engine settings</h5>
+                    <button type="button" class="btn-close" @onclick="Hide" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <EngineSettingsListComponent EngineRunOptions="EngineRunOptions" OnOptionsUpdated="OnOptionsUpdated" />
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Hide">Close</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+}
 
 @code {
+    private bool isVisible;
+
     [Parameter, EditorRequired]
     public List<EngineRunOptions> EngineRunOptions { get; set; } = [];
 
     [Parameter]
     public EventCallback<List<EngineRunOptions>> OnOptionsUpdated { get; set; }
 
-    [Parameter, EditorRequired]
+    [Parameter]
     public EventCallback OnClose { get; set; }
+
+    public void Show()
+    {
+        isVisible = true;
+        StateHasChanged();
+    }
+
+    public void Hide()
+    {
+        isVisible = false;
+        OnClose.InvokeAsync();
+        StateHasChanged();
+    }
 }

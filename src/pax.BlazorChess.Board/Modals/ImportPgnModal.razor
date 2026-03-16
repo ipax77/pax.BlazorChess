@@ -1,30 +1,38 @@
-<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Import PGN</h5>
-                <button type="button" class="btn-close" @onclick="OnClose" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label" for="pgnTextarea">Paste PGN</label>
-                    <textarea id="pgnTextarea" class="form-control" rows="10" @bind="PgnText"></textarea>
+@if (isVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Import PGN</h5>
+                    <button type="button" class="btn-close" @onclick="Hide" aria-label="Close"></button>
                 </div>
-                @if (!string.IsNullOrWhiteSpace(ImportError))
-                {
-                    <div class="alert alert-danger mb-0">@ImportError</div>
-                }
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" @onclick="OnClose">Cancel</button>
-                <button type="button" class="btn btn-primary" @onclick="OnImport" disabled="@(string.IsNullOrWhiteSpace(PgnText))">Import</button>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="pgnTextarea">Paste PGN</label>
+                        <textarea id="pgnTextarea" class="form-control" rows="10" @bind="PgnText"></textarea>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(ImportError))
+                    {
+                        <div class="alert alert-danger mb-0">@ImportError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Hide">Cancel</button>
+                    @if (!string.IsNullOrEmpty(PgnText))
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="() => OnImport.InvokeAsync(PgnText)" disabled="@(string.IsNullOrWhiteSpace(PgnText))">Import</button>
+                    }
+                </div>
             </div>
         </div>
     </div>
-</div>
+}
 
 @code {
-    [Parameter, EditorRequired]
+    private bool isVisible;
+
+    [Parameter]
     public string PgnText { get; set; } = string.Empty;
 
     [Parameter]
@@ -33,9 +41,22 @@
     [Parameter]
     public string? ImportError { get; set; }
 
-    [Parameter, EditorRequired]
+    [Parameter]
     public EventCallback OnClose { get; set; }
 
     [Parameter, EditorRequired]
-    public EventCallback OnImport { get; set; }
+    public EventCallback<string> OnImport { get; set; }
+
+    public void Show()
+    {
+        isVisible = true;
+        StateHasChanged();
+    }
+
+    public void Hide()
+    {
+        isVisible = false;
+        OnClose.InvokeAsync();
+        StateHasChanged();
+    }
 }

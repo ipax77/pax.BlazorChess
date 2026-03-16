@@ -50,15 +50,13 @@
     </div>
 </div>
 
-@if (showEvalModal && selectedEvalSnapshot is not null)
-{
-    <EvalModal EvalIndex="selectedEvalSnapshot.EvalIndex"
-               EvalString="selectedEvalSnapshot.EvalString"
-               Depth="selectedEvalSnapshot.Depth"
-               StartingMoves="selectedEvalSnapshot.StartingMoves"
-               PvMoves="selectedEvalSnapshot.PvMoves"
+    <EvalModal @ref="evalModal"
+               EvalIndex="selectedEvalSnapshot?.EvalIndex ?? 0"
+               EvalString="selectedEvalSnapshot?.EvalString ?? string.Empty"
+               Depth="selectedEvalSnapshot?.Depth ?? 0"
+               StartingMoves="selectedEvalSnapshot?.StartingMoves ?? []"
+               PvMoves="selectedEvalSnapshot?.PvMoves ?? []"
                OnClose="CloseEvalModal" />
-}
 
 @code {
     [Parameter, EditorRequired]
@@ -73,13 +71,13 @@
     [Parameter]
     public EventCallback<List<Move>> OnBestMovesReady { get; set; }
 
+    private EvalModal? evalModal;
     Guid currentId;
     private EngineRunOptions? currentRunOptions;
     private IEngineSessionProvider? engineSessionProvider;
 
     private readonly List<(Eval, BoardPosition, List<string>)> evals = [];
     private Move? lastBestMove;
-    private bool showEvalModal;
     private EvalSnapshot? selectedEvalSnapshot;
 
     private readonly CancellationTokenSource cts = new();
@@ -326,12 +324,11 @@
             StartingMoves = new List<string>(startingMoves),
             PvMoves = pvMoves.ToList()
         };
-        showEvalModal = true;
+        evalModal?.Show();
     }
 
     private void CloseEvalModal()
     {
-        showEvalModal = false;
         selectedEvalSnapshot = null;
     }
 

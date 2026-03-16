@@ -275,40 +275,32 @@
         </div>
     }
 
-    @if (showImportModal)
-    {
-        <ImportPgnModal PgnText="@pgnText"
-                        PgnTextChanged="@(value => pgnText = value)"
-                        ImportError="@importError"
-                        OnClose="CloseImportModal"
-                        OnImport="ImportPgn" />
-    }
+    <ImportPgnModal @ref="importPgnModal"
+                    PgnText="@pgnText"
+                    PgnTextChanged="@(value => pgnText = value)"
+                    ImportError="@importError"
+                    OnClose="CloseImportModal"
+                    OnImport="ImportPgn" />
 
-    @if (showSaveModal)
-    {
-        <SaveAnalysisModal SaveName="@saveName"
-                           SaveNameChanged="@(value => saveName = value)"
-                           SaveError="@saveError"
-                           OnClose="CloseSaveModal"
-                           OnSave="SaveAnalysis" />
-    }
+    <SaveAnalysisModal @ref="saveAnalysisModal"
+                       SaveName="@saveName"
+                       SaveNameChanged="@(value => saveName = value)"
+                       SaveError="@saveError"
+                       OnClose="CloseSaveModal"
+                       OnSave="SaveAnalysis" />
 
-    @if (showLoadModal)
-    {
-        <LoadAnalysisModal SavedAnalyses="savedAnalyses"
-                           SelectedLoadId="selectedLoadId"
-                           SelectedLoadIdChanged="@(value => selectedLoadId = value)"
-                           LoadError="@loadError"
-                           OnClose="CloseLoadModal"
-                           OnLoad="LoadSelectedAnalysis" />
-    }
+    <LoadAnalysisModal @ref="loadAnalysisModal"
+                       SavedAnalyses="savedAnalyses"
+                       SelectedLoadId="selectedLoadId"
+                       SelectedLoadIdChanged="@(value => selectedLoadId = value)"
+                       LoadError="@loadError"
+                       OnClose="CloseLoadModal"
+                       OnLoad="LoadSelectedAnalysis" />
 
-    @if (showEngineSettingsModal)
-    {
-        <EngineSettingsModal EngineRunOptions="engineRunOptions"
-                             OnOptionsUpdated="StoreEngineRunOptions"
-                             OnClose="CloseEngineSettingsModal" />
-    }
+    <EngineSettingsModal @ref="engineSettingsModal"
+                         EngineRunOptions="engineRunOptions"
+                         OnOptionsUpdated="StoreEngineRunOptions"
+                         OnClose="CloseEngineSettingsModal" />
 </div>
 
 @code {
@@ -328,13 +320,14 @@
     private LiveEvalComponent? liveEvalComponent;
     private GameAnalysisComponent? gameAnalisisComponent;
 
+    private ImportPgnModal? importPgnModal;
+    private SaveAnalysisModal? saveAnalysisModal;
+    private LoadAnalysisModal? loadAnalysisModal;
+    private EngineSettingsModal? engineSettingsModal;
+
     List<EngineRunOptions> engineRunOptions = [];
 
     private bool showChart;
-    private bool showImportModal;
-    private bool showSaveModal;
-    private bool showLoadModal;
-    private bool showEngineSettingsModal;
     private string pgnText = string.Empty;
     private string? importError;
     private string saveName = string.Empty;
@@ -460,12 +453,11 @@
     {
         pgnText = string.Empty;
         importError = null;
-        showImportModal = true;
+        importPgnModal?.Show();
     }
 
     private void CloseImportModal()
     {
-        showImportModal = false;
         importError = null;
     }
 
@@ -473,12 +465,11 @@
     {
         saveName = string.Empty;
         saveError = null;
-        showSaveModal = true;
+        saveAnalysisModal?.Show();
     }
 
     private void CloseSaveModal()
     {
-        showSaveModal = false;
         saveError = null;
     }
 
@@ -487,7 +478,7 @@
         try
         {
             await ChessBoardRepository.SaveAnalyzedGame(saveName, AnalysisBoard);
-            showSaveModal = false;
+            saveAnalysisModal?.Hide();
             saveError = null;
         }
         catch (Exception ex)
@@ -527,7 +518,7 @@
             }
 
             AnalysisBoard = board;
-            showLoadModal = false;
+            loadAnalysisModal?.Hide();
             loadError = null;
 
             boardComponent?.Update(AnalysisBoard.CurrentPosition, null);
@@ -543,28 +534,29 @@
     private async Task OpenLoadModal()
     {
         await LoadSavedList();
-        showLoadModal = true;
+        loadAnalysisModal?.Show();
     }
 
     private void CloseLoadModal()
     {
-        showLoadModal = false;
         loadError = null;
     }
 
-    private void ImportPgn()
+    private void ImportPgn(string pgnText)
     {
+        this.pgnText = pgnText;
         try
         {
             var game = PgnSerializer.Parse(pgnText);
             AnalysisBoard = new pax.chess.Analyze.AnalysisBoard(game);
             showChart = false;
-            showImportModal = false;
+            importPgnModal?.Hide();
             importError = null;
 
             boardComponent?.Update(AnalysisBoard.CurrentPosition, null);
             liveEvalComponent?.Update();
-            StateHasChanged();
+            annotationComponent?.Update();
+            InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
@@ -725,12 +717,11 @@
 
     private void OpenEngineSettingsModal()
     {
-        showEngineSettingsModal = true;
+        engineSettingsModal?.Show();
     }
 
     private void CloseEngineSettingsModal()
     {
-        showEngineSettingsModal = false;
     }
 
     private async Task StoreEngineRunOptions(List<EngineRunOptions> options)

@@ -1,28 +1,33 @@
-<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Save analysis</h5>
-                <button type="button" class="btn-close" @onclick="OnClose" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <label class="form-label">Name</label>
-                <input class="form-control" @bind="SaveName" />
-                @if (!string.IsNullOrWhiteSpace(SaveError))
-                {
-                    <div class="alert alert-danger mt-2 mb-0">@SaveError</div>
-                }
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="OnClose">Cancel</button>
-                <button class="btn btn-primary" @onclick="OnSave" disabled="@(string.IsNullOrWhiteSpace(SaveName))">Save</button>
+@if (isVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Save analysis</h5>
+                    <button type="button" class="btn-close" @onclick="Hide" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">Name</label>
+                    <input class="form-control" @bind="SaveName" />
+                    @if (!string.IsNullOrWhiteSpace(SaveError))
+                    {
+                        <div class="alert alert-danger mt-2 mb-0">@SaveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Hide">Cancel</button>
+                    <button class="btn btn-primary" @onclick="OnSave" disabled="@(string.IsNullOrWhiteSpace(SaveName))">Save</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+}
 
 @code {
-    [Parameter, EditorRequired]
+    private bool isVisible;
+
+    [Parameter]
     public string SaveName { get; set; } = string.Empty;
 
     [Parameter]
@@ -31,9 +36,22 @@
     [Parameter]
     public string? SaveError { get; set; }
 
-    [Parameter, EditorRequired]
+    [Parameter]
     public EventCallback OnClose { get; set; }
 
     [Parameter, EditorRequired]
     public EventCallback OnSave { get; set; }
+
+    public void Show()
+    {
+        isVisible = true;
+        StateHasChanged();
+    }
+
+    public void Hide()
+    {
+        isVisible = false;
+        OnClose.InvokeAsync();
+        StateHasChanged();
+    }
 }

@@ -60,6 +60,11 @@
     [Parameter]
     public EventCallback<pax.chess.Analyze.MoveNode> OnNodeClicked { get; set; }
 
+    public void Update()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
     private List<pax.chess.Analyze.MoveNode> GetMainLine()
     {
         var current = AnalysisBoard.Root.MainLine;

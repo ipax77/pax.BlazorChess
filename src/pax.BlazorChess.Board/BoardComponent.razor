@@ -56,14 +56,12 @@
         <img src="@dragPieceSvg" class="piece piece-drag-preview" style="@GetDragPreviewStyle()" alt="" aria-hidden="true"
              draggable="false" />
     }
-</div>
 
-@if (showPromotionModal && pendingPromotionColor.HasValue)
-{
-    <PromotionModal Color="pendingPromotionColor.Value"
+    <PromotionModal @ref="promotionModal"
+                    Color="pendingPromotionColor ?? PieceColor.White"
                     OnSelect="OnPromotionSelected"
                     OnClose="OnPromotionClosed" />
-}
+</div>
 
 @code {
     [Parameter, EditorRequired]
@@ -79,6 +77,8 @@
     public EventCallback<Move> OnMovePlayed { get; set; }
 
     public Guid BoardGuid { get; } = Guid.NewGuid();
+
+    private PromotionModal? promotionModal;
 
     private List<Square> validDestinations = [];
 
@@ -102,7 +102,6 @@
 
     private readonly BoardAnnotationCollection boardAnnotation = new();
 
-    private bool showPromotionModal;
     private Square? pendingPromotionFrom;
     private Square? pendingPromotionTo;
     private PieceColor? pendingPromotionColor;
@@ -326,7 +325,7 @@
         pendingPromotionFrom = from;
         pendingPromotionTo = to;
         pendingPromotionColor = color;
-        showPromotionModal = true;
+        promotionModal?.Show();
         selectedSquare = null;
         validDestinations.Clear();
         InvokeAsync(StateHasChanged);
@@ -338,7 +337,7 @@
             return;
 
         var move = new Move(pendingPromotionFrom.Value, pendingPromotionTo.Value, pieceType);
-        ClosePromotionModal();
+        promotionModal?.Hide();
         await OnMovePlayed.InvokeAsync(move);
     }
 
@@ -349,7 +348,6 @@
 
     private void ClosePromotionModal()
     {
-        showPromotionModal = false;
         pendingPromotionFrom = null;
         pendingPromotionTo = null;
         pendingPromotionColor = null;

@@ -5,46 +5,51 @@
 @using pax.uciChessEngine
 @using Microsoft.JSInterop
 
-<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
-                    <h5 class="modal-title">Evaluation #@EvalIndex</h5>
-                    <div class="text-secondary small">@EvalString · depth @Depth</div>
+@if (isVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title">Evaluation #@EvalIndex</h5>
+                        <div class="text-secondary small">@EvalString · depth @Depth</div>
+                    </div>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary me-2"
+                            title="Copy line"
+                            aria-label="Copy line"
+                            @onclick="CopyEvalLine">
+                        <span class="bi bi-clipboard" aria-hidden="true"></span>
+                    </button>
+                    <button type="button" class="btn-close" @onclick="Hide" aria-label="Close"></button>
                 </div>
-                <button type="button"
-                        class="btn btn-sm btn-outline-secondary me-2"
-                        title="Copy line"
-                        aria-label="Copy line"
-                        @onclick="CopyEvalLine">
-                    <span class="bi bi-clipboard" aria-hidden="true"></span>
-                </button>
-                <button type="button" class="btn-close" @onclick="OnClose" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                @if (evalBoard is not null)
-                {
-                    <div class="row eval-modal-focus" tabindex="0" @onkeydown="KeyDown" @onkeydown:stopPropagation="true" @onkeydown:preventDefault="true">
-                        <div class="col-6">
-                            <BoardComponent @ref="boardComponent" Position="evalBoard.CurrentPosition" />
-                        </div>
-                        <div class="col-6">
-                            <div style="max-height: 70vh;">
-                                <AnalysisAnnotationComponent AnalysisBoard="evalBoard" OnNodeClicked="NodeClicked" />
+                <div class="modal-body">
+                    @if (evalBoard is not null)
+                    {
+                        <div class="row eval-modal-focus" tabindex="0" @onkeydown="KeyDown" @onkeydown:stopPropagation="true" @onkeydown:preventDefault="true">
+                            <div class="col-6">
+                                <BoardComponent @ref="boardComponent" Position="evalBoard.CurrentPosition" />
+                            </div>
+                            <div class="col-6">
+                                <div style="max-height: 70vh;">
+                                    <AnalysisAnnotationComponent AnalysisBoard="evalBoard" OnNodeClicked="NodeClicked" />
+                                </div>
                             </div>
                         </div>
-                    </div>
-                }
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="OnClose">Close</button>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Hide">Close</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+}
 
 @code {
+    private bool isVisible;
+
     [Parameter, EditorRequired]
     public int EvalIndex { get; set; }
 
@@ -60,7 +65,7 @@
     [Parameter, EditorRequired]
     public IReadOnlyList<string> PvMoves { get; set; } = Array.Empty<string>();
 
-    [Parameter, EditorRequired]
+    [Parameter]
     public EventCallback OnClose { get; set; }
 
     [Inject]
@@ -151,5 +156,18 @@
             sb.Length--;
 
         return sb.ToString();
+    }
+
+    public void Show()
+    {
+        isVisible = true;
+        StateHasChanged();
+    }
+
+    public void Hide()
+    {
+        isVisible = false;
+        OnClose.InvokeAsync();
+        StateHasChanged();
     }
 }

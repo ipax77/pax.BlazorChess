@@ -1,45 +1,50 @@
 @using pax.chess.Analyze
 
-<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Load saved analysis</h5>
-                <button type="button" class="btn-close" @onclick="OnClose" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                @if (LoadError is not null)
-                {
-                    <div class="alert alert-danger">@LoadError</div>
-                }
-                @if (SavedAnalyses.Count == 0)
-                {
-                    <div class="text-muted">No saved analyses yet.</div>
-                }
-                else
-                {
-                    <div class="list-group">
-                        @foreach (var saved in SavedAnalyses)
-                        {
-                            <button type="button"
-                                    class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(saved.Id == SelectedLoadId ? "active" : "")"
-                                    @onclick="() => Select(saved.Id)">
-                                <span>@saved.Name</span>
-                                <small class="text-secondary">@saved.UpdatedAt.LocalDateTime.ToString("g")</small>
-                            </button>
-                        }
-                    </div>
-                }
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="OnClose">Cancel</button>
-                <button class="btn btn-primary" @onclick="OnLoad" disabled="@(SelectedLoadId == null)">Load</button>
+@if (isVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Load saved analysis</h5>
+                    <button type="button" class="btn-close" @onclick="Hide" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (LoadError is not null)
+                    {
+                        <div class="alert alert-danger">@LoadError</div>
+                    }
+                    @if (SavedAnalyses.Count == 0)
+                    {
+                        <div class="text-muted">No saved analyses yet.</div>
+                    }
+                    else
+                    {
+                        <div class="list-group">
+                            @foreach (var saved in SavedAnalyses)
+                            {
+                                <button type="button"
+                                        class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(saved.Id == SelectedLoadId ? "active" : "")"
+                                        @onclick="() => Select(saved.Id)">
+                                    <span>@saved.Name</span>
+                                    <small class="text-secondary">@saved.UpdatedAt.LocalDateTime.ToString("g")</small>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Hide">Cancel</button>
+                    <button class="btn btn-primary" @onclick="OnLoad" disabled="@(SelectedLoadId == null)">Load</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+}
 
 @code {
+    private bool isVisible;
+
     [Parameter, EditorRequired]
     public IReadOnlyList<AnalyzedGameSummary> SavedAnalyses { get; set; } = Array.Empty<AnalyzedGameSummary>();
 
@@ -52,11 +57,24 @@
     [Parameter]
     public string? LoadError { get; set; }
 
-    [Parameter, EditorRequired]
+    [Parameter]
     public EventCallback OnClose { get; set; }
 
     [Parameter, EditorRequired]
     public EventCallback OnLoad { get; set; }
 
     private Task Select(Guid id) => SelectedLoadIdChanged.InvokeAsync(id);
+
+    public void Show()
+    {
+        isVisible = true;
+        StateHasChanged();
+    }
+
+    public void Hide()
+    {
+        isVisible = false;
+        OnClose.InvokeAsync();
+        StateHasChanged();
+    }
 }
