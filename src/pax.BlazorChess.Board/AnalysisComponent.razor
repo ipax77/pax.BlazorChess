@@ -276,15 +276,11 @@
     }
 
     <ImportPgnModal @ref="importPgnModal"
-                    PgnText="@pgnText"
-                    PgnTextChanged="@(value => pgnText = value)"
                     ImportError="@importError"
                     OnClose="CloseImportModal"
                     OnImport="ImportPgn" />
 
     <SaveAnalysisModal @ref="saveAnalysisModal"
-                       SaveName="@saveName"
-                       SaveNameChanged="@(value => saveName = value)"
                        SaveError="@saveError"
                        OnClose="CloseSaveModal"
                        OnSave="SaveAnalysis" />
@@ -328,9 +324,7 @@
     List<EngineRunOptions> engineRunOptions = [];
 
     private bool showChart;
-    private string pgnText = string.Empty;
     private string? importError;
-    private string saveName = string.Empty;
     private string? saveError;
     private string? loadError;
     private int thinkTimePerMoveMs = 1000;
@@ -348,7 +342,7 @@
     private bool engineMatchReverseEngines = true;
     private int engineMatchMaxConcurrentDisplay = 1;
     private readonly EngineMatchBatch engineMatchBatch = new();
-    private IReadOnlyList<EngineMatchSummary> engineMatchResults => engineMatchBatch.Matches;
+    private IReadOnlyList<EngineMatchSummaryEventArgs> engineMatchResults => engineMatchBatch.Matches;
     private AnalysisBoard? engineMatchViewBoard;
     private string engineMatchViewLabel = string.Empty;
     private BoardComponent? engineMatchBoardRef;
@@ -368,10 +362,14 @@
 
     public void ApplyMove(Move move)
     {
-        var san = PgnSerializer.ToSan(move, AnalysisBoard.CurrentPosition);
-        AnalysisBoard.AddVariation(move);
-        boardComponent?.Update(AnalysisBoard.CurrentPosition, move);
-        liveEvalComponent?.Update();
+        try
+        {
+            var san = PgnSerializer.ToSan(move, AnalysisBoard.CurrentPosition);
+            AnalysisBoard.AddVariation(move);
+            boardComponent?.Update(AnalysisBoard.CurrentPosition, move);
+            liveEvalComponent?.Update();
+        }
+        finally { }
     }
 
     public void ApplyEngineMove(string engineMove)
@@ -451,7 +449,6 @@
 
     private void OpenImportModal()
     {
-        pgnText = string.Empty;
         importError = null;
         importPgnModal?.Show();
     }
@@ -463,7 +460,6 @@
 
     private void OpenSaveModal()
     {
-        saveName = string.Empty;
         saveError = null;
         saveAnalysisModal?.Show();
     }
@@ -473,11 +469,11 @@
         saveError = null;
     }
 
-    private async Task SaveAnalysis()
+    private async Task SaveAnalysis(string name)
     {
         try
         {
-            await ChessBoardRepository.SaveAnalyzedGame(saveName, AnalysisBoard);
+            await ChessBoardRepository.SaveAnalyzedGame(name, AnalysisBoard);
             saveAnalysisModal?.Hide();
             saveError = null;
         }
@@ -542,12 +538,11 @@
         loadError = null;
     }
 
-    private void ImportPgn(string pgnText)
+    private void ImportPgn(string pgn)
     {
-        this.pgnText = pgnText;
         try
         {
-            var game = PgnSerializer.Parse(pgnText);
+            var game = PgnSerializer.Parse(pgn);
             AnalysisBoard = new pax.chess.Analyze.AnalysisBoard(game);
             showChart = false;
             importPgnModal?.Hide();
@@ -792,7 +787,7 @@
         await engineMatchBatch.StopAsync();
     }
 
-    private void OnEngineMatchUpdated(object? sender, EngineMatchSummary summary)
+    private void OnEngineMatchUpdated(object? sender, EngineMatchSummaryEventArgs summary)
     {
         InvokeAsync(StateHasChanged);
     }
@@ -802,7 +797,7 @@
         InvokeAsync(StateHasChanged);
     }
 
-    private void ViewEngineMatch(EngineMatchSummary match)
+    private void ViewEngineMatch(EngineMatchSummaryEventArgs match)
     {
         if (match.Game is null)
             return;

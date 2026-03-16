@@ -10,7 +10,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label" for="pgnTextarea">Paste PGN</label>
-                        <textarea id="pgnTextarea" class="form-control" rows="10" @bind="PgnText"></textarea>
+                        <textarea id="pgnTextarea" class="form-control" rows="10" @bind="pgnText"></textarea>
                     </div>
                     @if (!string.IsNullOrWhiteSpace(ImportError))
                     {
@@ -19,10 +19,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" @onclick="Hide">Cancel</button>
-                    @if (!string.IsNullOrEmpty(PgnText))
-                    {
-                        <button type="button" class="btn btn-primary" @onclick="() => OnImport.InvokeAsync(PgnText)" disabled="@(string.IsNullOrWhiteSpace(PgnText))">Import</button>
-                    }
+                    <button type="button" class="btn btn-primary" @onclick="() => OnImport.InvokeAsync(pgnText)" disabled="@(string.IsNullOrWhiteSpace(pgnText))">Import</button>
                 </div>
             </div>
         </div>
@@ -31,12 +28,7 @@
 
 @code {
     private bool isVisible;
-
-    [Parameter]
-    public string PgnText { get; set; } = string.Empty;
-
-    [Parameter]
-    public EventCallback<string> PgnTextChanged { get; set; }
+    private string pgnText = string.Empty;
 
     [Parameter]
     public string? ImportError { get; set; }
@@ -49,6 +41,7 @@
 
     public void Show()
     {
+        pgnText = string.Empty;
         isVisible = true;
         StateHasChanged();
     }

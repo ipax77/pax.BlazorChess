@@ -9,7 +9,7 @@
                 </div>
                 <div class="modal-body">
                     <label class="form-label">Name</label>
-                    <input class="form-control" @bind="SaveName" />
+                    <input class="form-control" @bind="saveName" />
                     @if (!string.IsNullOrWhiteSpace(SaveError))
                     {
                         <div class="alert alert-danger mt-2 mb-0">@SaveError</div>
@@ -17,7 +17,7 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="Hide">Cancel</button>
-                    <button class="btn btn-primary" @onclick="OnSave" disabled="@(string.IsNullOrWhiteSpace(SaveName))">Save</button>
+                    <button class="btn btn-primary" @onclick="() => OnSave.InvokeAsync(saveName)" disabled="@(string.IsNullOrWhiteSpace(saveName))">Save</button>
                 </div>
             </div>
         </div>
@@ -26,12 +26,7 @@
 
 @code {
     private bool isVisible;
-
-    [Parameter]
-    public string SaveName { get; set; } = string.Empty;
-
-    [Parameter]
-    public EventCallback<string> SaveNameChanged { get; set; }
+    private string saveName = string.Empty;
 
     [Parameter]
     public string? SaveError { get; set; }
@@ -40,10 +35,11 @@
     public EventCallback OnClose { get; set; }
 
     [Parameter, EditorRequired]
-    public EventCallback OnSave { get; set; }
+    public EventCallback<string> OnSave { get; set; }
 
     public void Show()
     {
+        saveName = string.Empty;
         isVisible = true;
         StateHasChanged();
     }
