@@ -590,7 +590,7 @@
             TimeSpan.FromMinutes(Math.Max(1, engineBaseMinutes)),
             TimeSpan.FromSeconds(Math.Max(0, engineIncrementSeconds)));
 
-        var game = new ChessGame(startPosition, new GameMetadata(), clock);
+        var game = new ChessGame(startPosition, new() { Clock = clock });
 
         var whiteEngine = new UciEngine(white.BinaryPath);
         var blackEngine = new UciEngine(black.BinaryPath);
@@ -615,7 +615,7 @@
         activeEngineGameId = session.Id;
         activeTab = AnalysisTab.EngineGames;
 
-        await engineGame.Start(clock);
+        await engineGame.Start();
         session.IsRunning = true;
         await InvokeAsync(StateHasChanged);
     }

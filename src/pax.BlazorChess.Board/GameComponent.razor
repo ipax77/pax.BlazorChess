@@ -26,28 +26,16 @@
     private BoardComponent? boardComponent;
     private AnnotationComponent? annotationComponent;
     private ClockComponent? clockComponent;
-    private ChessClock? chessClock;
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
     }
 
-    protected override void OnAfterRender(bool firstRender)
-    {
-        base.OnAfterRender(firstRender);
-        if (firstRender)
-        {
-            chessClock = new(TimeSpan.FromSeconds(300), TimeSpan.FromSeconds(5), clockComponent);
-            ChessGame.SetClock(chessClock);
-            chessClock.Start();
-        }
-    }
-
     public void ApplyMove(Move move)
     {
         var san = PgnSerializer.ToSan(move, ChessGame.CurrentPosition);
-        var state = ChessGame.TryApplyMove(move, san);
+        var state = ChessGame.ApplyMove(move, san);
 
         if (state == MoveState.Ok)
         {

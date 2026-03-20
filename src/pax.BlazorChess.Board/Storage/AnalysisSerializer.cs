@@ -57,7 +57,7 @@ public static class AnalysisSerializer
 
     private static ChessGame BuildGameFromSnapshot(AnalysisSnapshot snapshot, BoardPosition initialPosition)
     {
-        var game = new ChessGame(initialPosition, new GameMetadata());
+        var game = new ChessGame(initialPosition);
         var currentPosition = initialPosition;
 
         foreach (var move in EnumerateMainLineMoves(snapshot.Root, initialPosition))
