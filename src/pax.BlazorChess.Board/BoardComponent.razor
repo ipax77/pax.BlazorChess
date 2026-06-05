@@ -391,7 +391,7 @@
     private List<Square> GetValidMoveDestinations(Square from)
     {
         MoveState moveState;
-        var moves = MoveValidator.GetValidMoves(from, Position, out moveState);
+        var moves = PseudoMoveValidator.GetValidMoves(from, Position, out moveState);
         return moves.Select(m => m.To).ToList();
     }
 
