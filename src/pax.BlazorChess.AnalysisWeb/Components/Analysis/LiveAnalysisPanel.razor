@@ -1,0 +1,364 @@
+@using System.Globalization
+@using System.Text
+@using pax.chess
+@using pax.chess.Analyze
+@using pax.chess.Extensions
+@using pax.uciChessEngine
+@using pax.uciChessEngine.EngineServices
+@implements IAsyncDisposable
+
+<section class="analysis-panel">
+    <header class="engine-header">
+        <label class="engine-toggle" title="Toggle live analysis">
+            <input type="checkbox" @bind="IsActive" @bind:after="ToggleAnalysis" />
+            <span></span>
+        </label>
+        <strong class="engine-score">@ScoreText</strong>
+        <div class="engine-meta">
+            <span>@EngineName</span>
+            <small>@DepthText</small>
+        </div>
+        <button type="button" class="icon-button" title="Engine settings" @onclick="OnSettingsClicked">...</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(Error))
+    {
+        <div class="engine-error">@Error</div>
+    }
+
+    @if (Rows.Count == 0)
+    {
+        <div class="empty-panel">@EmptyText</div>
+    }
+    else
+    {
+        <div class="pv-list">
+            @foreach (var row in Rows)
+            {
+                <div class="pv-row">
+                    <button type="button" class="pv-score" @onclick="() => MaterializePv(row, 0)">@row.ScoreText</button>
+                    <span class="pv-depth">d@row.Depth</span>
+                    <div class="pv-line">
+                        @for (var i = 0; i < row.Moves.Count; i++)
+                        {
+                            var moveIndex = i;
+                            <button type="button" class="pv-token" @onclick="() => MaterializePv(row, moveIndex)">
+                                @row.Moves[moveIndex].San
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private static readonly TimeSpan RestartDebounce = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan UiThrottle = TimeSpan.FromMilliseconds(125);
+
+    [Parameter, EditorRequired]
+    public required AnalysisBoard AnalysisBoard { get; set; }
+
+    [Parameter]
+    public EngineRunOptions? SelectedEngine { get; set; }
+
+    [Parameter]
+    public EventCallback<List<Move>> OnBestMovesReady { get; set; }
+
+    [Parameter]
+    public EventCallback<MoveNode> OnNodeSelected { get; set; }
+
+    [Parameter]
+    public EventCallback OnSettingsClicked { get; set; }
+
+    [Parameter]
+    public EventCallback OnAnalysisChanged { get; set; }
+
+    private readonly CancellationTokenSource disposeCts = new();
+    private CancellationTokenSource? analysisCts;
+    private DateTimeOffset lastUiUpdate = DateTimeOffset.MinValue;
+    private bool renderQueued;
+
+    private List<PvRow> Rows { get; } = [];
+    private bool IsActive { get; set; }
+    private string Error { get; set; } = string.Empty;
+    private string ScoreText { get; set; } = "-";
+    private string DepthText { get; set; } = "idle";
+    private string EngineName => SelectedEngine is null
+        ? "No engine"
+        : string.IsNullOrWhiteSpace(SelectedEngine.Name) ? SelectedEngine.BinaryPath : SelectedEngine.Name!;
+
+    private string EmptyText
+        => SelectedEngine is null
+            ? "Add an engine to start analysis."
+            : IsActive ? "Waiting for engine output." : "Live analysis is paused.";
+
+    public Task NotifyPositionChangedAsync()
+    {
+        ClearRows();
+        return RestartAsync();
+    }
+
+    public Task NotifyEngineChangedAsync()
+    {
+        ClearRows();
+        return RestartAsync();
+    }
+
+    private Task ToggleAnalysis()
+    {
+        if (!IsActive)
+        {
+            StopCurrent();
+            ClearRows();
+            return Task.CompletedTask;
+        }
+
+        return RestartAsync();
+    }
+
+    private async Task RestartAsync()
+    {
+        StopCurrent();
+
+        if (!IsActive || SelectedEngine is null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(SelectedEngine.BinaryPath))
+        {
+            Error = "Set an engine binary path before starting analysis.";
+            return;
+        }
+
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(disposeCts.Token);
+        analysisCts = cts;
+
+        try
+        {
+            await Task.Delay(RestartDebounce, cts.Token);
+            await RunAnalysisAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RunAnalysisAsync(CancellationToken token)
+    {
+        var engine = SelectedEngine;
+        if (engine is null)
+            return;
+
+        var baseNode = AnalysisBoard.CurrentNode;
+        var basePosition = AnalysisBoard.CurrentPosition;
+        var engineMoves = BuildEngineMoveString(baseNode);
+
+        try
+        {
+            Error = string.Empty;
+            DepthText = "starting";
+            await RequestRenderAsync(force: true);
+
+            var provider = EngineService.GetEngineSessionProvider(engine);
+            await using var lease = await provider.AcquireAsync(token);
+
+            await lease.Session.UseAsync<Task>(async uciEngine =>
+            {
+                await foreach (var evals in EngineService.GetContinualEvaluation(engineMoves, basePosition.SideToMove, uciEngine, token))
+                {
+                    UpdateRows(evals, baseNode, basePosition);
+                    await RequestRenderAsync(force: false);
+                }
+
+                return Task.CompletedTask;
+            }, token);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+            DepthText = "error";
+            await RequestRenderAsync(force: true);
+        }
+    }
+
+    private void UpdateRows(List<Eval> evals, MoveNode baseNode, BoardPosition basePosition)
+    {
+        Rows.Clear();
+
+        List<Move> bestMoves = [];
+        foreach (var eval in evals.OrderBy(e => e.PvInfo.MultiPv))
+        {
+            var moves = BuildPvMoves(eval.PvInfo.Moves, basePosition);
+            if (moves.Count == 0)
+                continue;
+
+            bestMoves.Add(moves[0].Move);
+            Rows.Add(new PvRow(
+                eval.PvInfo.MultiPv,
+                FormatEval(eval),
+                eval.Depth,
+                baseNode,
+                basePosition,
+                eval.PvInfo.Moves.ToArray(),
+                moves));
+        }
+
+        if (Rows.Count > 0)
+        {
+            ScoreText = Rows[0].ScoreText;
+            DepthText = $"depth {Rows[0].Depth}";
+        }
+        else
+        {
+            ScoreText = "-";
+            DepthText = "searching";
+        }
+
+        _ = OnBestMovesReady.InvokeAsync(bestMoves);
+    }
+
+    private static List<PvMove> BuildPvMoves(IReadOnlyList<string> engineMoves, BoardPosition basePosition)
+    {
+        List<PvMove> moves = [];
+        var position = basePosition;
+
+        foreach (var engineMove in engineMoves)
+        {
+            var move = Uci.CreateMove(engineMove, position);
+            if (move is null)
+                break;
+
+            var san = PgnSerializer.ToSan(move, position);
+            moves.Add(new PvMove(engineMove, san, move));
+            position = position.MakeMove(move);
+        }
+
+        return moves;
+    }
+
+    private async Task MaterializePv(PvRow row, int moveIndex)
+    {
+        StopCurrent();
+
+        var current = row.BaseNode;
+        AnalysisBoard.MoveToNode(current);
+
+        for (var i = 0; i <= moveIndex && i < row.UciMoves.Count; i++)
+        {
+            var move = Uci.CreateMove(row.UciMoves[i], AnalysisBoard.CurrentPosition);
+            if (move is null)
+                break;
+
+            var existing = current.Children.FirstOrDefault(c => c.Move == move);
+            if (existing is not null)
+            {
+                current = existing;
+                AnalysisBoard.MoveToNode(current);
+                continue;
+            }
+
+            AnalysisBoard.AddVariation(move);
+            current = AnalysisBoard.CurrentNode;
+        }
+
+        await OnNodeSelected.InvokeAsync(current);
+        await OnAnalysisChanged.InvokeAsync();
+
+        if (IsActive)
+            _ = RestartAsync();
+    }
+
+    private static string BuildEngineMoveString(MoveNode node)
+    {
+        Stack<Move> moves = [];
+        var current = node;
+        while (current.Move is not null)
+        {
+            moves.Push(current.Move);
+            current = current.Parent!;
+        }
+
+        if (moves.Count == 0)
+            return string.Empty;
+
+        StringBuilder builder = new();
+        while (moves.Count > 0)
+        {
+            if (builder.Length > 0)
+                builder.Append(' ');
+
+            builder.Append(Uci.GetUci(moves.Pop()));
+        }
+
+        return builder.ToString();
+    }
+
+    private async Task RequestRenderAsync(bool force)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (!force && now - lastUiUpdate < UiThrottle)
+            return;
+
+        if (renderQueued)
+            return;
+
+        renderQueued = true;
+        await InvokeAsync(() =>
+        {
+            lastUiUpdate = DateTimeOffset.UtcNow;
+            renderQueued = false;
+            StateHasChanged();
+        });
+    }
+
+    private void StopCurrent()
+    {
+        var cts = Interlocked.Exchange(ref analysisCts, null);
+        if (cts is null)
+            return;
+
+        cts.Cancel();
+        cts.Dispose();
+    }
+
+    private void ClearRows()
+    {
+        Rows.Clear();
+        ScoreText = "-";
+        DepthText = IsActive ? "starting" : "idle";
+        Error = string.Empty;
+        _ = OnBestMovesReady.InvokeAsync([]);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private static string FormatEval(Eval eval)
+    {
+        if (eval.Mate != 0)
+            return $"M{eval.Mate}";
+
+        return (eval.Score / 100.0).ToString("+0.0;-0.0;0.0", CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        StopCurrent();
+        await disposeCts.CancelAsync();
+        disposeCts.Dispose();
+    }
+
+    private sealed record PvRow(
+        int MultiPv,
+        string ScoreText,
+        int Depth,
+        MoveNode BaseNode,
+        BoardPosition BasePosition,
+        IReadOnlyList<string> UciMoves,
+        IReadOnlyList<PvMove> Moves);
+
+    private sealed record PvMove(string Uci, string San, Move Move);
+}

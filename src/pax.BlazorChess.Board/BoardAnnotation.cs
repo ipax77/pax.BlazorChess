@@ -37,13 +37,18 @@ public sealed class BoardAnnotationCollection
         DrawingPointerId = null;
     }
 
-    public void AddBestMoveArrows(List<Move> moves)
+    public void ClearBestMoveArrows()
     {
         var bestMoveAnnotations = annotations.Where(x => x.IsBestMove).ToList();
         foreach (var bmA in bestMoveAnnotations)
         {
             annotations.Remove(bmA);
         }
+    }
+
+    public void AddBestMoveArrows(IReadOnlyList<Move> moves)
+    {
+        ClearBestMoveArrows();
 
         for (int i = 0; i < Math.Min(4, moves.Count); i++)
         {

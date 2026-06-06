@@ -1,0 +1,156 @@
+@using pax.uciChessEngine.EngineServices
+
+@if (IsOpen)
+{
+    <div class="settings-scrim" @onclick="Close">
+        <section class="settings-panel" @onclick:stopPropagation="true" aria-label="Engine settings">
+            <header class="panel-title">
+                <h2>Engine setup</h2>
+                <button type="button" class="icon-button" title="Close" @onclick="Close">x</button>
+            </header>
+
+            <div class="engine-settings-grid">
+                <div class="engine-list">
+                    @foreach (var engine in Engines)
+                    {
+                        <button type="button"
+                                class="engine-list-item @(SelectedEngine == engine ? "active" : "")"
+                                @onclick="() => Select(engine)">
+                            <span>@GetName(engine)</span>
+                            <small>@GetMemoryLabel(engine) / @engine.Pvs PV</small>
+                        </button>
+                    }
+
+                    <button type="button" class="command-button" @onclick="Add">Add engine</button>
+                </div>
+
+                @if (SelectedEngine is not null)
+                {
+                    <div class="engine-form">
+                        <label>
+                            <span>Name</span>
+                            <input class="text-input" @bind="SelectedEngine.Name" />
+                        </label>
+                        <label>
+                            <span>Binary path</span>
+                            <input class="text-input" @bind="SelectedEngine.BinaryPath" placeholder="C:\path\to\stockfish.exe" />
+                        </label>
+                        <div class="field-grid">
+                            <label>
+                                <span>Threads</span>
+                                <input class="text-input" type="number" min="0" max="256" @bind="SelectedEngine.Threads" />
+                            </label>
+                            <label>
+                                <span>MultiPV</span>
+                                <input class="text-input" type="number" min="1" max="50" @bind="SelectedEngine.Pvs" />
+                            </label>
+                            <label>
+                                <span>Hash MB</span>
+                                <input class="text-input" type="number" min="0" max="65536" @bind="SelectedEngine.HashMb" />
+                            </label>
+                            <label>
+                                <span>Pool size</span>
+                                <input class="text-input" type="number" min="1" max="32" @bind="SelectedEngine.PoolSize" />
+                            </label>
+                        </div>
+                        <div class="settings-actions">
+                            <button type="button" class="command-button" @onclick="ApplyStockfishDefaults">Stockfish defaults</button>
+                            <button type="button" class="danger-button" @onclick="DeleteSelected">Delete</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-panel">Add a UCI engine to enable live analysis.</div>
+                }
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public required List<EngineRunOptions> Engines { get; set; }
+
+    [Parameter]
+    public EngineRunOptions? SelectedEngine { get; set; }
+
+    [Parameter]
+    public EventCallback<EngineRunOptions?> SelectedEngineChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<EngineRunOptions> OnEngineAdded { get; set; }
+
+    [Parameter]
+    public EventCallback<EngineRunOptions> OnEngineDeleted { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private bool IsOpen { get; set; }
+
+    public void Open()
+    {
+        IsOpen = true;
+        StateHasChanged();
+    }
+
+    private void Close()
+    {
+        IsOpen = false;
+    }
+
+    private async Task Select(EngineRunOptions engine)
+    {
+        SelectedEngine = engine;
+        await SelectedEngineChanged.InvokeAsync(engine);
+    }
+
+    private async Task Add()
+    {
+        var engine = new EngineRunOptions
+        {
+            Name = Engines.Count == 0 ? "Stockfish" : $"Engine {Engines.Count + 1}",
+            Threads = Math.Max(1, Environment.ProcessorCount / 4),
+            Pvs = 3,
+            HashMb = 16,
+            PoolSize = 1,
+            IdelTimeoutMs = 5000
+        };
+
+        Engines.Add(engine);
+        await OnEngineAdded.InvokeAsync(engine);
+        await Select(engine);
+    }
+
+    private async Task DeleteSelected()
+    {
+        if (SelectedEngine is null)
+            return;
+
+        var deleted = SelectedEngine;
+        Engines.Remove(deleted);
+        SelectedEngine = Engines.FirstOrDefault();
+        await OnEngineDeleted.InvokeAsync(deleted);
+        await SelectedEngineChanged.InvokeAsync(SelectedEngine);
+    }
+
+    private async Task ApplyStockfishDefaults()
+    {
+        if (SelectedEngine is null)
+            return;
+
+        SelectedEngine.Name = string.IsNullOrWhiteSpace(SelectedEngine.Name) ? "Stockfish" : SelectedEngine.Name;
+        SelectedEngine.Threads = Math.Max(1, Environment.ProcessorCount / 4);
+        SelectedEngine.Pvs = Math.Clamp(SelectedEngine.Pvs == 0 ? 3 : SelectedEngine.Pvs, 1, 8);
+        SelectedEngine.HashMb = SelectedEngine.HashMb == 0 ? 16 : SelectedEngine.HashMb;
+        SelectedEngine.PoolSize = 1;
+        await OnChanged.InvokeAsync();
+    }
+
+    private static string GetName(EngineRunOptions engine)
+        => string.IsNullOrWhiteSpace(engine.Name) ? "Unnamed engine" : engine.Name!;
+
+    private static string GetMemoryLabel(EngineRunOptions engine)
+        => engine.HashMb > 0 ? $"{engine.HashMb} MB" : "default hash";
+}

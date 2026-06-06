@@ -1,0 +1,255 @@
+@page "/"
+@using pax.BlazorChess.AnalysisWeb.Components.Analysis
+@using pax.BlazorChess.AnalysisWeb.Services
+@using pax.BlazorChess.Board
+@using pax.chess
+@using pax.chess.Analyze
+@using pax.uciChessEngine.EngineServices
+@inject AnalysisWorkspaceState Workspace
+@rendermode InteractiveServer
+
+<PageTitle>BlazorChess Analysis</PageTitle>
+
+<main class="analysis-shell"
+      tabindex="0"
+      @onkeydown="OnKeyDown"
+      @onwheel="OnWheel"
+      @onwheel:preventDefault="true">
+    <section class="board-column">
+        <BoardComponent @ref="board"
+                        Position="Workspace.AnalysisBoard.CurrentPosition"
+                        LastMove="Workspace.LastMove"
+                        OnMovePlayed="ApplyMove" />
+
+        <div class="position-bar">
+            <label for="fenInput">FEN</label>
+            <input id="fenInput" class="text-input mono" @bind="fenInput" />
+        </div>
+
+        <div class="position-bar pgn-bar">
+            <label for="pgnInput">PGN</label>
+            <textarea id="pgnInput" class="text-input mono" @bind="pgnInput"></textarea>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Workspace.ImportError))
+        {
+            <div class="engine-error">@Workspace.ImportError</div>
+        }
+    </section>
+
+    <aside class="side-panel">
+        <LiveAnalysisPanel @ref="liveAnalysis"
+                           AnalysisBoard="Workspace.AnalysisBoard"
+                           SelectedEngine="Workspace.SelectedEngine"
+                           OnBestMovesReady="BestMovesReady"
+                           OnNodeSelected="NodeSelected"
+                           OnAnalysisChanged="RefreshBoard"
+                           OnSettingsClicked="OpenEngineSettings" />
+
+        <section class="moves-panel">
+            <header class="panel-title">
+                <h2>Moves</h2>
+                <span>@MoveCount ply</span>
+            </header>
+            <AnalysisAnnotationComponent AnalysisBoard="Workspace.AnalysisBoard"
+                                         OnNodeClicked="NodeClicked" />
+        </section>
+
+        <section class="controls-panel">
+            <div class="nav-buttons">
+                <button type="button" class="icon-button" title="Start" @onclick="GoStart">|&lt;</button>
+                <button type="button" class="icon-button" title="Back" @onclick="GoBack">&lt;</button>
+                <button type="button" class="icon-button" title="Forward" @onclick="GoForward">&gt;</button>
+                <button type="button" class="icon-button" title="End" @onclick="GoEnd">&gt;|</button>
+            </div>
+            <div class="command-row">
+                <button type="button" class="command-button" @onclick="LoadFen">Load FEN</button>
+                <button type="button" class="command-button" @onclick="LoadPgn">Load PGN</button>
+                <button type="button" class="command-button" @onclick="ResetBoard">Reset</button>
+            </div>
+        </section>
+    </aside>
+</main>
+
+<EngineSettingsPanel @ref="engineSettings"
+                     Engines="Workspace.EngineRunOptions"
+                     SelectedEngine="Workspace.SelectedEngine"
+                     SelectedEngineChanged="EngineSelected"
+                     OnEngineAdded="EngineAdded"
+                     OnEngineDeleted="EngineDeleted"
+                     OnChanged="EngineChanged" />
+
+@code {
+    private BoardComponent? board;
+    private LiveAnalysisPanel? liveAnalysis;
+    private EngineSettingsPanel? engineSettings;
+    private string fenInput = string.Empty;
+    private string pgnInput = string.Empty;
+
+    private int MoveCount => CountMainLineMoves();
+
+    protected override void OnInitialized()
+    {
+        SyncText();
+    }
+
+    private async Task ApplyMove(Move move)
+    {
+        Workspace.ApplyMove(move);
+        board?.Update(Workspace.AnalysisBoard.CurrentPosition, move);
+        SyncText();
+        if (liveAnalysis is not null)
+            await liveAnalysis.NotifyPositionChangedAsync();
+    }
+
+    private async Task NodeClicked(MoveNode node)
+    {
+        Workspace.MoveToNode(node);
+        await RefreshPositionAsync();
+    }
+
+    private async Task NodeSelected(MoveNode node)
+    {
+        Workspace.MoveToNode(node);
+        await RefreshPositionAsync();
+    }
+
+    private async Task RefreshPositionAsync()
+    {
+        board?.Update(Workspace.AnalysisBoard.CurrentPosition, Workspace.LastMove);
+        SyncText();
+        if (liveAnalysis is not null)
+            await liveAnalysis.NotifyPositionChangedAsync();
+    }
+
+    private Task RefreshBoard()
+    {
+        board?.Update(Workspace.AnalysisBoard.CurrentPosition, Workspace.LastMove);
+        SyncText();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void BestMovesReady(List<Move> moves)
+    {
+        board?.AddBestMoveAnnotations(moves);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "ArrowLeft")
+            await GoBack();
+        else if (args.Key == "ArrowRight")
+            await GoForward();
+    }
+
+    private async Task OnWheel(WheelEventArgs args)
+    {
+        if (args.DeltaY > 0)
+            await GoForward();
+        else if (args.DeltaY < 0)
+            await GoBack();
+    }
+
+    private async Task GoBack()
+    {
+        Workspace.MoveBackward();
+        await RefreshPositionAsync();
+    }
+
+    private async Task GoForward()
+    {
+        Workspace.MoveForward();
+        await RefreshPositionAsync();
+    }
+
+    private async Task GoStart()
+    {
+        while (!Workspace.AnalysisBoard.CurrentNode.IsRoot)
+            Workspace.MoveBackward();
+
+        await RefreshPositionAsync();
+    }
+
+    private async Task GoEnd()
+    {
+        while (Workspace.AnalysisBoard.CurrentNode.MainLine is not null)
+            Workspace.MoveForward();
+
+        await RefreshPositionAsync();
+    }
+
+    private async Task LoadFen()
+    {
+        if (Workspace.TryLoadFen(fenInput))
+            await RefreshPositionAsync();
+        else
+            StateHasChanged();
+    }
+
+    private async Task LoadPgn()
+    {
+        if (Workspace.TryLoadPgn(pgnInput))
+            await RefreshPositionAsync();
+        else
+            StateHasChanged();
+    }
+
+    private async Task ResetBoard()
+    {
+        Workspace.Reset();
+        await RefreshPositionAsync();
+    }
+
+    private void OpenEngineSettings()
+    {
+        engineSettings?.Open();
+    }
+
+    private async Task EngineSelected(EngineRunOptions? engine)
+    {
+        Workspace.SelectedEngineId = engine?.Id ?? Guid.Empty;
+        await EngineChanged();
+    }
+
+    private async Task EngineAdded(EngineRunOptions engine)
+    {
+        Workspace.SelectedEngineId = engine.Id;
+        await EngineChanged();
+    }
+
+    private async Task EngineDeleted(EngineRunOptions engine)
+    {
+        if (Workspace.SelectedEngineId == engine.Id)
+            Workspace.SelectedEngineId = Workspace.EngineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
+
+        await EngineChanged();
+    }
+
+    private async Task EngineChanged()
+    {
+        if (liveAnalysis is not null)
+            await liveAnalysis.NotifyEngineChangedAsync();
+
+        StateHasChanged();
+    }
+
+    private void SyncText()
+    {
+        fenInput = Workspace.Fen;
+        pgnInput = Workspace.Pgn;
+    }
+
+    private int CountMainLineMoves()
+    {
+        var count = 0;
+        var current = Workspace.AnalysisBoard.Root.MainLine;
+        while (current is not null)
+        {
+            count++;
+            current = current.MainLine;
+        }
+
+        return count;
+    }
+}

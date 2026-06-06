@@ -148,9 +148,15 @@
         OnMovePlayed.InvokeAsync(move);
     }
 
-    public void AddBestMoveAnnotations(List<Move> moves)
+    public void AddBestMoveAnnotations(IReadOnlyList<Move> moves)
     {
         boardAnnotation.AddBestMoveArrows(moves);
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void ClearBestMoveAnnotations()
+    {
+        boardAnnotation.ClearBestMoveArrows();
         InvokeAsync(StateHasChanged);
     }
 
