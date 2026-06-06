@@ -37,13 +37,14 @@
             {
                 <div class="pv-row">
                     <button type="button" class="pv-score" @onclick="() => MaterializePv(row, 0)">@row.ScoreText</button>
-                    <span class="pv-depth">d@row.Depth</span>
+                    <span class="pv-depth">@($"d{row.Depth}")</span>
                     <div class="pv-line">
                         @for (var i = 0; i < row.Moves.Count; i++)
                         {
                             var moveIndex = i;
+                            var move = row.Moves[moveIndex];
                             <button type="button" class="pv-token" @onclick="() => MaterializePv(row, moveIndex)">
-                                @row.Moves[moveIndex].San
+                                @move.San
                             </button>
                         }
                     </div>
@@ -104,6 +105,15 @@
     {
         ClearRows();
         return RestartAsync();
+    }
+
+    public Move? GetCurrentBestMove()
+    {
+        var row = Rows.FirstOrDefault();
+        if (row is null || row.BaseNode != AnalysisBoard.CurrentNode || row.Moves.Count == 0)
+            return null;
+
+        return row.Moves[0].Move;
     }
 
     private Task ToggleAnalysis()

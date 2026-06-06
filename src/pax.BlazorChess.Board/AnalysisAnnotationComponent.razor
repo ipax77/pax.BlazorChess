@@ -25,11 +25,17 @@
                 var whiteMove = mainLine[i];
                 var blackMove = (i + 1 < mainLine.Count) ? mainLine[i + 1] : null;
                 <tr style="cursor: pointer;">
-                    <td @onclick="() => OnNodeClicked.InvokeAsync(whiteMove)">@moveNumber.</td>
-                    <td class="@GetNodeCss(whiteMove)" @onclick="() => OnNodeClicked.InvokeAsync(whiteMove)">@whiteMove.San</td>
+                    <td @onclick="() => NodeClicked(whiteMove)">@moveNumber.</td>
+                    <td class="@GetNodeCss(whiteMove)"
+                        @onclick="() => NodeClicked(whiteMove)"
+                        @oncontextmenu="(e) => OpenContextMenu(whiteMove, e)"
+                        @oncontextmenu:preventDefault="true">@whiteMove.San</td>
                     @if (blackMove != null)
                     {
-                        <td class="@GetNodeCss(blackMove)" @onclick="() => OnNodeClicked.InvokeAsync(blackMove)">@blackMove.San</td>
+                        <td class="@GetNodeCss(blackMove)"
+                            @onclick="() => NodeClicked(blackMove)"
+                            @oncontextmenu="(e) => OpenContextMenu(blackMove, e)"
+                            @oncontextmenu:preventDefault="true">@blackMove.San</td>
                     }
                     else
                 {
@@ -38,17 +44,35 @@
                 </tr>
                 <VariationList Node="whiteMove"
                                CurrentNode="AnalysisBoard.CurrentNode"
-                               OnNodeClicked="OnNodeClicked" />
+                               OnNodeClicked="OnNodeClicked"
+                               OnNodeContextMenu="OpenVariationContextMenu" />
                 @if (blackMove != null)
                 {
                     <VariationList Node="blackMove"
                                    CurrentNode="AnalysisBoard.CurrentNode"
-                                   OnNodeClicked="OnNodeClicked" />
+                                   OnNodeClicked="OnNodeClicked"
+                                   OnNodeContextMenu="OpenVariationContextMenu" />
                 }
             }
         </tbody>
     </table>
 </div>
+
+@if (contextMenuNode is not null)
+{
+    <div class="move-context-backdrop"
+         @onclick="CloseContextMenu"
+         @oncontextmenu:preventDefault="true"></div>
+    <div class="move-context-menu"
+         style="@GetContextMenuStyle()"
+         @onclick:stopPropagation="true">
+        @if (CanMakeMainVariation(contextMenuNode))
+        {
+            <button type="button" @onclick="() => InvokeContextAction(MoveContextAction.MakeMainVariation)">Make to main variation</button>
+        }
+        <button type="button" @onclick="() => InvokeContextAction(MoveContextAction.DeleteFromHere)">Delete from here</button>
+    </div>
+}
 
 @code {
     [Parameter, EditorRequired]
@@ -60,9 +84,60 @@
     [Parameter]
     public EventCallback<pax.chess.Analyze.MoveNode> OnNodeClicked { get; set; }
 
+    [Parameter]
+    public EventCallback<MoveContextActionRequest> OnNodeContextAction { get; set; }
+
+    private pax.chess.Analyze.MoveNode? contextMenuNode;
+    private double contextMenuX;
+    private double contextMenuY;
+
     public void Update()
     {
         InvokeAsync(StateHasChanged);
+    }
+
+    public void CloseContextMenu()
+    {
+        contextMenuNode = null;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task NodeClicked(pax.chess.Analyze.MoveNode node)
+    {
+        contextMenuNode = null;
+        await OnNodeClicked.InvokeAsync(node);
+    }
+
+    private void OpenContextMenu(pax.chess.Analyze.MoveNode node, MouseEventArgs args)
+    {
+        contextMenuNode = node;
+        contextMenuX = args.ClientX;
+        contextMenuY = args.ClientY;
+    }
+
+    private void OpenVariationContextMenu(MoveContextMenuRequest request)
+    {
+        OpenContextMenu(request.Node, request.Args);
+    }
+
+    private async Task InvokeContextAction(MoveContextAction action)
+    {
+        if (contextMenuNode is null)
+            return;
+
+        var node = contextMenuNode;
+        contextMenuNode = null;
+        await OnNodeContextAction.InvokeAsync(new MoveContextActionRequest(node, action));
+    }
+
+    private string GetContextMenuStyle()
+    {
+        return $"left:{contextMenuX}px;top:{contextMenuY}px;";
+    }
+
+    private static bool CanMakeMainVariation(pax.chess.Analyze.MoveNode node)
+    {
+        return node.Parent is not null && node.Parent.MainLine != node;
     }
 
     private List<pax.chess.Analyze.MoveNode> GetMainLine()

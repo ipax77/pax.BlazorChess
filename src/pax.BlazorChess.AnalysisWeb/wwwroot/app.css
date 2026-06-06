@@ -251,6 +251,51 @@ h1:focus {
     font-weight: 700;
 }
 
+.variation-move {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.move-context-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1090;
+    background: transparent;
+}
+
+.move-context-menu {
+    position: fixed;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    min-width: 190px;
+    padding: 5px;
+    border: 1px solid #4a4339;
+    border-radius: 6px;
+    background: #2e2a24;
+    box-shadow: 0 10px 24px rgb(0 0 0 / 45%);
+}
+
+.move-context-menu button {
+    min-height: 34px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #d9d1c5;
+    padding: 7px 10px;
+    text-align: left;
+}
+
+.move-context-menu button:hover,
+.move-context-menu button:focus {
+    background: #3d8bd6;
+    color: #fff;
+    outline: none;
+}
+
 .panel-title {
     justify-content: space-between;
     min-height: 38px;

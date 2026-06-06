@@ -29,28 +29,28 @@
                     <div class="engine-form">
                         <label>
                             <span>Name</span>
-                            <input class="text-input" @bind="SelectedEngine.Name" />
+                            <input class="text-input" @bind="SelectedEngine.Name" @bind:after="NotifyChanged" />
                         </label>
                         <label>
                             <span>Binary path</span>
-                            <input class="text-input" @bind="SelectedEngine.BinaryPath" placeholder="C:\path\to\stockfish.exe" />
+                            <input class="text-input" @bind="SelectedEngine.BinaryPath" @bind:after="NotifyChanged" placeholder="C:\path\to\stockfish.exe" />
                         </label>
                         <div class="field-grid">
                             <label>
                                 <span>Threads</span>
-                                <input class="text-input" type="number" min="0" max="256" @bind="SelectedEngine.Threads" />
+                                <input class="text-input" type="number" min="0" max="256" @bind="SelectedEngine.Threads" @bind:after="NotifyChanged" />
                             </label>
                             <label>
                                 <span>MultiPV</span>
-                                <input class="text-input" type="number" min="1" max="50" @bind="SelectedEngine.Pvs" />
+                                <input class="text-input" type="number" min="1" max="50" @bind="SelectedEngine.Pvs" @bind:after="NotifyChanged" />
                             </label>
                             <label>
                                 <span>Hash MB</span>
-                                <input class="text-input" type="number" min="0" max="65536" @bind="SelectedEngine.HashMb" />
+                                <input class="text-input" type="number" min="0" max="65536" @bind="SelectedEngine.HashMb" @bind:after="NotifyChanged" />
                             </label>
                             <label>
                                 <span>Pool size</span>
-                                <input class="text-input" type="number" min="1" max="32" @bind="SelectedEngine.PoolSize" />
+                                <input class="text-input" type="number" min="1" max="32" @bind="SelectedEngine.PoolSize" @bind:after="NotifyChanged" />
                             </label>
                         </div>
                         <div class="settings-actions">
@@ -147,6 +147,9 @@
         SelectedEngine.PoolSize = 1;
         await OnChanged.InvokeAsync();
     }
+
+    private Task NotifyChanged()
+        => OnChanged.InvokeAsync();
 
     private static string GetName(EngineRunOptions engine)
         => string.IsNullOrWhiteSpace(engine.Name) ? "Unnamed engine" : engine.Name!;

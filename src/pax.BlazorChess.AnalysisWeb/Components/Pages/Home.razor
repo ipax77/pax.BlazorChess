@@ -23,12 +23,12 @@
 
         <div class="position-bar">
             <label for="fenInput">FEN</label>
-            <input id="fenInput" class="text-input mono" @bind="fenInput" />
+            <input id="fenInput" class="text-input mono" @bind="fenInput" @onkeydown:stopPropagation="true" />
         </div>
 
         <div class="position-bar pgn-bar">
             <label for="pgnInput">PGN</label>
-            <textarea id="pgnInput" class="text-input mono" @bind="pgnInput"></textarea>
+            <textarea id="pgnInput" class="text-input mono" @bind="pgnInput" @onkeydown:stopPropagation="true"></textarea>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(Workspace.ImportError))
@@ -51,8 +51,10 @@
                 <h2>Moves</h2>
                 <span>@MoveCount ply</span>
             </header>
-            <AnalysisAnnotationComponent AnalysisBoard="Workspace.AnalysisBoard"
-                                         OnNodeClicked="NodeClicked" />
+            <AnalysisAnnotationComponent @ref="annotation"
+                                         AnalysisBoard="Workspace.AnalysisBoard"
+                                         OnNodeClicked="NodeClicked"
+                                         OnNodeContextAction="HandleMoveContextAction" />
         </section>
 
         <section class="controls-panel">
@@ -83,13 +85,15 @@
     private BoardComponent? board;
     private LiveAnalysisPanel? liveAnalysis;
     private EngineSettingsPanel? engineSettings;
+    private AnalysisAnnotationComponent? annotation;
     private string fenInput = string.Empty;
     private string pgnInput = string.Empty;
 
     private int MoveCount => CountMainLineMoves();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        await Workspace.LoadEngineSettingsAsync();
         SyncText();
     }
 
@@ -141,6 +145,10 @@
             await GoBack();
         else if (args.Key == "ArrowRight")
             await GoForward();
+        else if (args.Key is " " or "Space" or "Spacebar")
+            await ApplyCurrentBestMove();
+        else if (args.Key == "Escape")
+            annotation?.CloseContextMenu();
     }
 
     private async Task OnWheel(WheelEventArgs args)
@@ -201,6 +209,31 @@
         await RefreshPositionAsync();
     }
 
+    private async Task ApplyCurrentBestMove()
+    {
+        var move = liveAnalysis?.GetCurrentBestMove();
+        if (move is null)
+            return;
+
+        await ApplyMove(move);
+    }
+
+    private async Task HandleMoveContextAction(MoveContextActionRequest request)
+    {
+        var changed = request.Action switch
+        {
+            MoveContextAction.DeleteFromHere => Workspace.DeleteFromNode(request.Node),
+            MoveContextAction.MakeMainVariation => Workspace.MakeMainVariation(request.Node),
+            _ => false
+        };
+
+        if (!changed)
+            return;
+
+        annotation?.Update();
+        await RefreshPositionAsync();
+    }
+
     private void OpenEngineSettings()
     {
         engineSettings?.Open();
@@ -209,13 +242,14 @@
     private async Task EngineSelected(EngineRunOptions? engine)
     {
         Workspace.SelectedEngineId = engine?.Id ?? Guid.Empty;
-        await EngineChanged();
+        await NotifyEngineChangedAsync();
     }
 
     private async Task EngineAdded(EngineRunOptions engine)
     {
         Workspace.SelectedEngineId = engine.Id;
-        await EngineChanged();
+        Workspace.ScheduleEngineSettingsSave();
+        await NotifyEngineChangedAsync();
     }
 
     private async Task EngineDeleted(EngineRunOptions engine)
@@ -223,10 +257,17 @@
         if (Workspace.SelectedEngineId == engine.Id)
             Workspace.SelectedEngineId = Workspace.EngineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
 
-        await EngineChanged();
+        Workspace.ScheduleEngineSettingsSave();
+        await NotifyEngineChangedAsync();
     }
 
     private async Task EngineChanged()
+    {
+        Workspace.ScheduleEngineSettingsSave();
+        await NotifyEngineChangedAsync();
+    }
+
+    private async Task NotifyEngineChangedAsync()
     {
         if (liveAnalysis is not null)
             await liveAnalysis.NotifyEngineChangedAsync();

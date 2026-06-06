@@ -11,10 +11,17 @@
             @foreach (var move in moves)
             {
                 <span style="margin-left:@(Depth * 10)px; cursor:pointer;"
-                      @onclick="() => OnNodeClicked.InvokeAsync(move)">
+                      class="variation-move @(CurrentNode == move ? "fw-bold" : "")"
+                      @onclick="() => OnNodeClicked.InvokeAsync(move)"
+                      @oncontextmenu="(e) => OnNodeContextMenu.InvokeAsync(new MoveContextMenuRequest(move, e))"
+                      @oncontextmenu:preventDefault="true">
                     @GetLabel(move)
                 </span>
-                <VariationList Node="move" Depth="@(Depth + 1)" CurrentNode="CurrentNode" OnNodeClicked="OnNodeClicked" />
+                <VariationList Node="move"
+                               Depth="@(Depth + 1)"
+                               CurrentNode="CurrentNode"
+                               OnNodeClicked="OnNodeClicked"
+                               OnNodeContextMenu="OnNodeContextMenu" />
             }
             )
         </td>
@@ -33,6 +40,9 @@
 
     [Parameter]
     public EventCallback<MoveNode> OnNodeClicked { get; set; }
+
+    [Parameter]
+    public EventCallback<MoveContextMenuRequest> OnNodeContextMenu { get; set; }
 
     private static List<MoveNode> GetLine(MoveNode start)
     {

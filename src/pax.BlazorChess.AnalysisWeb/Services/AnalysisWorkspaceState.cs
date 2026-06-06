@@ -1,12 +1,30 @@
+using Microsoft.Extensions.Options;
+using pax.BlazorChess.Board.Storage;
 using pax.chess;
 using pax.chess.Analyze;
 using pax.uciChessEngine.EngineServices;
 
 namespace pax.BlazorChess.AnalysisWeb.Services;
 
-public sealed class AnalysisWorkspaceState
+public sealed class AnalysisWorkspaceState : IAsyncDisposable
 {
     private const string DefaultFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+    private readonly IChessBoardRepository _repository;
+    private readonly TimeSpan _engineSettingsSaveDebounce;
+    private readonly SemaphoreSlim _engineSettingsPersistenceGate = new(1, 1);
+    private CancellationTokenSource? _engineSettingsSaveCts;
+    private bool _engineSettingsLoaded;
+    private bool _disposed;
+
+    public AnalysisWorkspaceState(
+        IChessBoardRepository repository,
+        IOptions<AnalysisPersistenceOptions> persistenceOptions)
+    {
+        _repository = repository;
+        var debounceMs = persistenceOptions.Value.EngineSettingsSaveDebounceMs;
+        _engineSettingsSaveDebounce = TimeSpan.FromMilliseconds(Math.Max(1, debounceMs));
+    }
 
     public AnalysisBoard AnalysisBoard { get; private set; } = CreateInitialAnalysisBoard();
     public List<EngineRunOptions> EngineRunOptions { get; } = [];
@@ -17,6 +35,53 @@ public sealed class AnalysisWorkspaceState
     public string Fen => FenSerializer.Serialize(AnalysisBoard.CurrentPosition);
     public string Pgn => BuildMainLinePgn();
     public EngineRunOptions? SelectedEngine => EngineRunOptions.FirstOrDefault(e => e.Id == SelectedEngineId);
+
+    public async Task LoadEngineSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        if (_engineSettingsLoaded)
+            return;
+
+        await _engineSettingsPersistenceGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_engineSettingsLoaded)
+                return;
+
+            var engineRunOptions = await _repository.GetEngineRunOptions(cancellationToken);
+            EngineRunOptions.Clear();
+            EngineRunOptions.AddRange(engineRunOptions);
+            SelectedEngineId = EngineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
+            _engineSettingsLoaded = true;
+        }
+        finally
+        {
+            _engineSettingsPersistenceGate.Release();
+        }
+    }
+
+    public void ScheduleEngineSettingsSave()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var cts = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _engineSettingsSaveCts, cts);
+        previous?.Cancel();
+
+        _ = SaveEngineSettingsWhenQuietAsync(cts);
+    }
+
+    public async Task SaveEngineSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        await _engineSettingsPersistenceGate.WaitAsync(cancellationToken);
+        try
+        {
+            await _repository.StoreEngineRunOptions(EngineRunOptions.ToList(), cancellationToken);
+        }
+        finally
+        {
+            _engineSettingsPersistenceGate.Release();
+        }
+    }
 
     public void ApplyMove(Move move)
     {
@@ -108,6 +173,41 @@ public sealed class AnalysisWorkspaceState
             SelectedEngineId = EngineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
     }
 
+    public bool DeleteFromNode(MoveNode node)
+    {
+        if (node.Parent is null)
+            return false;
+
+        var parent = node.Parent;
+        var currentWasDeleted = IsDescendantOrSelf(AnalysisBoard.CurrentNode, node);
+        var removed = parent.Children.Remove(node);
+        if (!removed)
+            return false;
+
+        if (currentWasDeleted)
+            MoveToNode(parent);
+
+        ImportError = string.Empty;
+        return true;
+    }
+
+    public bool MakeMainVariation(MoveNode node)
+    {
+        if (node.Parent is null)
+            return false;
+
+        var siblings = node.Parent.Children;
+        var index = siblings.IndexOf(node);
+        if (index <= 0)
+            return false;
+
+        siblings.RemoveAt(index);
+        siblings.Insert(0, node);
+        MoveToNode(node);
+        ImportError = string.Empty;
+        return true;
+    }
+
     private void MoveToEnd()
     {
         var current = AnalysisBoard.Root;
@@ -138,4 +238,58 @@ public sealed class AnalysisWorkspaceState
 
     private static AnalysisBoard CreateInitialAnalysisBoard()
         => new(new ChessGame(FenSerializer.Parse(DefaultFen)));
+
+    private static bool IsDescendantOrSelf(MoveNode candidate, MoveNode branchRoot)
+    {
+        var current = candidate;
+        while (current is not null)
+        {
+            if (current == branchRoot)
+                return true;
+
+            current = current.Parent;
+        }
+
+        return false;
+    }
+
+    private async Task SaveEngineSettingsWhenQuietAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(_engineSettingsSaveDebounce, cts.Token);
+            await SaveEngineSettingsAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _engineSettingsSaveCts, null, cts);
+            cts.Dispose();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        var cts = Interlocked.Exchange(ref _engineSettingsSaveCts, null);
+        if (cts is not null)
+        {
+            cts.Cancel();
+
+            try
+            {
+                await SaveEngineSettingsAsync();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        _engineSettingsPersistenceGate.Dispose();
+    }
 }
