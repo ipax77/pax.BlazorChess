@@ -17,7 +17,6 @@
   <ItemGroup>
     <ProjectReference Include="..\\pax.BlazorChess.Board\\pax.BlazorChess.Board.csproj" />
     <ProjectReference Include="..\\pax.BlazorChess.Db\\pax.BlazorChess.Db.csproj" />
-    <ProjectReference Include="..\\..\\..\\pax.chess\\src\\pax.chess\\pax.chess.csproj" />
   </ItemGroup>
 
 </Project>

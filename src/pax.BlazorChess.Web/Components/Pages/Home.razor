@@ -1,20 +1,95 @@
-﻿@page "/"
-@using pax.BlazorChess.Board
-@using pax.chess
-@using pax.chess.Analyze
+@page "/"
+@using pax.BlazorChess.Board.Storage
+@inject IChessBoardRepository Repository
+@inject Services.PositionWorkspaceState Workspace
 @rendermode InteractiveServer
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Dashboard</PageTitle>
 
-<AnalysisComponent AnalysisBoard="AnalysisBoard" />
+<section class="workspace-page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">pax.BlazorChess</p>
+            <h1>Import a chess PNG and analyze it</h1>
+        </div>
+        <div class="header-actions">
+            <a class="btn btn-primary" href="position-lab">Import PNG</a>
+            <a class="btn btn-outline-light" href="engine-arena">Engine Arena</a>
+        </div>
+    </header>
+
+    <div class="dashboard-grid">
+        <a class="dashboard-tile" href="position-lab">
+            <span>Import PNG</span>
+            <strong>Upload a board screenshot, confirm the position, and run engine analysis in one place.</strong>
+        </a>
+        <a class="dashboard-tile" href="engine-arena">
+            <span>Engine Arena</span>
+            <strong>Play one engine game from the current position.</strong>
+        </a>
+        <a class="dashboard-tile" href="matches">
+            <span>Matches</span>
+            <strong>Run a batch of engine games from one position.</strong>
+        </a>
+        <a class="dashboard-tile" href="engines">
+            <span>Engines</span>
+            <strong>Manage Stockfish, LC0, and UCI profiles.</strong>
+        </a>
+    </div>
+
+    <div class="content-grid two-col">
+        <div class="tool-panel">
+            <div class="tool-panel-header">
+                <h2>Current Workspace</h2>
+                <span class="status-pill ok">@Workspace.Source</span>
+            </div>
+            <dl class="position-facts">
+                <div>
+                    <dt>Name</dt>
+                    <dd>@Workspace.Name</dd>
+                </div>
+                <div>
+                    <dt>Side</dt>
+                    <dd>@Workspace.AnalysisBoard.CurrentPosition.SideToMove</dd>
+                </div>
+                <div>
+                    <dt>Move</dt>
+                    <dd>@Workspace.AnalysisBoard.CurrentPosition.FullmoveNumber</dd>
+                </div>
+            </dl>
+            <textarea class="form-control font-monospace fen-text" readonly value="@Workspace.Fen"></textarea>
+        </div>
+
+        <div class="tool-panel">
+            <div class="tool-panel-header">
+                <h2>Recent Analysis</h2>
+                <a class="btn btn-sm btn-outline-light" href="analysis-history">History</a>
+            </div>
+            @if (recentAnalyses.Count == 0)
+            {
+                <div class="empty-state">No saved analyses yet.</div>
+            }
+            else
+            {
+                <ul class="compact-list">
+                    @foreach (var item in recentAnalyses)
+                    {
+                        <li>
+                            <span>@item.Name</span>
+                            <time>@item.UpdatedAt.LocalDateTime.ToString("g")</time>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </div>
+</section>
 
 @code {
-    ChessGame ChessGame = PgnSerializer.Parse("1. e4 d6 2. Ne2 Nf6 3. Nbc3 g6 4. g3 Bg7 5. Bg2 O-O 6. d3 c5 7. h3 Nc6 8. O-O Ne8 9. f4 Nc7 10. Be3 Rb8 11. Qd2 b5 12. e5 Bb7 13. exd6 exd6 14. f5 Re8 15. Rae1 b4 16. Ne4 Bxb2 17. c3 bxc3 18. N2xc3 Ba6 19. fxg6 hxg6 20. Nf6+ Kh8 21. Bd4 Nxd4 22. Qh6# 1-0");
-    AnalysisBoard AnalysisBoard = null!;
+    private IReadOnlyList<AnalyzedGameSummary> recentAnalyses = [];
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        base.OnInitialized();
-        AnalysisBoard = new(ChessGame);
+        recentAnalyses = (await Repository.ListAnalyzedGames()).Take(5).ToList();
     }
 }

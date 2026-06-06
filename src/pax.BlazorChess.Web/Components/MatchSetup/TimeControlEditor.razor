@@ -1,0 +1,40 @@
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>Time Control</h2>
+        <span class="subtle">@BaseMinutes+@IncrementSeconds</span>
+    </div>
+
+    <div class="input-grid">
+        <label>
+            <span>Base minutes</span>
+            <input type="number" class="form-control" min="1" max="180" value="@BaseMinutes" @onchange="ChangeBase" />
+        </label>
+        <label>
+            <span>Increment seconds</span>
+            <input type="number" class="form-control" min="0" max="120" value="@IncrementSeconds" @onchange="ChangeIncrement" />
+        </label>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int BaseMinutes { get; set; } = 5;
+
+    [Parameter]
+    public EventCallback<int> BaseMinutesChanged { get; set; }
+
+    [Parameter]
+    public int IncrementSeconds { get; set; } = 3;
+
+    [Parameter]
+    public EventCallback<int> IncrementSecondsChanged { get; set; }
+
+    private Task ChangeBase(ChangeEventArgs args) =>
+        BaseMinutesChanged.InvokeAsync(Math.Clamp(Parse(args.Value, BaseMinutes), 1, 180));
+
+    private Task ChangeIncrement(ChangeEventArgs args) =>
+        IncrementSecondsChanged.InvokeAsync(Math.Clamp(Parse(args.Value, IncrementSeconds), 0, 120));
+
+    private static int Parse(object? value, int fallback) =>
+        int.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
+}

@@ -1,0 +1,25 @@
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>Search Limit</h2>
+        <span class="subtle">@ThinkTimePerMoveMs ms</span>
+    </div>
+
+    <label>
+        <span>Think time per move</span>
+        <input type="number" class="form-control" min="100" step="100" value="@ThinkTimePerMoveMs" @onchange="ChangeThinkTime" />
+    </label>
+</div>
+
+@code {
+    [Parameter]
+    public int ThinkTimePerMoveMs { get; set; } = 1000;
+
+    [Parameter]
+    public EventCallback<int> ThinkTimePerMoveMsChanged { get; set; }
+
+    private Task ChangeThinkTime(ChangeEventArgs args)
+    {
+        var value = int.TryParse(args.Value?.ToString(), out var parsed) ? parsed : ThinkTimePerMoveMs;
+        return ThinkTimePerMoveMsChanged.InvokeAsync(Math.Max(100, value));
+    }
+}

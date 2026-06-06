@@ -1,0 +1,14 @@
+@using pax.uciChessEngine
+
+<div class="result-summary">
+    <span class="status-pill muted">Total @Results.Count</span>
+    <span class="status-pill ok">White @Results.Count(r => r.Result == pax.chess.GameResult.WhiteWin)</span>
+    <span class="status-pill warn">Black @Results.Count(r => r.Result == pax.chess.GameResult.BlackWin)</span>
+    <span class="status-pill muted">Draw @Results.Count(r => r.Result == pax.chess.GameResult.Draw)</span>
+    <span class="status-pill running">Running @Results.Count(r => r.Status == EngineMatchStatus.Running)</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required IReadOnlyList<EngineMatchSummaryEventArgs> Results { get; set; }
+}

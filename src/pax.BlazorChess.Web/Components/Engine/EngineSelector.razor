@@ -1,0 +1,38 @@
+@using pax.uciChessEngine.EngineServices
+
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>@Title</h2>
+        <span class="subtle">@EngineRunOptions.Count engines</span>
+    </div>
+
+    <select class="form-select" value="@SelectedEngineId" @onchange="OnChanged" disabled="@(EngineRunOptions.Count == 0)">
+        @foreach (var engine in EngineRunOptions)
+        {
+            <option value="@engine.Id">@GetEngineName(engine)</option>
+        }
+    </select>
+</div>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Engine";
+
+    [Parameter, EditorRequired]
+    public required List<EngineRunOptions> EngineRunOptions { get; set; }
+
+    [Parameter]
+    public Guid SelectedEngineId { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> SelectedEngineIdChanged { get; set; }
+
+    private async Task OnChanged(ChangeEventArgs args)
+    {
+        if (Guid.TryParse(args.Value?.ToString(), out var id))
+            await SelectedEngineIdChanged.InvokeAsync(id);
+    }
+
+    private static string GetEngineName(EngineRunOptions engine) =>
+        !string.IsNullOrWhiteSpace(engine.Name) ? engine.Name! : engine.BinaryPath;
+}

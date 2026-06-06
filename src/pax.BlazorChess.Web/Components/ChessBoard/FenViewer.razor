@@ -1,0 +1,24 @@
+@using pax.chess
+
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>FEN</h2>
+        <button type="button" class="btn btn-sm btn-outline-light" title="Copy FEN" @onclick="CopyFen">Copy</button>
+    </div>
+    <textarea class="form-control font-monospace fen-text" readonly value="@Fen"></textarea>
+</div>
+
+@code {
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public required BoardPosition Position { get; set; }
+
+    private string Fen => FenSerializer.Serialize(Position);
+
+    private async Task CopyFen()
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", Fen);
+    }
+}

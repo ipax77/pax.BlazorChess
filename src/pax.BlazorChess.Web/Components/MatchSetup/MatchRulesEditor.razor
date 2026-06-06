@@ -1,0 +1,40 @@
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>Match Rules</h2>
+        <span class="subtle">@GameCount games</span>
+    </div>
+
+    <div class="input-grid">
+        <label>
+            <span>Games</span>
+            <input type="number" class="form-control" min="1" max="200" value="@GameCount" @onchange="ChangeGameCount" />
+        </label>
+        <label class="form-check rule-check">
+            <input class="form-check-input" type="checkbox" checked="@ReverseEngines" @onchange="ChangeReverse" />
+            <span class="form-check-label">Reverse colors</span>
+        </label>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int GameCount { get; set; } = 10;
+
+    [Parameter]
+    public EventCallback<int> GameCountChanged { get; set; }
+
+    [Parameter]
+    public bool ReverseEngines { get; set; } = true;
+
+    [Parameter]
+    public EventCallback<bool> ReverseEnginesChanged { get; set; }
+
+    private Task ChangeGameCount(ChangeEventArgs args)
+    {
+        var value = int.TryParse(args.Value?.ToString(), out var parsed) ? parsed : GameCount;
+        return GameCountChanged.InvokeAsync(Math.Clamp(value, 1, 200));
+    }
+
+    private Task ChangeReverse(ChangeEventArgs args) =>
+        ReverseEnginesChanged.InvokeAsync(args.Value is bool value && value);
+}

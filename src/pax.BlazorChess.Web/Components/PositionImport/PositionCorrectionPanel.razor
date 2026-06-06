@@ -1,0 +1,58 @@
+@using pax.chess
+
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>Position Correction</h2>
+        <span class="subtle">Manual FEN edit</span>
+    </div>
+
+    <label class="form-label" for="@fenInputId">FEN</label>
+    <textarea id="@fenInputId" class="form-control font-monospace correction-fen" @bind="Fen"></textarea>
+    <div class="d-flex gap-2 mt-2">
+        <button type="button" class="btn btn-primary" @onclick="Apply">Apply</button>
+        <button type="button" class="btn btn-outline-light" @onclick="Reset">Reset</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Error))
+    {
+        <div class="alert alert-warning mt-3 mb-0">@Error</div>
+    }
+</div>
+
+@code {
+    private readonly string fenInputId = $"fen_{Guid.NewGuid():N}";
+    private string? Error { get; set; }
+
+    [Parameter, EditorRequired]
+    public required BoardPosition Position { get; set; }
+
+    [Parameter]
+    public EventCallback<BoardPosition> OnPositionChanged { get; set; }
+
+    private string Fen { get; set; } = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        Fen = FenSerializer.Serialize(Position);
+    }
+
+    private async Task Apply()
+    {
+        try
+        {
+            var position = FenSerializer.Parse(Fen);
+            Error = null;
+            await OnPositionChanged.InvokeAsync(position);
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+
+    private void Reset()
+    {
+        Fen = FenSerializer.Serialize(Position);
+        Error = null;
+    }
+}

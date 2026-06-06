@@ -1,0 +1,106 @@
+@page "/engines"
+@using pax.BlazorChess.Board.Storage
+@using pax.BlazorChess.Web.Components.Engine
+@using pax.uciChessEngine.EngineServices
+@inject IChessBoardRepository Repository
+@rendermode InteractiveServer
+
+<PageTitle>Engines</PageTitle>
+
+<section class="workspace-page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Manage participants</p>
+            <h1>Engines</h1>
+        </div>
+        <button type="button" class="btn btn-primary" @onclick="AddEngine">Add Engine</button>
+    </header>
+
+    <div class="content-grid engines-grid">
+        <div class="tool-panel">
+            <div class="tool-panel-header">
+                <h2>Profiles</h2>
+                <span class="subtle">@engines.Count configured</span>
+            </div>
+            @if (engines.Count == 0)
+            {
+                <div class="empty-state">No engines configured.</div>
+            }
+            else
+            {
+                <ul class="engine-list">
+                    @foreach (var engine in engines)
+                    {
+                        <li class="@(selectedEngine?.Id == engine.Id ? "selected" : "")">
+                            <button type="button" @onclick="() => SelectEngine(engine)">
+                                <span>@GetName(engine)</span>
+                                <EngineStatusBadge Engine="engine" />
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteEngine(engine)">Delete</button>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+
+        <EngineProfileEditor EngineRunOptions="selectedEngine" OnSaved="SaveEngines" />
+        <UciOptionEditor EngineRunOptions="selectedEngine" />
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(status))
+    {
+        <div class="alert alert-info mt-3">@status</div>
+    }
+</section>
+
+@code {
+    private List<EngineRunOptions> engines = [];
+    private EngineRunOptions? selectedEngine;
+    private string? status;
+
+    protected override async Task OnInitializedAsync()
+    {
+        engines = await Repository.GetEngineRunOptions();
+        selectedEngine = engines.FirstOrDefault();
+    }
+
+    private void AddEngine()
+    {
+        var engine = new EngineRunOptions
+        {
+            Name = "New Engine",
+            PoolSize = 2,
+            Threads = Math.Max(1, Environment.ProcessorCount / 4),
+            Pvs = 1
+        };
+        engines.Add(engine);
+        selectedEngine = engine;
+        status = null;
+    }
+
+    private void SelectEngine(EngineRunOptions engine)
+    {
+        selectedEngine = engine;
+        status = null;
+    }
+
+    private async Task DeleteEngine(EngineRunOptions engine)
+    {
+        engines.Remove(engine);
+        selectedEngine = engines.FirstOrDefault();
+        await SaveEngines();
+    }
+
+    private async Task SaveEngines()
+    {
+        await Repository.StoreEngineRunOptions(engines);
+        engines = await Repository.GetEngineRunOptions();
+        selectedEngine = selectedEngine is null
+            ? engines.FirstOrDefault()
+            : engines.FirstOrDefault(e => e.Id == selectedEngine.Id) ?? engines.FirstOrDefault();
+        status = "Engine profiles saved.";
+    }
+
+    private static string GetName(EngineRunOptions engine) =>
+        !string.IsNullOrWhiteSpace(engine.Name) ? engine.Name! : engine.BinaryPath;
+}

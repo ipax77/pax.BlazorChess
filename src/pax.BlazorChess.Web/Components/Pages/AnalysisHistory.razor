@@ -1,0 +1,111 @@
+@page "/analysis-history"
+@using pax.BlazorChess.Board.Storage
+@using pax.BlazorChess.Web.Components.ChessBoard
+@using pax.BlazorChess.Web.Components.Results
+@inject IChessBoardRepository Repository
+@inject Services.PositionWorkspaceState Workspace
+@rendermode InteractiveServer
+
+<PageTitle>Analysis History</PageTitle>
+
+<section class="workspace-page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Inspect past results</p>
+            <h1>Analysis History</h1>
+        </div>
+        <button type="button" class="btn btn-outline-light" @onclick="Refresh">Refresh</button>
+    </header>
+
+    <div class="content-grid history-grid">
+        <div class="tool-panel">
+            <div class="tool-panel-header">
+                <h2>Saved Analyses</h2>
+                <span class="subtle">@items.Count items</span>
+            </div>
+
+            @if (items.Count == 0)
+            {
+                <div class="empty-state">No saved analyses.</div>
+            }
+            else
+            {
+                <ul class="history-list">
+                    @foreach (var item in items)
+                    {
+                        <li class="@(selectedId == item.Id ? "selected" : "")">
+                            <button type="button" @onclick="() => Load(item)">
+                                <span>@item.Name</span>
+                                <time>@item.UpdatedAt.LocalDateTime.ToString("g")</time>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => Delete(item.Id)">Delete</button>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+
+        @if (loaded is null)
+        {
+            <div class="tool-panel">
+                <div class="empty-state">Select an analysis to preview it.</div>
+            </div>
+        }
+        else
+        {
+            <div>
+                <ChessBoard Position="loaded.CurrentPosition" />
+                <div class="mt-3">
+                    <FenViewer Position="loaded.CurrentPosition" />
+                </div>
+            </div>
+            <div class="side-stack">
+                <MoveList AnalysisBoard="loaded" OnMoveClicked="MoveToLoadedNode" />
+                <PgnViewer ChessGame="loaded.ChessGame" />
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private IReadOnlyList<AnalyzedGameSummary> items = [];
+    private pax.chess.Analyze.AnalysisBoard? loaded;
+    private Guid? selectedId;
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    private async Task Refresh()
+    {
+        items = await Repository.ListAnalyzedGames();
+    }
+
+    private async Task Load(AnalyzedGameSummary summary)
+    {
+        loaded = await Repository.LoadAnalyzedGame(summary.Id);
+        selectedId = summary.Id;
+        if (loaded is not null)
+            Workspace.SetAnalysis(loaded, summary.Name);
+    }
+
+    private async Task Delete(Guid id)
+    {
+        await Repository.DeleteAnalyzedGame(id);
+        if (selectedId == id)
+        {
+            selectedId = null;
+            loaded = null;
+        }
+
+        await Refresh();
+    }
+
+    private void MoveToLoadedNode(pax.chess.Analyze.MoveNode node)
+    {
+        loaded?.MoveToNode(node);
+        if (loaded is not null && selectedId.HasValue)
+        {
+            var summary = items.FirstOrDefault(i => i.Id == selectedId.Value);
+            Workspace.SetAnalysis(loaded, summary?.Name ?? "Loaded analysis");
+        }
+    }
+}

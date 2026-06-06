@@ -1,0 +1,82 @@
+@using pax.chess
+@using pax.chess.Analyze
+
+<div class="tool-panel move-list-panel">
+    <div class="tool-panel-header">
+        <h2>Moves</h2>
+        <span class="subtle">@MoveNodes.Count ply</span>
+    </div>
+
+    @if (MoveNodes.Count == 0)
+    {
+        <div class="empty-state">No moves yet.</div>
+    }
+    else
+    {
+        <div class="move-strip" role="list" aria-label="Main line moves">
+            @for (var i = 0; i < MoveNodes.Count; i++)
+            {
+                var node = MoveNodes[i];
+
+                @if (i % 2 == 0)
+                {
+                    <span class="move-number">@(((i / 2) + 1).ToString()).</span>
+                }
+
+                <button type="button"
+                        class="move-token @(AnalysisBoard?.CurrentNode == node ? "active" : "")"
+                        @onclick="() => ClickMove(node)">
+                    @node.San
+                </button>
+
+                @if (i < MoveNodes.Count - 1)
+                {
+                    <span class="move-separator">-</span>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public AnalysisBoard? AnalysisBoard { get; set; }
+
+    [Parameter]
+    public ChessGame? ChessGame { get; set; }
+
+    [Parameter]
+    public EventCallback<MoveNode> OnMoveClicked { get; set; }
+
+    private List<MoveNode> MoveNodes => AnalysisBoard is not null
+        ? GetMainLine(AnalysisBoard.Root)
+        : GetMainLineFromGame(ChessGame);
+
+    private async Task ClickMove(MoveNode node)
+    {
+        if (OnMoveClicked.HasDelegate)
+            await OnMoveClicked.InvokeAsync(node);
+    }
+
+    private static List<MoveNode> GetMainLine(MoveNode root)
+    {
+        List<MoveNode> nodes = [];
+        var current = root.MainLine;
+        while (current is not null)
+        {
+            nodes.Add(current);
+            current = current.MainLine;
+        }
+
+        return nodes;
+    }
+
+    private static List<MoveNode> GetMainLineFromGame(ChessGame? game)
+    {
+        if (game is null)
+            return [];
+
+        var board = new AnalysisBoard(game);
+        return GetMainLine(board.Root);
+    }
+}

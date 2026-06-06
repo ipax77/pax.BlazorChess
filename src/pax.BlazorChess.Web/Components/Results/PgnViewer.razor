@@ -1,0 +1,24 @@
+@using pax.chess
+
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>PGN</h2>
+        <button type="button" class="btn btn-sm btn-outline-light" title="Copy PGN" @onclick="CopyPgn">Copy</button>
+    </div>
+    <textarea class="form-control font-monospace pgn-text" readonly value="@Pgn"></textarea>
+</div>
+
+@code {
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public required ChessGame ChessGame { get; set; }
+
+    private string Pgn => PgnSerializer.Serialize(ChessGame);
+
+    private async Task CopyPgn()
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", Pgn);
+    }
+}

@@ -1,0 +1,31 @@
+@using pax.BlazorChess.Board
+@using pax.chess
+
+<div class="board-tool">
+    <BoardComponent @ref="board" Position="Position" LastMove="LastMove" OnMovePlayed="OnMovePlayed" />
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required BoardPosition Position { get; set; }
+
+    [Parameter]
+    public Move? LastMove { get; set; }
+
+    [Parameter]
+    public EventCallback<Move> OnMovePlayed { get; set; }
+
+    private BoardComponent? board;
+
+    public void Update(BoardPosition position, Move? lastMove = null)
+    {
+        Position = position;
+        LastMove = lastMove;
+        board?.Update(position, lastMove);
+    }
+
+    public void AddBestMoveAnnotations(List<Move> moves)
+    {
+        board?.AddBestMoveAnnotations(moves);
+    }
+}

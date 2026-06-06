@@ -1,0 +1,44 @@
+@using pax.BlazorChess.Web.Models
+
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>Detected Position</h2>
+        <span class="status-pill @(Snapshot.Warnings.Count == 0 ? "ok" : "warn")">
+            @(Snapshot.Warnings.Count == 0 ? "Valid" : "Warnings")
+        </span>
+    </div>
+
+    <dl class="position-facts">
+        <div>
+            <dt>Side to move</dt>
+            <dd>@Snapshot.SideToMove</dd>
+        </div>
+        <div>
+            <dt>Castling</dt>
+            <dd>@Snapshot.CastlingRights</dd>
+        </div>
+        <div>
+            <dt>Move</dt>
+            <dd>@Snapshot.MoveNumber</dd>
+        </div>
+        <div>
+            <dt>Pieces</dt>
+            <dd>@Snapshot.PieceCount</dd>
+        </div>
+    </dl>
+
+    @if (Snapshot.Warnings.Count > 0)
+    {
+        <ul class="warning-list">
+            @foreach (var warning in Snapshot.Warnings)
+            {
+                <li>@warning</li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required PositionSnapshot Snapshot { get; set; }
+}

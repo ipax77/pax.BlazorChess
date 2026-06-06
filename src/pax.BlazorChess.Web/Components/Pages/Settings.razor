@@ -1,0 +1,49 @@
+@page "/settings"
+@inject Services.PositionWorkspaceState Workspace
+@rendermode InteractiveServer
+
+<PageTitle>Settings</PageTitle>
+
+<section class="workspace-page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Defaults</p>
+            <h1>Settings</h1>
+        </div>
+    </header>
+
+    <div class="content-grid two-col">
+        <div class="tool-panel">
+            <div class="tool-panel-header">
+                <h2>Workspace Defaults</h2>
+                <span class="status-pill ok">Local</span>
+            </div>
+            <dl class="position-facts">
+                <div>
+                    <dt>Current source</dt>
+                    <dd>@Workspace.Source</dd>
+                </div>
+                <div>
+                    <dt>Current name</dt>
+                    <dd>@Workspace.Name</dd>
+                </div>
+            </dl>
+            <button type="button" class="btn btn-outline-light" @onclick="ResetPosition">Reset to start position</button>
+        </div>
+
+        <div class="tool-panel">
+            <div class="tool-panel-header">
+                <h2>Image Detection</h2>
+                <span class="status-pill muted">Disabled</span>
+            </div>
+            <p class="mb-0 subtle">PNG upload, image URL, and clipboard detection are deferred until a detector service is added.</p>
+        </div>
+    </div>
+</section>
+
+@code {
+    private void ResetPosition()
+    {
+        Workspace.SetPosition(pax.chess.BoardPosition.CreateInitial(), "Settings reset");
+    }
+}

@@ -1,0 +1,17 @@
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>Image URL</h2>
+        <span class="status-pill muted">Preview only</span>
+    </div>
+    <input class="form-control" placeholder="Paste image URL" @bind="ImageUrl" @bind:event="oninput" />
+    @if (!string.IsNullOrWhiteSpace(ImageUrl))
+    {
+        <div class="image-preview">
+            <img src="@ImageUrl" alt="Chess position URL preview" />
+        </div>
+    }
+</div>
+
+@code {
+    private string ImageUrl { get; set; } = string.Empty;
+}

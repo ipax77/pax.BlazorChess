@@ -1,0 +1,180 @@
+@page "/matches"
+@using pax.BlazorChess.Board.Storage
+@using pax.BlazorChess.Web.Components.ChessBoard
+@using pax.BlazorChess.Web.Components.Engine
+@using pax.BlazorChess.Web.Components.MatchSetup
+@using pax.BlazorChess.Web.Components.Results
+@using pax.BlazorChess.Web.Models
+@using pax.uciChessEngine
+@using pax.uciChessEngine.EngineServices
+@inject IChessBoardRepository Repository
+@inject Services.PositionWorkspaceState Workspace
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Matches</PageTitle>
+
+<section class="workspace-page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Run many games</p>
+            <h1>Matches</h1>
+        </div>
+        <div class="header-actions">
+            <button type="button" class="btn btn-primary" disabled="@(!CanRun)" @onclick="RunMatches">
+                @(batch.IsRunning ? "Running..." : "Run matches")
+            </button>
+            <button type="button" class="btn btn-outline-light" disabled="@(!batch.IsRunning)" @onclick="StopMatches">Stop</button>
+        </div>
+    </header>
+
+    <div class="arena-shell">
+        <aside class="arena-setup">
+            <div class="tool-panel">
+                <div class="tool-panel-header">
+                    <h2>Position</h2>
+                    <span class="status-pill ok">@Workspace.Source</span>
+                </div>
+                <ChessBoard Position="Workspace.AnalysisBoard.CurrentPosition" />
+            </div>
+            <EngineSelector Title="White engine" EngineRunOptions="engines" @bind-SelectedEngineId="setup.WhiteEngineId" />
+            <EngineSelector Title="Black engine" EngineRunOptions="engines" @bind-SelectedEngineId="setup.BlackEngineId" />
+            <TimeControlEditor @bind-BaseMinutes="setup.BaseMinutes" @bind-IncrementSeconds="setup.IncrementSeconds" />
+            <MatchRulesEditor @bind-GameCount="setup.GameCount" @bind-ReverseEngines="setup.ReverseEngines" />
+            <OpeningSuiteSelector />
+        </aside>
+
+        <main class="arena-live">
+            <div class="tool-panel">
+                <div class="tool-panel-header">
+                    <h2>Results</h2>
+                    <span class="subtle">Max concurrent @batch.MaxConcurrent</span>
+                </div>
+
+                <ResultSummary Results="batch.Matches" />
+
+                @if (batch.Matches.Count == 0)
+                {
+                    <div class="empty-state">No matches have been started.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-dark align-middle results-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>White</th>
+                                    <th>Black</th>
+                                    <th>Result</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var match in batch.Matches)
+                                {
+                                    <tr>
+                                        <td>@match.Index</td>
+                                        <td>@match.WhiteEngine</td>
+                                        <td>@match.BlackEngine</td>
+                                        <td>@(match.Result?.ToString() ?? "-")</td>
+                                        <td>
+                                            <span class="status-pill @GetStatusClass(match.Status)">@match.Status</span>
+                                            @if (!string.IsNullOrWhiteSpace(match.ErrorMessage))
+                                            {
+                                                <span class="text-warning ms-2">@match.ErrorMessage</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </main>
+    </div>
+</section>
+
+@code {
+    private readonly MatchSetupViewModel setup = new();
+    private readonly EngineMatchBatch batch = new();
+    private List<EngineRunOptions> engines = [];
+    private bool renderQueued;
+    private DateTimeOffset lastRender = DateTimeOffset.MinValue;
+
+    private bool CanRun => !batch.IsRunning && engines.Count > 0 && setup.WhiteEngineId != Guid.Empty && setup.BlackEngineId != Guid.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        engines = await Repository.GetEngineRunOptions();
+        setup.WhiteEngineId = engines.FirstOrDefault()?.Id ?? Guid.Empty;
+        setup.BlackEngineId = engines.Skip(1).FirstOrDefault()?.Id
+            ?? engines.FirstOrDefault()?.Id
+            ?? Guid.Empty;
+
+        batch.MatchUpdated += OnMatchUpdated;
+        batch.BatchFinished += OnBatchFinished;
+    }
+
+    private async Task RunMatches()
+    {
+        var white = engines.FirstOrDefault(e => e.Id == setup.WhiteEngineId) ?? engines.FirstOrDefault();
+        var black = engines.FirstOrDefault(e => e.Id == setup.BlackEngineId) ?? engines.FirstOrDefault();
+        if (white is null || black is null)
+            return;
+
+        var request = new EngineMatchBatchRequest(
+            Workspace.AnalysisBoard.CurrentPosition.Clone(),
+            white,
+            black,
+            Math.Max(1, setup.GameCount),
+            TimeSpan.FromMinutes(Math.Max(1, setup.BaseMinutes)),
+            TimeSpan.FromSeconds(Math.Max(0, setup.IncrementSeconds)),
+            setup.ReverseEngines)
+        {
+            RetainFinishedGames = setup.RetainCompletedGames
+        };
+
+        await batch.RunAsync(request);
+    }
+
+    private Task StopMatches() => batch.StopAsync();
+
+    private void OnMatchUpdated(object? sender, EngineMatchSummaryEventArgs args) => _ = RequestRender();
+
+    private void OnBatchFinished(object? sender, EventArgs args) => _ = RequestRender();
+
+    private Task RequestRender()
+    {
+        if (renderQueued)
+            return Task.CompletedTask;
+
+        renderQueued = true;
+        return InvokeAsync(async () =>
+        {
+            var elapsed = DateTimeOffset.UtcNow - lastRender;
+            if (elapsed < TimeSpan.FromMilliseconds(200))
+                await Task.Delay(TimeSpan.FromMilliseconds(200) - elapsed);
+
+            lastRender = DateTimeOffset.UtcNow;
+            renderQueued = false;
+            StateHasChanged();
+        });
+    }
+
+    private static string GetStatusClass(EngineMatchStatus status) => status switch
+    {
+        EngineMatchStatus.Finished => "ok",
+        EngineMatchStatus.Error => "warn",
+        EngineMatchStatus.Running => "running",
+        _ => "muted"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        batch.MatchUpdated -= OnMatchUpdated;
+        batch.BatchFinished -= OnBatchFinished;
+        await batch.DisposeAsync();
+    }
+}

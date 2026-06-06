@@ -1,0 +1,217 @@
+@page "/engine-arena"
+@using pax.BlazorChess.Board
+@using pax.BlazorChess.Board.Storage
+@using pax.BlazorChess.Web.Components.ChessBoard
+@using pax.BlazorChess.Web.Components.Engine
+@using pax.BlazorChess.Web.Components.MatchSetup
+@using pax.BlazorChess.Web.Components.Results
+@using pax.BlazorChess.Web.Models
+@using pax.chess
+@using pax.uciChessEngine
+@using pax.uciChessEngine.EngineServices
+@inject IChessBoardRepository Repository
+@inject Services.PositionWorkspaceState Workspace
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Engine Arena</PageTitle>
+
+<section class="workspace-page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Play from one position</p>
+            <h1>Engine Arena</h1>
+        </div>
+        <div class="header-actions">
+            <button type="button" class="btn btn-primary" disabled="@(!CanStartGame)" @onclick="StartGame">Start live game</button>
+            <button type="button" class="btn btn-outline-light" disabled="@(ActiveSession is null || !ActiveSession.IsRunning)" @onclick="StopActiveGame">Stop</button>
+        </div>
+    </header>
+
+    @if (engines.Count == 0)
+    {
+        <div class="alert alert-warning">No engines configured. Add engines before starting arena games.</div>
+    }
+
+    <div class="arena-shell">
+        <aside class="arena-setup">
+            <div class="tool-panel">
+                <div class="tool-panel-header">
+                    <h2>Position</h2>
+                    <span class="status-pill ok">@Workspace.Source</span>
+                </div>
+                <ChessBoard Position="Workspace.AnalysisBoard.CurrentPosition" />
+            </div>
+            <FenViewer Position="Workspace.AnalysisBoard.CurrentPosition" />
+            <EngineSelector Title="White engine" EngineRunOptions="engines" @bind-SelectedEngineId="setup.WhiteEngineId" />
+            <EngineSelector Title="Black engine" EngineRunOptions="engines" @bind-SelectedEngineId="setup.BlackEngineId" />
+            <TimeControlEditor @bind-BaseMinutes="setup.BaseMinutes" @bind-IncrementSeconds="setup.IncrementSeconds" />
+            <SearchLimitEditor @bind-ThinkTimePerMoveMs="setup.ThinkTimePerMoveMs" />
+        </aside>
+
+        <main class="arena-live">
+            <div class="tool-panel">
+                <div class="tool-panel-header">
+                    <h2>Live Game</h2>
+                    <span class="subtle">@sessions.Count sessions</span>
+                </div>
+                @if (sessions.Count > 0)
+                {
+                    <div class="session-tabs">
+                        @foreach (var session in sessions)
+                        {
+                            <button type="button" class="@(activeSessionId == session.Id ? "active" : "")" @onclick="() => SelectSession(session.Id)">
+                                @session.Name
+                                @if (!string.IsNullOrWhiteSpace(session.Result))
+                                {
+                                    <span>@session.Result</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+
+                <EngineGameViewer Session="ActiveSession" OnStopRequested="StopActiveGame" />
+            </div>
+
+            <EvaluationChart ChessGame="Workspace.AnalysisBoard.ChessGame"
+                             AnalysisBoard="Workspace.AnalysisBoard"
+                             EngineRunOptions="PrimaryEngine"
+                             ThinkTimePerMoveMs="setup.ThinkTimePerMoveMs" />
+        </main>
+    </div>
+</section>
+
+@code {
+    private readonly EngineSetupViewModel setup = new();
+    private readonly List<EngineGameSession> sessions = [];
+    private List<EngineRunOptions> engines = [];
+    private Guid? activeSessionId;
+    private DateTimeOffset lastRender = DateTimeOffset.MinValue;
+    private bool renderQueued;
+
+    private EngineGameSession? ActiveSession => activeSessionId.HasValue
+        ? sessions.FirstOrDefault(s => s.Id == activeSessionId.Value)
+        : null;
+
+    private EngineRunOptions? PrimaryEngine => engines.FirstOrDefault(e => e.Id == setup.WhiteEngineId) ?? engines.FirstOrDefault();
+    private bool CanStartGame => engines.Count > 0 && setup.WhiteEngineId != Guid.Empty && setup.BlackEngineId != Guid.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        engines = await Repository.GetEngineRunOptions();
+        setup.WhiteEngineId = engines.FirstOrDefault()?.Id ?? Guid.Empty;
+        setup.BlackEngineId = engines.Skip(1).FirstOrDefault()?.Id
+            ?? engines.FirstOrDefault()?.Id
+            ?? Guid.Empty;
+    }
+
+    private async Task StartGame()
+    {
+        var white = engines.FirstOrDefault(e => e.Id == setup.WhiteEngineId) ?? engines.FirstOrDefault();
+        var black = engines.FirstOrDefault(e => e.Id == setup.BlackEngineId) ?? engines.FirstOrDefault();
+        if (white is null || black is null)
+            return;
+
+        var startPosition = Workspace.AnalysisBoard.CurrentPosition.Clone();
+        var clock = new ChessClock(
+            TimeSpan.FromMinutes(Math.Max(1, setup.BaseMinutes)),
+            TimeSpan.FromSeconds(Math.Max(0, setup.IncrementSeconds)));
+        var game = new ChessGame(startPosition, new ChessGameOptions { Clock = clock });
+
+        var engineGame = new EngineGame(
+            new UciEngine(white.BinaryPath),
+            new UciEngine(black.BinaryPath),
+            game,
+            Math.Max(1, Math.Max(white.Threads, black.Threads)));
+
+        var session = new EngineGameSession
+        {
+            EngineGame = engineGame,
+            Game = game,
+            Clock = clock,
+            WhiteEngine = GetName(white),
+            BlackEngine = GetName(black),
+            Name = $"Game {sessions.Count + 1}"
+        };
+
+        engineGame.MoveReady += (_, e) => OnEngineMoveReady(session, e);
+        engineGame.GameFinished += (_, _) => OnGameFinished(session);
+
+        sessions.Add(session);
+        activeSessionId = session.Id;
+
+        await engineGame.Start();
+        session.IsRunning = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnEngineMoveReady(EngineGameSession session, EngineMoveEventArgs args)
+    {
+        var sideToMove = session.Game.CurrentPosition.SideToMove;
+        if (args.Eval is not null)
+        {
+            if (sideToMove == PieceColor.White)
+                session.WhiteEval = args.Eval;
+            else
+                session.BlackEval = args.Eval;
+        }
+
+        session.BoardComponent?.Update(session.Game.CurrentPosition, session.Game.Moves.LastOrDefault()?.Move);
+        _ = RequestRender();
+    }
+
+    private void OnGameFinished(EngineGameSession session)
+    {
+        session.IsRunning = false;
+        session.Result = session.Game.Result?.ToString() ?? "Finished";
+        _ = RequestRender();
+    }
+
+    private async Task StopActiveGame()
+    {
+        var session = ActiveSession;
+        if (session is null || !session.IsRunning)
+            return;
+
+        try
+        {
+            await session.EngineGame.StopGame();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        session.IsRunning = false;
+        session.Result ??= "Stopped";
+    }
+
+    private void SelectSession(Guid id) => activeSessionId = id;
+
+    private Task RequestRender()
+    {
+        if (renderQueued)
+            return Task.CompletedTask;
+
+        renderQueued = true;
+        return InvokeAsync(async () =>
+        {
+            var elapsed = DateTimeOffset.UtcNow - lastRender;
+            if (elapsed < TimeSpan.FromMilliseconds(150))
+                await Task.Delay(TimeSpan.FromMilliseconds(150) - elapsed);
+
+            lastRender = DateTimeOffset.UtcNow;
+            renderQueued = false;
+            StateHasChanged();
+        });
+    }
+
+    private static string GetName(EngineRunOptions engine) =>
+        !string.IsNullOrWhiteSpace(engine.Name) ? engine.Name! : engine.BinaryPath;
+
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var session in sessions)
+            await session.EngineGame.DisposeAsync();
+    }
+}

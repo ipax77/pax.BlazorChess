@@ -3,6 +3,7 @@ using pax.BlazorChess.Board;
 using pax.BlazorChess.Board.Storage;
 using pax.BlazorChess.Db;
 using pax.BlazorChess.Web.Components;
+using pax.BlazorChess.Web.Services;
 using pax.uciChessEngine.EngineServices;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +25,7 @@ builder.Services.AddDbContext<ChessContext>(options => options
 
 builder.Services.AddScoped<IChessBoardRepository, EfChessBoardRepository>();
 builder.Services.AddChessBoard();
+builder.Services.AddScoped<PositionWorkspaceState>();
 
 var app = builder.Build();
 

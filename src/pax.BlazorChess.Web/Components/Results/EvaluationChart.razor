@@ -1,0 +1,48 @@
+@using pax.BlazorChess.Board
+@using pax.chess
+@using pax.chess.Analyze
+@using pax.uciChessEngine.EngineServices
+
+<div class="tool-panel chart-panel">
+    <div class="tool-panel-header">
+        <h2>Evaluation Chart</h2>
+        <button class="btn btn-sm btn-outline-light" disabled="@(EngineRunOptions is null)" @onclick="Analyze">
+            Analyze
+        </button>
+    </div>
+
+    @if (EngineRunOptions is null)
+    {
+        <div class="empty-state">Configure an engine before running analysis.</div>
+    }
+    else
+    {
+        <GameAnalysisComponent @ref="chart"
+                               ChessGame="ChessGame"
+                               AnalysisBoard="AnalysisBoard"
+                               EngineRunOptions="EngineRunOptions"
+                               ThinkTimePerMoveMs="ThinkTimePerMoveMs" />
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required ChessGame ChessGame { get; set; }
+
+    [Parameter]
+    public AnalysisBoard? AnalysisBoard { get; set; }
+
+    [Parameter]
+    public EngineRunOptions? EngineRunOptions { get; set; }
+
+    [Parameter]
+    public int ThinkTimePerMoveMs { get; set; } = 1000;
+
+    private GameAnalysisComponent? chart;
+
+    public async Task Analyze()
+    {
+        if (chart is not null)
+            await chart.Analyse();
+    }
+}

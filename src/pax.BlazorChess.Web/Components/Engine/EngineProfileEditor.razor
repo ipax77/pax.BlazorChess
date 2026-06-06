@@ -1,0 +1,26 @@
+@using pax.BlazorChess.Board
+@using pax.uciChessEngine.EngineServices
+
+<div class="tool-panel engine-editor">
+    <div class="tool-panel-header">
+        <h2>Engine Profile</h2>
+        <EngineStatusBadge Engine="EngineRunOptions" />
+    </div>
+
+    @if (EngineRunOptions is null)
+    {
+        <div class="empty-state">Select an engine to edit.</div>
+    }
+    else
+    {
+        <EngineSettingsComponent EngineRunOptions="EngineRunOptions" OnSaved="OnSaved" />
+    }
+</div>
+
+@code {
+    [Parameter]
+    public EngineRunOptions? EngineRunOptions { get; set; }
+
+    [Parameter]
+    public EventCallback OnSaved { get; set; }
+}

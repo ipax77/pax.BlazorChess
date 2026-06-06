@@ -35,25 +35,35 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
     {
         ArgumentNullException.ThrowIfNull(engineRunOptions);
 
+        var incomingById = engineRunOptions.ToDictionary(o => o.Id);
         var existing = await _context.EngineRunOptions.ToListAsync(cancellationToken);
-        _context.EngineRunOptions.RemoveRange(existing);
+        var existingById = existing.ToDictionary(e => e.Id);
 
         var now = DateTimeOffset.UtcNow;
-        var newEntities = engineRunOptions.Select(o => new EngineRunOptionEntity
-        {
-            Id = o.Id,
-            BinaryPath = o.BinaryPath,
-            Name = o.Name,
-            Threads = o.Threads,
-            Pvs = o.Pvs,
-            HashMb = o.HashMb,
-            PoolSize = o.PoolSize,
-            IdelTimeoutMs = o.IdelTimeoutMs,
-            CreatedAt = now,
-            UpdatedAt = now
-        });
 
-        await _context.EngineRunOptions.AddRangeAsync(newEntities, cancellationToken);
+        foreach (var entity in existing)
+        {
+            if (!incomingById.ContainsKey(entity.Id))
+                _context.EngineRunOptions.Remove(entity);
+        }
+
+        foreach (var option in engineRunOptions)
+        {
+            if (existingById.TryGetValue(option.Id, out var entity))
+            {
+                Apply(option, entity, now);
+                continue;
+            }
+
+            entity = new EngineRunOptionEntity
+            {
+                Id = option.Id,
+                CreatedAt = now
+            };
+            Apply(option, entity, now);
+            await _context.EngineRunOptions.AddAsync(entity, cancellationToken);
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 
@@ -138,5 +148,17 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
 
         EngineIdField.SetValue(opt, entity.Id);
         return opt;
+    }
+
+    private static void Apply(EngineRunOptions option, EngineRunOptionEntity entity, DateTimeOffset now)
+    {
+        entity.BinaryPath = option.BinaryPath;
+        entity.Name = option.Name;
+        entity.Threads = option.Threads;
+        entity.Pvs = option.Pvs;
+        entity.HashMb = option.HashMb;
+        entity.PoolSize = option.PoolSize;
+        entity.IdelTimeoutMs = option.IdelTimeoutMs;
+        entity.UpdatedAt = now;
     }
 }

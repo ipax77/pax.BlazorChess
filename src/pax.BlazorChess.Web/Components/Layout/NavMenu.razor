@@ -1,30 +1,32 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">pax.BlazorChess.Web</a>
-    </div>
+<div class="brand-row">
+    <a class="navbar-brand" href="">Blazor Chess</a>
+    <span>lab</span>
 </div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <span class="nav-icon">H</span> Home
+        </NavLink>
+        <NavLink class="nav-link" href="position-lab">
+            <span class="nav-icon">P</span> Position Lab
+        </NavLink>
+        <NavLink class="nav-link" href="engine-arena">
+            <span class="nav-icon">A</span> Engine Arena
+        </NavLink>
+        <NavLink class="nav-link" href="matches">
+            <span class="nav-icon">M</span> Matches
+        </NavLink>
+        <NavLink class="nav-link" href="engines">
+            <span class="nav-icon">E</span> Engines
+        </NavLink>
+        <NavLink class="nav-link" href="analysis-history">
+            <span class="nav-icon">R</span> Analysis History
+        </NavLink>
+        <NavLink class="nav-link" href="settings">
+            <span class="nav-icon">S</span> Settings
+        </NavLink>
     </nav>
 </div>
-

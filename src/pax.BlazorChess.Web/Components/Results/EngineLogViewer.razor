@@ -1,0 +1,25 @@
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>Engine Log</h2>
+        <span class="subtle">@Entries.Count entries</span>
+    </div>
+
+    @if (Entries.Count == 0)
+    {
+        <div class="empty-state">No engine log entries yet.</div>
+    }
+    else
+    {
+        <ul class="engine-log">
+            @foreach (var entry in Entries)
+            {
+                <li>@entry</li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<string> Entries { get; set; } = [];
+}

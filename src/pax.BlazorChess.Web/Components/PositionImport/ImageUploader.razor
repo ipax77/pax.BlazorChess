@@ -1,0 +1,48 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+<div class="tool-panel image-import-panel">
+    <div class="tool-panel-header">
+        <h2>Upload PNG</h2>
+        <span class="status-pill warn">Needs detector</span>
+    </div>
+
+    <InputFile class="form-control" accept="image/png,image/jpeg,image/webp" OnChange="LoadImage" />
+
+    @if (!string.IsNullOrWhiteSpace(ImageDataUrl))
+    {
+        <div class="image-preview">
+            <img src="@ImageDataUrl" alt="Uploaded chess position" />
+        </div>
+        <div class="alert alert-warning mb-0">
+            PNG preview loaded. Automatic board recognition is not configured yet; correct the FEN manually, then analyze this position.
+        </div>
+    }
+    else
+    {
+        <p class="subtle mb-0 mt-2">Drop in a board screenshot, then confirm/correct the FEN before analysis.</p>
+    }
+</div>
+
+@code {
+    private const long MaxImageBytes = 5 * 1024 * 1024;
+
+    [Parameter]
+    public EventCallback<string> OnImageLoaded { get; set; }
+
+    private string? ImageDataUrl { get; set; }
+
+    private async Task LoadImage(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        await using var stream = file.OpenReadStream(MaxImageBytes);
+        using MemoryStream buffer = new();
+        await stream.CopyToAsync(buffer);
+
+        var contentType = string.IsNullOrWhiteSpace(file.ContentType)
+            ? "image/png"
+            : file.ContentType;
+
+        ImageDataUrl = $"data:{contentType};base64,{Convert.ToBase64String(buffer.ToArray())}";
+        await OnImageLoaded.InvokeAsync(ImageDataUrl);
+    }
+}

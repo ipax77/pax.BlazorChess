@@ -1,0 +1,39 @@
+@using pax.uciChessEngine.EngineServices
+
+<div class="tool-panel">
+    <div class="tool-panel-header">
+        <h2>UCI Options</h2>
+        <span class="subtle">Core limits</span>
+    </div>
+
+    @if (EngineRunOptions is null)
+    {
+        <div class="empty-state">No engine selected.</div>
+    }
+    else
+    {
+        <div class="metric-grid">
+            <div>
+                <span class="metric-label">Threads</span>
+                <strong>@EngineRunOptions.Threads</strong>
+            </div>
+            <div>
+                <span class="metric-label">MultiPV</span>
+                <strong>@EngineRunOptions.Pvs</strong>
+            </div>
+            <div>
+                <span class="metric-label">Hash MB</span>
+                <strong>@EngineRunOptions.HashMb</strong>
+            </div>
+            <div>
+                <span class="metric-label">Pool</span>
+                <strong>@EngineRunOptions.PoolSize</strong>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public EngineRunOptions? EngineRunOptions { get; set; }
+}

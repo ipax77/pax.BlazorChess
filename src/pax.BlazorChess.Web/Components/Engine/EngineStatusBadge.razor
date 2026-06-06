@@ -1,0 +1,19 @@
+@using pax.uciChessEngine.EngineServices
+
+@if (Engine is null)
+{
+    <span class="status-pill muted">Missing</span>
+}
+else if (string.IsNullOrWhiteSpace(Engine.BinaryPath))
+{
+    <span class="status-pill warn">Path needed</span>
+}
+else
+{
+    <span class="status-pill ok">Configured</span>
+}
+
+@code {
+    [Parameter]
+    public EngineRunOptions? Engine { get; set; }
+}
