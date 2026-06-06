@@ -62,10 +62,18 @@
 
         <section class="controls-panel">
             <div class="nav-buttons">
-                <button type="button" class="icon-button" title="Start" @onclick="GoStart">|&lt;</button>
-                <button type="button" class="icon-button" title="Back" @onclick="GoBack">&lt;</button>
-                <button type="button" class="icon-button" title="Forward" @onclick="GoForward">&gt;</button>
-                <button type="button" class="icon-button" title="End" @onclick="GoEnd">&gt;|</button>
+                <button type="button" class="icon-button" title="Start" aria-label="Start" @onclick="GoStart">
+                    <span class="bi bi-skip-backward-fill" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="icon-button" title="Back" aria-label="Back" @onclick="GoBack">
+                    <span class="bi bi-caret-left-fill" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="icon-button" title="Forward" aria-label="Forward" @onclick="GoForward">
+                    <span class="bi bi-caret-right-fill" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="icon-button" title="End" aria-label="End" @onclick="GoEnd">
+                    <span class="bi bi-skip-forward-fill" aria-hidden="true"></span>
+                </button>
             </div>
             <div class="command-row">
                 <button type="button" class="command-button" @onclick="LoadFen">Load FEN</button>

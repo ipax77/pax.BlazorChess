@@ -6,14 +6,28 @@
         <section class="settings-panel" @onclick:stopPropagation="true" aria-label="Engine settings">
             <header class="panel-title">
                 <h2>Engine manager</h2>
-                <button type="button" class="icon-button" title="Close" @onclick="Close">x</button>
+                <button type="button" class="icon-button" title="Close" aria-label="Close" @onclick="Close">
+                    <span class="bi bi-x-lg" aria-hidden="true"></span>
+                </button>
             </header>
 
             <div class="engine-manager-actions">
-                <button type="button" class="command-button" @onclick="Add">Add Engine</button>
-                <button type="button" class="command-button" disabled="@(SelectedEngine is null)" @onclick="TestSelected">Test Engine</button>
-                <button type="button" class="command-button" disabled="@(SelectedEngine is null)" @onclick="EditSelected">Edit</button>
-                <button type="button" class="danger-button" disabled="@(SelectedEngine is null)" @onclick="DeleteSelected">Remove</button>
+                <button type="button" class="command-button" @onclick="Add">
+                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                    <span>Add Engine</span>
+                </button>
+                <button type="button" class="command-button" disabled="@(SelectedEngine is null)" @onclick="TestSelected">
+                    <span class="bi bi-speedometer2" aria-hidden="true"></span>
+                    <span>Test Engine</span>
+                </button>
+                <button type="button" class="command-button" disabled="@(SelectedEngine is null)" @onclick="EditSelected">
+                    <span class="bi bi-pencil-square" aria-hidden="true"></span>
+                    <span>Edit</span>
+                </button>
+                <button type="button" class="danger-button" disabled="@(SelectedEngine is null)" @onclick="DeleteSelected">
+                    <span class="bi bi-trash3" aria-hidden="true"></span>
+                    <span>Remove</span>
+                </button>
             </div>
 
             <div class="engine-settings-grid">
@@ -94,8 +108,14 @@
                             <div class="engine-test-result">@SelectedTestStatus</div>
                         }
                         <div class="settings-actions">
-                            <button type="button" class="command-button" @onclick="ApplyStockfishDefaults">Stockfish defaults</button>
-                            <button type="button" class="command-button" @onclick="ApplyLc0Defaults">LCZero defaults</button>
+                            <button type="button" class="command-button" @onclick="ApplyStockfishDefaults">
+                                <span class="bi bi-wrench-adjustable" aria-hidden="true"></span>
+                                <span>Stockfish defaults</span>
+                            </button>
+                            <button type="button" class="command-button" @onclick="ApplyLc0Defaults">
+                                <span class="bi bi-cpu" aria-hidden="true"></span>
+                                <span>LCZero defaults</span>
+                            </button>
                         </div>
                     </div>
                 }

@@ -14,10 +14,18 @@
             <button type="button" class="tab-button @(ActiveTab == PanelTab.Settings ? "active" : "")" @onclick="() => ActiveTab = PanelTab.Settings">Settings</button>
         </div>
         <div class="engine-actions">
-            <button type="button" class="icon-button" title="Start analysis" @onclick="StartAnalysisAsync">&gt;</button>
-            <button type="button" class="icon-button" title="Pause analysis" @onclick="PauseAnalysisAsync">||</button>
-            <button type="button" class="icon-button" title="Restart analysis" @onclick="RestartAnalysisAsync">R</button>
-            <button type="button" class="icon-button" title="Engine manager" @onclick="OnSettingsClicked">...</button>
+            <button type="button" class="icon-button" title="Start analysis" aria-label="Start analysis" @onclick="StartAnalysisAsync">
+                <span class="bi bi-play-fill" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="icon-button" title="Pause analysis" aria-label="Pause analysis" @onclick="PauseAnalysisAsync">
+                <span class="bi bi-pause-fill" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="icon-button" title="Restart analysis" aria-label="Restart analysis" @onclick="RestartAnalysisAsync">
+                <span class="bi bi-arrow-clockwise" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="icon-button" title="Engine manager" aria-label="Engine manager" @onclick="OnSettingsClicked">
+                <span class="bi bi-sliders" aria-hidden="true"></span>
+            </button>
         </div>
     </header>
 
@@ -49,13 +57,19 @@
                                     <button type="button"
                                             class="icon-button compact"
                                             title="Move engine up"
+                                            aria-label="Move engine up"
                                             disabled="@(engineIndex == 0)"
-                                            @onclick="() => MoveEngine(reorderIndex, -1)">^</button>
+                                            @onclick="() => MoveEngine(reorderIndex, -1)">
+                                        <span class="bi bi-chevron-up" aria-hidden="true"></span>
+                                    </button>
                                     <button type="button"
                                             class="icon-button compact"
                                             title="Move engine down"
+                                            aria-label="Move engine down"
                                             disabled="@(engineIndex == Engines.Count - 1)"
-                                            @onclick="() => MoveEngine(reorderIndex, 1)">v</button>
+                                            @onclick="() => MoveEngine(reorderIndex, 1)">
+                                        <span class="bi bi-chevron-down" aria-hidden="true"></span>
+                                    </button>
                                 </div>
                                 <label class="engine-toggle" title="@GetEngineToggleTitle(engine)">
                                     <input type="checkbox"
@@ -210,7 +224,10 @@
                     </div>
                 }
             </div>
-            <button type="button" class="command-button" @onclick="OnSettingsClicked">Open engine manager</button>
+            <button type="button" class="command-button" @onclick="OnSettingsClicked">
+                <span class="bi bi-sliders" aria-hidden="true"></span>
+                <span>Open engine manager</span>
+            </button>
         </div>
     }
 </section>
