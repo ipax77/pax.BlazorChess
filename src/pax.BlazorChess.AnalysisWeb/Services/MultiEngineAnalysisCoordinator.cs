@@ -30,7 +30,7 @@ public sealed class MultiEngineAnalysisCoordinator : IAsyncDisposable
         get
         {
             lock (_gate)
-                return _snapshots.Values.OrderBy(s => s.EngineName, StringComparer.OrdinalIgnoreCase).ToList();
+                return _snapshots.Values.ToList();
         }
     }
 

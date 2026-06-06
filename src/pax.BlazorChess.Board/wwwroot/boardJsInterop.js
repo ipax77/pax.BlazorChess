@@ -46,11 +46,30 @@ export function updateBoardSize(boardId) {
     board.style.setProperty("--board-size", rect.width + "px");
 }
 
-export function scrollToElement(elementId) {
+const pendingScrolls = new Map();
+
+export function scrollToElement(elementId, behavior = "auto") {
     const element = document.getElementById(elementId);
-    if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    if (!element) {
+        return;
     }
+
+    const container = element.closest(".table-responsive") ?? element.parentElement;
+    const scrollKey = container?.id || elementId;
+    const pending = pendingScrolls.get(scrollKey);
+    if (pending) {
+        cancelAnimationFrame(pending.frame);
+    }
+
+    const frame = requestAnimationFrame(() => {
+        pendingScrolls.delete(scrollKey);
+        const target = document.getElementById(elementId);
+        if (target) {
+            target.scrollIntoView({ behavior, block: "center", inline: "nearest" });
+        }
+    });
+
+    pendingScrolls.set(scrollKey, { frame, elementId, behavior });
 }
 
 export function scrollToBottom(elementId, containerId) {

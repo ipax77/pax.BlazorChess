@@ -9,7 +9,7 @@ public interface IBoardJsInterop
     ValueTask ReleasePointerCapture(Guid boardGuid, int drawingPointerId);
     ValueTask SetPointerCapture(Guid boardGuid, int drawingPointerId);
     ValueTask UpdateBoardSize(Guid boardGuid);
-    ValueTask ScrollToElement(string elementId);
+    ValueTask ScrollToElement(string elementId, string behavior = "auto");
     ValueTask ScrollToBottom(string elementId, string containerId);
 }
 
@@ -46,10 +46,10 @@ public class BoardJsInterop(IJSRuntime jsRuntime) : IAsyncDisposable, IBoardJsIn
         await module.InvokeVoidAsync("updateBoardSize", boardGuid);
     }
 
-    public async ValueTask ScrollToElement(string elementId)
+    public async ValueTask ScrollToElement(string elementId, string behavior = "auto")
     {
         var module = await moduleTask.Value;
-        await module.InvokeVoidAsync("scrollToElement", elementId);
+        await module.InvokeVoidAsync("scrollToElement", elementId, behavior);
     }
 
     public async ValueTask ScrollToBottom(string elementId, string containerId)
