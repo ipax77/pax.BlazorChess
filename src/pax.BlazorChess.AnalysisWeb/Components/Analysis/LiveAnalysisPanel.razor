@@ -31,6 +31,16 @@
                         <option value="@engine.Id">@GetEngineName(engine)</option>
                     }
                 </select>
+                @if (SelectedEngine is not null)
+                {
+                    <label class="engine-toggle" title="@GetSelectedEngineToggleTitle()">
+                        <input type="checkbox"
+                               checked="@SelectedEngine.IsEnabled"
+                               aria-label="@GetSelectedEngineToggleTitle()"
+                               @onchange="ToggleSelectedEngine" />
+                        <span></span>
+                    </label>
+                }
                 <span class="status-pill @GetStatusClass(SelectedSnapshot?.Status)">@GetSelectedStatusText()</span>
             </div>
 
@@ -213,6 +223,9 @@
     [Parameter]
     public EventCallback OnAnalysisChanged { get; set; }
 
+    [Parameter]
+    public EventCallback OnEngineSettingsChanged { get; set; }
+
     private MultiEngineAnalysisCoordinator Coordinator { get; } = new();
     private PanelTab ActiveTab { get; set; } = PanelTab.Engine;
     private IReadOnlyList<EngineAnalysisSnapshot> Snapshots => Coordinator.Snapshots;
@@ -270,6 +283,18 @@
     {
         if (Guid.TryParse(args.Value?.ToString(), out var id))
             await SelectedEngineChanged.InvokeAsync(Engines.FirstOrDefault(e => e.Id == id));
+    }
+
+    private async Task ToggleSelectedEngine(ChangeEventArgs args)
+    {
+        if (SelectedEngine is null || args.Value is not bool isEnabled)
+            return;
+
+        if (SelectedEngine.IsEnabled == isEnabled)
+            return;
+
+        SelectedEngine.IsEnabled = isEnabled;
+        await OnEngineSettingsChanged.InvokeAsync();
     }
 
     private async Task MaterializePv(EnginePvLineSnapshot row, int moveIndex)
@@ -346,6 +371,9 @@
 
     private string GetSelectedStatusText()
         => SelectedSnapshot?.StatusText ?? "No engine";
+
+    private string GetSelectedEngineToggleTitle()
+        => SelectedEngine?.IsEnabled == true ? "Deactivate engine" : "Activate engine";
 
     private static string GetPathStatus(EngineAnalysisSnapshot engine)
         => string.IsNullOrWhiteSpace(engine.BinaryPath) ? "missing" : "local";

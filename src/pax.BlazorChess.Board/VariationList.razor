@@ -1,5 +1,6 @@
 @using pax.chess
 @using pax.chess.Analyze
+@using System.Runtime.CompilerServices
 
 @foreach (var variation in Node.Variations)
 {
@@ -10,27 +11,36 @@
             (
             @foreach (var move in moves)
             {
-                <span style="margin-left:@(Depth * 10)px; cursor:pointer;"
+                <span id="@GetNodeElementId(move)"
+                      style="margin-left:@(Depth * 10)px; cursor:pointer;"
                       class="variation-move @(CurrentNode == move ? "fw-bold" : "")"
                       @onclick="() => OnNodeClicked.InvokeAsync(move)"
                       @oncontextmenu="(e) => OnNodeContextMenu.InvokeAsync(new MoveContextMenuRequest(move, e))"
                       @oncontextmenu:preventDefault="true">
                     @GetLabel(move)
                 </span>
-                <VariationList Node="move"
-                               Depth="@(Depth + 1)"
-                               CurrentNode="CurrentNode"
-                               OnNodeClicked="OnNodeClicked"
-                               OnNodeContextMenu="OnNodeContextMenu" />
             }
             )
         </td>
     </tr>
+
+    @foreach (var move in moves)
+    {
+        <VariationList Node="move"
+                       AnnotationGuid="AnnotationGuid"
+                       Depth="@(Depth + 1)"
+                       CurrentNode="CurrentNode"
+                       OnNodeClicked="OnNodeClicked"
+                       OnNodeContextMenu="OnNodeContextMenu" />
+    }
 }
 
 @code {
     [Parameter, EditorRequired]
     public required MoveNode Node { get; set; }
+
+    [Parameter, EditorRequired]
+    public required Guid AnnotationGuid { get; set; }
 
     [Parameter]
     public int Depth { get; set; } = 1;
@@ -79,4 +89,7 @@
         }
         return string.Empty;
     }
+
+    private string GetNodeElementId(MoveNode node)
+        => $"{AnnotationGuid:N}_node_{RuntimeHelpers.GetHashCode(node)}";
 }

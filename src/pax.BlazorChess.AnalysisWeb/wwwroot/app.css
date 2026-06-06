@@ -46,7 +46,7 @@ h1:focus {
     min-width: 0;
 }
 
-.board-column > .w-100 {
+.board-input-surface > .w-100 {
     width: 100%;
 }
 
@@ -416,6 +416,7 @@ h1:focus {
     min-height: 24px;
     padding: 1px 5px;
     border-radius: 3px;
+    scroll-margin-block: 18px;
 }
 
 .move-context-backdrop {

@@ -1,5 +1,7 @@
 @using pax.chess
 @using pax.chess.Analyze;
+@using System.Runtime.CompilerServices
+@inject IBoardJsInterop BoardJsInterop
 
 <div id="@AnnotationGuid" class="table-responsive" style="max-height: 50vh; max-width: 500px;">
     <table class="table table-sm table-striped">
@@ -26,13 +28,15 @@
                 var blackMove = (i + 1 < mainLine.Count) ? mainLine[i + 1] : null;
                 <tr style="cursor: pointer;">
                     <td @onclick="() => NodeClicked(whiteMove)">@moveNumber.</td>
-                    <td class="@GetNodeCss(whiteMove)"
+                    <td id="@GetNodeElementId(whiteMove)"
+                        class="@GetNodeCss(whiteMove)"
                         @onclick="() => NodeClicked(whiteMove)"
                         @oncontextmenu="(e) => OpenContextMenu(whiteMove, e)"
                         @oncontextmenu:preventDefault="true">@whiteMove.San</td>
                     @if (blackMove != null)
                     {
-                        <td class="@GetNodeCss(blackMove)"
+                        <td id="@GetNodeElementId(blackMove)"
+                            class="@GetNodeCss(blackMove)"
                             @onclick="() => NodeClicked(blackMove)"
                             @oncontextmenu="(e) => OpenContextMenu(blackMove, e)"
                             @oncontextmenu:preventDefault="true">@blackMove.San</td>
@@ -43,12 +47,14 @@
                     }
                 </tr>
                 <VariationList Node="whiteMove"
+                               AnnotationGuid="AnnotationGuid"
                                CurrentNode="AnalysisBoard.CurrentNode"
                                OnNodeClicked="OnNodeClicked"
                                OnNodeContextMenu="OpenVariationContextMenu" />
                 @if (blackMove != null)
                 {
                     <VariationList Node="blackMove"
+                                   AnnotationGuid="AnnotationGuid"
                                    CurrentNode="AnalysisBoard.CurrentNode"
                                    OnNodeClicked="OnNodeClicked"
                                    OnNodeContextMenu="OpenVariationContextMenu" />
@@ -88,12 +94,23 @@
     public EventCallback<MoveContextActionRequest> OnNodeContextAction { get; set; }
 
     private pax.chess.Analyze.MoveNode? contextMenuNode;
+    private pax.chess.Analyze.MoveNode? lastScrolledNode;
     private double contextMenuX;
     private double contextMenuY;
 
     public void Update()
     {
         InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var currentNode = AnalysisBoard.CurrentNode;
+        if (currentNode.IsRoot || ReferenceEquals(currentNode, lastScrolledNode))
+            return;
+
+        lastScrolledNode = currentNode;
+        await BoardJsInterop.ScrollToElement(GetNodeElementId(currentNode));
     }
 
     public void CloseContextMenu()
@@ -156,4 +173,7 @@
     {
         return AnalysisBoard.CurrentNode == node ? "fw-bold" : "";
     }
+
+    private string GetNodeElementId(pax.chess.Analyze.MoveNode node)
+        => $"{AnnotationGuid:N}_node_{RuntimeHelpers.GetHashCode(node)}";
 }

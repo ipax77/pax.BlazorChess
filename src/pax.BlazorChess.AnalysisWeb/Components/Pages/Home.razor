@@ -12,14 +12,14 @@
 
 <main class="analysis-shell"
       tabindex="0"
-      @onkeydown="OnKeyDown"
-      @onwheel="OnWheel"
-      @onwheel:preventDefault="true">
+      @onkeydown="OnKeyDown">
     <section class="board-column">
-        <BoardComponent @ref="board"
-                        Position="Workspace.AnalysisBoard.CurrentPosition"
-                        LastMove="Workspace.LastMove"
-                        OnMovePlayed="ApplyMove" />
+        <div class="board-input-surface" @onwheel="OnBoardWheel" @onwheel:preventDefault="true">
+            <BoardComponent @ref="board"
+                            Position="Workspace.AnalysisBoard.CurrentPosition"
+                            LastMove="Workspace.LastMove"
+                            OnMovePlayed="ApplyMove" />
+        </div>
 
         <div class="position-bar">
             <label for="fenInput">FEN</label>
@@ -46,6 +46,7 @@
                            OnBestMovesReady="BestMovesReady"
                            OnNodeSelected="NodeSelected"
                            OnAnalysisChanged="RefreshBoard"
+                           OnEngineSettingsChanged="EngineChanged"
                            OnSettingsClicked="OpenEngineSettings" />
 
         <section class="moves-panel">
@@ -153,7 +154,7 @@
             annotation?.CloseContextMenu();
     }
 
-    private async Task OnWheel(WheelEventArgs args)
+    private async Task OnBoardWheel(WheelEventArgs args)
     {
         if (args.DeltaY > 0)
             await GoForward();
