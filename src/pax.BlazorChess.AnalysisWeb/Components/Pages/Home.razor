@@ -40,7 +40,9 @@
     <aside class="side-panel">
         <LiveAnalysisPanel @ref="liveAnalysis"
                            AnalysisBoard="Workspace.AnalysisBoard"
+                           Engines="Workspace.EngineRunOptions"
                            SelectedEngine="Workspace.SelectedEngine"
+                           SelectedEngineChanged="EngineSelected"
                            OnBestMovesReady="BestMovesReady"
                            OnNodeSelected="NodeSelected"
                            OnAnalysisChanged="RefreshBoard"
@@ -242,7 +244,7 @@
     private async Task EngineSelected(EngineRunOptions? engine)
     {
         Workspace.SelectedEngineId = engine?.Id ?? Guid.Empty;
-        await NotifyEngineChangedAsync();
+        await Task.CompletedTask;
     }
 
     private async Task EngineAdded(EngineRunOptions engine)

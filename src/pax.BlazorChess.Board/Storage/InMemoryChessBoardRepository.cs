@@ -15,6 +15,8 @@ public sealed class InMemoryChessBoardRepository : IChessBoardRepository
         {
             BinaryPath = @"C:\data\chess\engines\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe",
             Name = "Stockfish 18",
+            EngineType = EngineRunOptions.UciEngineType,
+            IsEnabled = true,
             Threads = 4,
             Pvs = 4,
             PoolSize = 8,
@@ -23,6 +25,8 @@ public sealed class InMemoryChessBoardRepository : IChessBoardRepository
         {
             BinaryPath = @"C:\data\chess\engines\lc0-v0.32.1-windows-gpu-nvidia-cuda11\lc0.exe",
             Name = "LC0 v0.32.1",
+            EngineType = EngineRunOptions.UciWithWeightsEngineType,
+            IsEnabled = true,
             Threads = 2,
             Pvs = 2,
             PoolSize = 2,

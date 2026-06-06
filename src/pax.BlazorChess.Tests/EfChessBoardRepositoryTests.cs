@@ -46,6 +46,10 @@ public class EfChessBoardRepositoryTests
         {
             Name = "LC0",
             BinaryPath = "lc0.exe",
+            EngineType = EngineRunOptions.UciWithWeightsEngineType,
+            WeightsPath = "weights.pb.gz",
+            ExtraOptions = "Backend=cuda",
+            IsEnabled = false,
             Threads = 2,
             Pvs = 1,
             PoolSize = 2
@@ -73,6 +77,36 @@ public class EfChessBoardRepositoryTests
         Assert.AreEqual("Stockfish tuned", rows[0].Name);
         Assert.AreEqual(8, rows[0].Threads);
         Assert.AreEqual(originalCreatedAt, rows[0].CreatedAt);
+    }
+
+    [TestMethod]
+    public async Task Store_engine_options_roundtrips_multi_engine_fields()
+    {
+        await using var harness = await RepositoryHarness.Create();
+        var repo = harness.Repository;
+
+        var lc0 = new EngineRunOptions
+        {
+            Name = "LCZero",
+            BinaryPath = "lc0.exe",
+            EngineType = EngineRunOptions.UciWithWeightsEngineType,
+            WeightsPath = "network.pb.gz",
+            ExtraOptions = "Backend=cuda\nMinibatchSize=256",
+            IsEnabled = false,
+            Threads = 2,
+            Pvs = 2,
+            PoolSize = 1
+        };
+
+        await repo.StoreEngineRunOptions([lc0]);
+
+        var loaded = (await repo.GetEngineRunOptions()).Single();
+
+        Assert.AreEqual(lc0.Id, loaded.Id);
+        Assert.AreEqual(EngineRunOptions.UciWithWeightsEngineType, loaded.EngineType);
+        Assert.AreEqual("network.pb.gz", loaded.WeightsPath);
+        Assert.AreEqual("Backend=cuda\nMinibatchSize=256", loaded.ExtraOptions);
+        Assert.IsFalse(loaded.IsEnabled);
     }
 
     [TestMethod]

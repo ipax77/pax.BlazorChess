@@ -139,6 +139,12 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
         {
             BinaryPath = entity.BinaryPath,
             Name = entity.Name,
+            EngineType = string.IsNullOrWhiteSpace(entity.EngineType)
+                ? EngineRunOptions.UciEngineType
+                : entity.EngineType,
+            WeightsPath = entity.WeightsPath,
+            ExtraOptions = entity.ExtraOptions,
+            IsEnabled = entity.IsEnabled,
             Threads = entity.Threads,
             Pvs = entity.Pvs,
             HashMb = entity.HashMb,
@@ -154,6 +160,12 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
     {
         entity.BinaryPath = option.BinaryPath;
         entity.Name = option.Name;
+        entity.EngineType = string.IsNullOrWhiteSpace(option.EngineType)
+            ? EngineRunOptions.UciEngineType
+            : option.EngineType;
+        entity.WeightsPath = option.WeightsPath;
+        entity.ExtraOptions = option.ExtraOptions;
+        entity.IsEnabled = option.IsEnabled;
         entity.Threads = option.Threads;
         entity.Pvs = option.Pvs;
         entity.HashMb = option.HashMb;

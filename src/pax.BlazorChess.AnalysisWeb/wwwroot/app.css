@@ -90,6 +90,34 @@ h1:focus {
     border-bottom: 1px solid #464038;
 }
 
+.multi-engine-header {
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.tab-strip,
+.engine-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.tab-button {
+    min-height: 30px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: #cfc7bc;
+    padding: 4px 8px;
+}
+
+.tab-button.active {
+    border-color: #6f9d34;
+    background: #29321f;
+    color: #f2f7e9;
+}
+
 .engine-toggle {
     position: relative;
     display: inline-flex;
@@ -171,6 +199,137 @@ h1:focus {
 .pv-list {
     display: flex;
     flex-direction: column;
+}
+
+.engine-tab-content,
+.compare-tab-content,
+.settings-tab-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+}
+
+.engine-selector-row,
+.compare-summary,
+.engine-manager-actions,
+.loaded-engine-row,
+.inline-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.engine-selector-row .text-input {
+    flex: 1 1 auto;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    border: 1px solid #514a40;
+    border-radius: 4px;
+    padding: 2px 7px;
+    color: #ddd5ca;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.status-pill.running,
+.status-pill.ready {
+    border-color: #6f9d34;
+    color: #dff0c5;
+}
+
+.status-pill.error {
+    border-color: #8d4a42;
+    color: #ffd1c7;
+}
+
+.status-pill.disabled,
+.status-pill.paused,
+.status-pill.queued {
+    color: #aaa196;
+}
+
+.compare-summary {
+    justify-content: space-between;
+    min-height: 36px;
+    border-bottom: 1px solid #332f29;
+    padding-bottom: 8px;
+}
+
+.compare-summary span,
+.settings-summary-grid span,
+.loaded-engine-row small {
+    color: #aaa196;
+    font-size: 0.78rem;
+}
+
+.compare-summary div,
+.settings-summary-grid div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.warning-text {
+    color: #ffd166;
+    font-size: 0.82rem;
+}
+
+.candidate-table-wrap,
+.engine-status-table-wrap {
+    max-width: 100%;
+    overflow: auto;
+}
+
+.candidate-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: #e7e2d8;
+    font-size: 0.85rem;
+}
+
+.candidate-table th,
+.candidate-table td {
+    min-height: 30px;
+    border-bottom: 1px solid #332f29;
+    padding: 6px 7px;
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+}
+
+.candidate-table thead th {
+    position: sticky;
+    top: 0;
+    background: #2d2924;
+    color: #bcb4a8;
+}
+
+.candidate-table td small {
+    margin-left: 5px;
+    color: #aaa196;
+}
+
+.settings-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.loaded-engine-list {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid #332f29;
+}
+
+.loaded-engine-row {
+    justify-content: space-between;
+    min-height: 32px;
+    border-bottom: 1px solid #332f29;
 }
 
 .pv-row {
@@ -434,6 +593,11 @@ textarea.text-input {
     padding: 14px;
 }
 
+.engine-manager-actions {
+    flex-wrap: wrap;
+    padding: 12px 14px 0;
+}
+
 .engine-list,
 .engine-form {
     display: flex;
@@ -459,6 +623,19 @@ textarea.text-input {
     background: #29321f;
 }
 
+.engine-manager-table {
+    font-size: 0.8rem;
+}
+
+.engine-manager-row {
+    cursor: pointer;
+}
+
+.engine-manager-row.active th,
+.engine-manager-row.active td {
+    background: #29321f;
+}
+
 .engine-form label {
     display: flex;
     flex-direction: column;
@@ -469,6 +646,18 @@ textarea.text-input {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+}
+
+.inline-check {
+    flex-direction: row !important;
+}
+
+.engine-test-result {
+    border: 1px solid #514a40;
+    border-radius: 4px;
+    background: #1f1d19;
+    color: #d9d1c5;
+    padding: 8px;
 }
 
 .modal {
@@ -581,7 +770,8 @@ textarea.text-input {
     }
 
     .engine-settings-grid,
-    .field-grid {
+    .field-grid,
+    .settings-summary-grid {
         grid-template-columns: 1fr;
     }
 

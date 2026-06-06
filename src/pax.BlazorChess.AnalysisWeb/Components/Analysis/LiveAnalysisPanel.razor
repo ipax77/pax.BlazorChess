@@ -1,5 +1,4 @@
-@using System.Globalization
-@using System.Text
+@using pax.BlazorChess.AnalysisWeb.Services
 @using pax.chess
 @using pax.chess.Analyze
 @using pax.chess.Extensions
@@ -7,62 +6,200 @@
 @using pax.uciChessEngine.EngineServices
 @implements IAsyncDisposable
 
-<section class="analysis-panel">
-    <header class="engine-header">
-        <label class="engine-toggle" title="Toggle live analysis">
-            <input type="checkbox" @bind="IsActive" @bind:after="ToggleAnalysis" />
-            <span></span>
-        </label>
-        <strong class="engine-score">@ScoreText</strong>
-        <div class="engine-meta">
-            <span>@EngineName</span>
-            <small>@DepthText</small>
+<section class="analysis-panel multi-engine-panel">
+    <header class="engine-header multi-engine-header">
+        <div class="tab-strip" role="tablist" aria-label="Analysis panel tabs">
+            <button type="button" class="tab-button @(ActiveTab == PanelTab.Engine ? "active" : "")" @onclick="() => ActiveTab = PanelTab.Engine">Engine</button>
+            <button type="button" class="tab-button @(ActiveTab == PanelTab.Compare ? "active" : "")" @onclick="() => ActiveTab = PanelTab.Compare">Compare</button>
+            <button type="button" class="tab-button @(ActiveTab == PanelTab.Settings ? "active" : "")" @onclick="() => ActiveTab = PanelTab.Settings">Settings</button>
         </div>
-        <button type="button" class="icon-button" title="Engine settings" @onclick="OnSettingsClicked">...</button>
+        <div class="engine-actions">
+            <button type="button" class="icon-button" title="Start analysis" @onclick="StartAnalysisAsync">&gt;</button>
+            <button type="button" class="icon-button" title="Pause analysis" @onclick="PauseAnalysisAsync">||</button>
+            <button type="button" class="icon-button" title="Restart analysis" @onclick="RestartAnalysisAsync">R</button>
+            <button type="button" class="icon-button" title="Engine manager" @onclick="OnSettingsClicked">...</button>
+        </div>
     </header>
 
-    @if (!string.IsNullOrWhiteSpace(Error))
+    @if (ActiveTab == PanelTab.Engine)
     {
-        <div class="engine-error">@Error</div>
-    }
+        <div class="engine-tab-content">
+            <div class="engine-selector-row">
+                <select class="text-input" value="@SelectedEngine?.Id" @onchange="SelectEngine">
+                    @foreach (var engine in Engines)
+                    {
+                        <option value="@engine.Id">@GetEngineName(engine)</option>
+                    }
+                </select>
+                <span class="status-pill @GetStatusClass(SelectedSnapshot?.Status)">@GetSelectedStatusText()</span>
+            </div>
 
-    @if (Rows.Count == 0)
+            @if (SelectedSnapshot is null)
+            {
+                <div class="empty-panel">Add an engine to start analysis.</div>
+            }
+            else
+            {
+                @if (!string.IsNullOrWhiteSpace(SelectedSnapshot.Error))
+                {
+                    <div class="engine-error">@SelectedSnapshot.Error</div>
+                }
+
+                @if (SelectedSnapshot.Lines.Count == 0)
+                {
+                    <div class="empty-panel">@GetEngineEmptyText(SelectedSnapshot)</div>
+                }
+                else
+                {
+                    <div class="pv-list">
+                        @foreach (var row in SelectedSnapshot.Lines)
+                        {
+                            <div class="pv-row">
+                                <button type="button" class="pv-score" @onclick="() => MaterializePv(row, 0)">@row.ScoreText</button>
+                                <span class="pv-depth">@($"d{row.Depth}")</span>
+                                <div class="pv-line">
+                                    @for (var i = 0; i < row.Moves.Count; i++)
+                                    {
+                                        var moveIndex = i;
+                                        var move = row.Moves[moveIndex];
+                                        <button type="button" class="pv-token" @onclick="() => MaterializePv(row, moveIndex)">
+                                            @move.San
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    }
+    else if (ActiveTab == PanelTab.Compare)
     {
-        <div class="empty-panel">@EmptyText</div>
+        var comparison = Coordinator.Comparison;
+        <div class="compare-tab-content">
+            <section class="compare-summary">
+                <div>
+                    <span>Consensus</span>
+                    <strong>@(string.IsNullOrWhiteSpace(comparison.ConsensusBestMove) ? "-" : comparison.ConsensusBestMove)</strong>
+                </div>
+                @if (comparison.HasDisagreement)
+                {
+                    <div class="warning-text">Engines disagree on the best move.</div>
+                }
+            </section>
+
+            <div class="candidate-table-wrap">
+                <table class="candidate-table">
+                    <thead>
+                        <tr>
+                            <th>Move</th>
+                            @foreach (var engine in Snapshots)
+                            {
+                                <th>@engine.EngineName</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (comparison.CandidateRows.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="@(Snapshots.Count + 1)">No candidate moves yet.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var row in comparison.CandidateRows)
+                            {
+                                <tr>
+                                    <th>@row.San</th>
+                                    @foreach (var engine in Snapshots)
+                                    {
+                                        <td>
+                                            @if (row.Cells.TryGetValue(engine.EngineId, out var cell))
+                                            {
+                                                <span>@cell.EvalText</span>
+                                                <small>@cell.RankText</small>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="engine-status-table-wrap">
+                <table class="candidate-table engine-status-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Path</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var engine in Snapshots)
+                        {
+                            <tr>
+                                <th>@engine.EngineName</th>
+                                <td>@engine.EngineType</td>
+                                <td>@GetPathStatus(engine)</td>
+                                <td><span class="status-pill @GetStatusClass(engine.Status)">@engine.StatusText</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
     }
     else
     {
-        <div class="pv-list">
-            @foreach (var row in Rows)
-            {
-                <div class="pv-row">
-                    <button type="button" class="pv-score" @onclick="() => MaterializePv(row, 0)">@row.ScoreText</button>
-                    <span class="pv-depth">@($"d{row.Depth}")</span>
-                    <div class="pv-line">
-                        @for (var i = 0; i < row.Moves.Count; i++)
-                        {
-                            var moveIndex = i;
-                            var move = row.Moves[moveIndex];
-                            <button type="button" class="pv-token" @onclick="() => MaterializePv(row, moveIndex)">
-                                @move.San
-                            </button>
-                        }
-                    </div>
+        <div class="settings-tab-content">
+            <div class="settings-summary-grid">
+                <div>
+                    <span>Active profile</span>
+                    <strong>Default</strong>
                 </div>
-            }
+                <div>
+                    <span>Loaded engines</span>
+                    <strong>@EnabledEngineCount / @Engines.Count</strong>
+                </div>
+                <div>
+                    <span>Live cap</span>
+                    <strong>@MaxParallelEngines</strong>
+                </div>
+            </div>
+            <div class="loaded-engine-list">
+                @foreach (var engine in Engines)
+                {
+                    <div class="loaded-engine-row">
+                        <span>@GetEngineName(engine)</span>
+                        <small>@(engine.IsEnabled ? "Enabled" : "Disabled") / @GetEngineType(engine)</small>
+                    </div>
+                }
+            </div>
+            <button type="button" class="command-button" @onclick="OnSettingsClicked">Open engine manager</button>
         </div>
     }
 </section>
 
 @code {
-    private static readonly TimeSpan RestartDebounce = TimeSpan.FromMilliseconds(200);
-    private static readonly TimeSpan UiThrottle = TimeSpan.FromMilliseconds(125);
+    private const int MaxParallelEngines = 2;
 
     [Parameter, EditorRequired]
     public required AnalysisBoard AnalysisBoard { get; set; }
 
+    [Parameter, EditorRequired]
+    public required List<EngineRunOptions> Engines { get; set; }
+
     [Parameter]
     public EngineRunOptions? SelectedEngine { get; set; }
+
+    [Parameter]
+    public EventCallback<EngineRunOptions?> SelectedEngineChanged { get; set; }
 
     [Parameter]
     public EventCallback<List<Move>> OnBestMovesReady { get; set; }
@@ -76,184 +213,70 @@
     [Parameter]
     public EventCallback OnAnalysisChanged { get; set; }
 
-    private readonly CancellationTokenSource disposeCts = new();
-    private CancellationTokenSource? analysisCts;
-    private DateTimeOffset lastUiUpdate = DateTimeOffset.MinValue;
-    private bool renderQueued;
+    private MultiEngineAnalysisCoordinator Coordinator { get; } = new();
+    private PanelTab ActiveTab { get; set; } = PanelTab.Engine;
+    private IReadOnlyList<EngineAnalysisSnapshot> Snapshots => Coordinator.Snapshots;
+    private EngineAnalysisSnapshot? SelectedSnapshot
+        => SelectedEngine is null ? null : Snapshots.FirstOrDefault(s => s.EngineId == SelectedEngine.Id);
+    private int EnabledEngineCount => Engines.Count(e => e.IsEnabled);
 
-    private List<PvRow> Rows { get; } = [];
-    private bool IsActive { get; set; }
-    private string Error { get; set; } = string.Empty;
-    private string ScoreText { get; set; } = "-";
-    private string DepthText { get; set; } = "idle";
-    private string EngineName => SelectedEngine is null
-        ? "No engine"
-        : string.IsNullOrWhiteSpace(SelectedEngine.Name) ? SelectedEngine.BinaryPath : SelectedEngine.Name!;
-
-    private string EmptyText
-        => SelectedEngine is null
-            ? "Add an engine to start analysis."
-            : IsActive ? "Waiting for engine output." : "Live analysis is paused.";
-
-    public Task NotifyPositionChangedAsync()
+    protected override void OnInitialized()
     {
-        ClearRows();
-        return RestartAsync();
+        Coordinator.Changed += CoordinatorChangedAsync;
+        Coordinator.Clear(Engines);
     }
 
-    public Task NotifyEngineChangedAsync()
+    public async Task NotifyPositionChangedAsync()
     {
-        ClearRows();
-        return RestartAsync();
+        await PublishBestMovesAsync([]);
+        await Coordinator.RestartAsync(AnalysisBoard, Engines, MaxParallelEngines);
+    }
+
+    public async Task NotifyEngineChangedAsync()
+    {
+        if (SelectedEngine is null && Engines.Count > 0)
+            await SelectedEngineChanged.InvokeAsync(Engines[0]);
+
+        await Coordinator.RestartAsync(AnalysisBoard, Engines, MaxParallelEngines);
+        if (!Coordinator.IsActive)
+            Coordinator.Clear(Engines);
     }
 
     public Move? GetCurrentBestMove()
     {
-        var row = Rows.FirstOrDefault();
+        var row = SelectedSnapshot?.Lines.FirstOrDefault();
         if (row is null || row.BaseNode != AnalysisBoard.CurrentNode || row.Moves.Count == 0)
             return null;
 
         return row.Moves[0].Move;
     }
 
-    private Task ToggleAnalysis()
+    private async Task StartAnalysisAsync()
     {
-        if (!IsActive)
-        {
-            StopCurrent();
-            ClearRows();
-            return Task.CompletedTask;
-        }
-
-        return RestartAsync();
+        await Coordinator.StartAsync(AnalysisBoard, Engines, MaxParallelEngines);
     }
 
-    private async Task RestartAsync()
+    private async Task PauseAnalysisAsync()
     {
-        StopCurrent();
-
-        if (!IsActive || SelectedEngine is null)
-            return;
-
-        if (string.IsNullOrWhiteSpace(SelectedEngine.BinaryPath))
-        {
-            Error = "Set an engine binary path before starting analysis.";
-            return;
-        }
-
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(disposeCts.Token);
-        analysisCts = cts;
-
-        try
-        {
-            await Task.Delay(RestartDebounce, cts.Token);
-            await RunAnalysisAsync(cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        await Coordinator.PauseAsync();
     }
 
-    private async Task RunAnalysisAsync(CancellationToken token)
+    private async Task RestartAnalysisAsync()
     {
-        var engine = SelectedEngine;
-        if (engine is null)
-            return;
-
-        var baseNode = AnalysisBoard.CurrentNode;
-        var basePosition = AnalysisBoard.CurrentPosition;
-        var engineMoves = BuildEngineMoveString(baseNode);
-
-        try
-        {
-            Error = string.Empty;
-            DepthText = "starting";
-            await RequestRenderAsync(force: true);
-
-            var provider = EngineService.GetEngineSessionProvider(engine);
-            await using var lease = await provider.AcquireAsync(token);
-
-            await lease.Session.UseAsync<Task>(async uciEngine =>
-            {
-                await foreach (var evals in EngineService.GetContinualEvaluation(engineMoves, basePosition.SideToMove, uciEngine, token))
-                {
-                    UpdateRows(evals, baseNode, basePosition);
-                    await RequestRenderAsync(force: false);
-                }
-
-                return Task.CompletedTask;
-            }, token);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            Error = ex.Message;
-            DepthText = "error";
-            await RequestRenderAsync(force: true);
-        }
+        await Coordinator.StartAsync(AnalysisBoard, Engines, MaxParallelEngines);
     }
 
-    private void UpdateRows(List<Eval> evals, MoveNode baseNode, BoardPosition basePosition)
+    private async Task SelectEngine(ChangeEventArgs args)
     {
-        Rows.Clear();
-
-        List<Move> bestMoves = [];
-        foreach (var eval in evals.OrderBy(e => e.PvInfo.MultiPv))
-        {
-            var moves = BuildPvMoves(eval.PvInfo.Moves, basePosition);
-            if (moves.Count == 0)
-                continue;
-
-            bestMoves.Add(moves[0].Move);
-            Rows.Add(new PvRow(
-                eval.PvInfo.MultiPv,
-                FormatEval(eval),
-                eval.Depth,
-                baseNode,
-                basePosition,
-                eval.PvInfo.Moves.ToArray(),
-                moves));
-        }
-
-        if (Rows.Count > 0)
-        {
-            ScoreText = Rows[0].ScoreText;
-            DepthText = $"depth {Rows[0].Depth}";
-        }
-        else
-        {
-            ScoreText = "-";
-            DepthText = "searching";
-        }
-
-        _ = OnBestMovesReady.InvokeAsync(bestMoves);
+        if (Guid.TryParse(args.Value?.ToString(), out var id))
+            await SelectedEngineChanged.InvokeAsync(Engines.FirstOrDefault(e => e.Id == id));
     }
 
-    private static List<PvMove> BuildPvMoves(IReadOnlyList<string> engineMoves, BoardPosition basePosition)
+    private async Task MaterializePv(EnginePvLineSnapshot row, int moveIndex)
     {
-        List<PvMove> moves = [];
-        var position = basePosition;
-
-        foreach (var engineMove in engineMoves)
-        {
-            var move = Uci.CreateMove(engineMove, position);
-            if (move is null)
-                break;
-
-            var san = PgnSerializer.ToSan(move, position);
-            moves.Add(new PvMove(engineMove, san, move));
-            position = position.MakeMove(move);
-        }
-
-        return moves;
-    }
-
-    private async Task MaterializePv(PvRow row, int moveIndex)
-    {
-        StopCurrent();
+        var wasActive = Coordinator.IsActive;
+        if (wasActive)
+            await Coordinator.PauseAsync();
 
         var current = row.BaseNode;
         AnalysisBoard.MoveToNode(current);
@@ -279,96 +302,75 @@
         await OnNodeSelected.InvokeAsync(current);
         await OnAnalysisChanged.InvokeAsync();
 
-        if (IsActive)
-            _ = RestartAsync();
+        if (wasActive)
+            await Coordinator.StartAsync(AnalysisBoard, Engines, MaxParallelEngines);
     }
 
-    private static string BuildEngineMoveString(MoveNode node)
+    private async Task CoordinatorChangedAsync()
     {
-        Stack<Move> moves = [];
-        var current = node;
-        while (current.Move is not null)
+        await PublishBestMovesAsync(GetBestMovesFromSnapshots());
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private List<Move> GetBestMovesFromSnapshots()
+    {
+        List<Move> moves = [];
+        foreach (var snapshot in Snapshots)
         {
-            moves.Push(current.Move);
-            current = current.Parent!;
+            var move = snapshot.Lines.FirstOrDefault()?.Moves.FirstOrDefault()?.Move;
+            if (move is not null && !moves.Contains(move))
+                moves.Add(move);
         }
 
-        if (moves.Count == 0)
-            return string.Empty;
+        return moves;
+    }
 
-        StringBuilder builder = new();
-        while (moves.Count > 0)
+    private Task PublishBestMovesAsync(List<Move> moves)
+        => OnBestMovesReady.InvokeAsync(moves);
+
+    private static string GetEngineName(EngineRunOptions engine)
+        => string.IsNullOrWhiteSpace(engine.Name) ? "Unnamed engine" : engine.Name!;
+
+    private static string GetEngineType(EngineRunOptions engine)
+        => string.IsNullOrWhiteSpace(engine.EngineType) ? EngineRunOptions.UciEngineType : engine.EngineType;
+
+    private static string GetEngineEmptyText(EngineAnalysisSnapshot snapshot)
+        => snapshot.Status switch
         {
-            if (builder.Length > 0)
-                builder.Append(' ');
+            EngineAnalysisStatus.Disabled => "This engine is disabled.",
+            EngineAnalysisStatus.Paused => "Live analysis is paused.",
+            EngineAnalysisStatus.Queued => "Waiting for an engine slot.",
+            EngineAnalysisStatus.Error => "Engine failed to start.",
+            _ => "Waiting for engine output."
+        };
 
-            builder.Append(Uci.GetUci(moves.Pop()));
-        }
+    private string GetSelectedStatusText()
+        => SelectedSnapshot?.StatusText ?? "No engine";
 
-        return builder.ToString();
-    }
+    private static string GetPathStatus(EngineAnalysisSnapshot engine)
+        => string.IsNullOrWhiteSpace(engine.BinaryPath) ? "missing" : "local";
 
-    private async Task RequestRenderAsync(bool force)
-    {
-        var now = DateTimeOffset.UtcNow;
-        if (!force && now - lastUiUpdate < UiThrottle)
-            return;
-
-        if (renderQueued)
-            return;
-
-        renderQueued = true;
-        await InvokeAsync(() =>
+    private static string GetStatusClass(EngineAnalysisStatus? status)
+        => status switch
         {
-            lastUiUpdate = DateTimeOffset.UtcNow;
-            renderQueued = false;
-            StateHasChanged();
-        });
-    }
-
-    private void StopCurrent()
-    {
-        var cts = Interlocked.Exchange(ref analysisCts, null);
-        if (cts is null)
-            return;
-
-        cts.Cancel();
-        cts.Dispose();
-    }
-
-    private void ClearRows()
-    {
-        Rows.Clear();
-        ScoreText = "-";
-        DepthText = IsActive ? "starting" : "idle";
-        Error = string.Empty;
-        _ = OnBestMovesReady.InvokeAsync([]);
-        _ = InvokeAsync(StateHasChanged);
-    }
-
-    private static string FormatEval(Eval eval)
-    {
-        if (eval.Mate != 0)
-            return $"M{eval.Mate}";
-
-        return (eval.Score / 100.0).ToString("+0.0;-0.0;0.0", CultureInfo.InvariantCulture);
-    }
+            EngineAnalysisStatus.Running => "running",
+            EngineAnalysisStatus.Ready => "ready",
+            EngineAnalysisStatus.Error => "error",
+            EngineAnalysisStatus.Disabled => "disabled",
+            EngineAnalysisStatus.Queued => "queued",
+            _ => "paused"
+        };
 
     public async ValueTask DisposeAsync()
     {
-        StopCurrent();
-        await disposeCts.CancelAsync();
-        disposeCts.Dispose();
+        Coordinator.Changed -= CoordinatorChangedAsync;
+        await Coordinator.DisposeAsync();
     }
 
-    private sealed record PvRow(
-        int MultiPv,
-        string ScoreText,
-        int Depth,
-        MoveNode BaseNode,
-        BoardPosition BasePosition,
-        IReadOnlyList<string> UciMoves,
-        IReadOnlyList<PvMove> Moves);
-
-    private sealed record PvMove(string Uci, string San, Move Move);
+    private enum PanelTab
+    {
+        Engine,
+        Compare,
+        Settings
+    }
 }

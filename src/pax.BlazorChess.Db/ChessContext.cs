@@ -18,6 +18,8 @@ public class ChessContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.BinaryPath).IsRequired();
+            entity.Property(e => e.EngineType).IsRequired().HasDefaultValue("UCI");
+            entity.Property(e => e.IsEnabled).HasDefaultValue(true);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
         });

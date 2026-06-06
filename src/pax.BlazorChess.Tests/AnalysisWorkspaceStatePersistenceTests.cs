@@ -26,6 +26,10 @@ public sealed class AnalysisWorkspaceStatePersistenceTests
         {
             Name = "LC0",
             BinaryPath = "lc0.exe",
+            EngineType = EngineRunOptions.UciWithWeightsEngineType,
+            WeightsPath = "lc0.pb.gz",
+            ExtraOptions = "Backend=cuda",
+            IsEnabled = false,
             Threads = 2,
             Pvs = 1,
             HashMb = 32,
@@ -41,6 +45,10 @@ public sealed class AnalysisWorkspaceStatePersistenceTests
         Assert.AreEqual(stockfish.Id, state.SelectedEngineId);
         Assert.AreEqual("Stockfish", state.SelectedEngine?.Name);
         Assert.AreEqual("stockfish.exe", state.SelectedEngine?.BinaryPath);
+        Assert.AreEqual(EngineRunOptions.UciWithWeightsEngineType, state.EngineRunOptions[1].EngineType);
+        Assert.AreEqual("lc0.pb.gz", state.EngineRunOptions[1].WeightsPath);
+        Assert.AreEqual("Backend=cuda", state.EngineRunOptions[1].ExtraOptions);
+        Assert.IsFalse(state.EngineRunOptions[1].IsEnabled);
     }
 
     [TestMethod]

@@ -154,6 +154,8 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
         var engine = new EngineRunOptions
         {
             Name = EngineRunOptions.Count == 0 ? "Stockfish" : $"Engine {EngineRunOptions.Count + 1}",
+            EngineType = pax.uciChessEngine.EngineServices.EngineRunOptions.UciEngineType,
+            IsEnabled = true,
             Threads = Math.Max(1, Environment.ProcessorCount / 4),
             Pvs = 3,
             HashMb = 16,

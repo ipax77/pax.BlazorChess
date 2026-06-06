@@ -5,6 +5,10 @@ public sealed class EngineRunOptionEntity
     public Guid Id { get; set; }
     public string BinaryPath { get; set; } = string.Empty;
     public string? Name { get; set; }
+    public string EngineType { get; set; } = string.Empty;
+    public string? WeightsPath { get; set; }
+    public string? ExtraOptions { get; set; }
+    public bool IsEnabled { get; set; } = true;
     public int Threads { get; set; }
     public int Pvs { get; set; }
     public int HashMb { get; set; }
