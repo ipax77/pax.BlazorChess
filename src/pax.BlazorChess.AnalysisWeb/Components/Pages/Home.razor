@@ -45,13 +45,24 @@
                     <h2>Game analysis</h2>
                     <span>@FullAnalysisStatus</span>
                 </div>
-                <button type="button"
-                        class="analyse-button"
-                        disabled="@(!CanAnalyzeGame)"
-                        @onclick="AnalyzeGame">
-                    <span class="bi bi-activity" aria-hidden="true"></span>
-                    <span>Analyse</span>
-                </button>
+                <div class="full-analysis-actions">
+                    <button type="button"
+                            class="analyse-button"
+                            disabled="@(!CanAnalyzeGame || fullAnalysisRunning)"
+                            @onclick="AnalyzeGame">
+                        <span class="bi bi-activity" aria-hidden="true"></span>
+                        <span>Analyse</span>
+                    </button>
+                    @if (fullAnalysisRunning)
+                    {
+                        <button type="button"
+                                class="stop-analysis-button"
+                                @onclick="StopFullAnalysis">
+                            <span class="bi bi-stop-fill" aria-hidden="true"></span>
+                            <span>Stop</span>
+                        </button>
+                    }
+                </div>
             </header>
 
             <div class="full-analysis-settings">
@@ -167,6 +178,7 @@
     private int analysisChartVersion;
     private readonly string analysisShellId = $"analysis_shell_{Guid.NewGuid():N}";
     private bool navigationKeyDefaultsRegistered;
+    private bool fullAnalysisRunning;
 
     private int MoveCount => CountMainLineMoves();
     private int MaxAnalysisThreads => Math.Max(1, Environment.ProcessorCount);
@@ -178,7 +190,9 @@
             && !string.IsNullOrWhiteSpace(Workspace.SelectedEngine.BinaryPath)
             && File.Exists(Workspace.SelectedEngine.BinaryPath);
     private string FullAnalysisStatus
-        => Workspace.SelectedEngine is null
+        => fullAnalysisRunning
+            ? $"Analysing {MoveCount} ply / {AnalysisThinkTimeMs} ms / {ClampedAnalysisThreads} threads"
+            : Workspace.SelectedEngine is null
             ? "Select an engine before analysing the game."
             : MoveCount == 0
                 ? "Load or play a game to analyse the main line."
@@ -338,8 +352,26 @@
     private async Task AnalyzeGame()
     {
         ClampAnalysisSettings();
-        if (evaluationChart is not null && CanAnalyzeGame)
+        if (evaluationChart is null || !CanAnalyzeGame || fullAnalysisRunning)
+            return;
+
+        fullAnalysisRunning = true;
+        StateHasChanged();
+
+        try
+        {
             await evaluationChart.Analyze();
+        }
+        finally
+        {
+            fullAnalysisRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    private void StopFullAnalysis()
+    {
+        evaluationChart?.StopAnalysis();
     }
 
     private async Task AnalysisMoveClicked(int moveNumber)

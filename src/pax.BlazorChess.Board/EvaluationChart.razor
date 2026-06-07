@@ -79,4 +79,9 @@
         if (chart is not null)
             await chart.Analyse();
     }
+
+    public void StopAnalysis()
+    {
+        chart?.StopAnalysis();
+    }
 }

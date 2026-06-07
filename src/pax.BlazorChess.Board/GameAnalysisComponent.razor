@@ -118,6 +118,7 @@
 
         ResetAnalysisState();
         isAnalysing = true;
+        var completedNaturally = false;
         await InvokeAsync(StateHasChanged);
 
         _ = StartChartRefreshLoop();
@@ -150,6 +151,8 @@
                     summaryDirty = true;
                 }
             }
+
+            completedNaturally = !cts.IsCancellationRequested;
         }
         catch (OperationCanceledException)
         {
@@ -159,11 +162,19 @@
             isAnalysing = false;
             RefreshChartData(forceSummary: true);
 
-            if (AddCategoryVariations())
+            if (completedNaturally && !cts.IsCancellationRequested && AddCategoryVariations())
                 await OnAnnotationsChanged.InvokeAsync();
 
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    public void StopAnalysis()
+    {
+        if (!isAnalysing || cts.IsCancellationRequested)
+            return;
+
+        cts.Cancel();
     }
 
     private async Task StartChartRefreshLoop()

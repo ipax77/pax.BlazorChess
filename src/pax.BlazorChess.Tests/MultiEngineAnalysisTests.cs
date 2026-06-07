@@ -5,6 +5,7 @@ using pax.chess.Analyze;
 using pax.chess.Extensions;
 using pax.uciChessEngine;
 using pax.uciChessEngine.EngineServices;
+using System.Reflection;
 
 namespace pax.BlazorChess.Tests;
 
@@ -209,6 +210,27 @@ public sealed class MultiEngineAnalysisTests
         Assert.AreEqual(originalMainLineCount, CountMainLineMoves(board.Root));
     }
 
+    [TestMethod]
+    public void Game_analysis_stop_cancels_only_active_analysis_and_is_idempotent()
+    {
+#pragma warning disable BL0005
+        var component = new pax.BlazorChess.Board.GameAnalysisComponent
+        {
+            ChessGame = new ChessGame(),
+            EngineRunOptions = new EngineRunOptions()
+        };
+#pragma warning restore BL0005
+
+        component.StopAnalysis();
+        Assert.IsFalse(GetPrivateField<CancellationTokenSource>(component, "cts").IsCancellationRequested);
+
+        SetPrivateField(component, "isAnalysing", true);
+        component.StopAnalysis();
+        component.StopAnalysis();
+
+        Assert.IsTrue(GetPrivateField<CancellationTokenSource>(component, "cts").IsCancellationRequested);
+    }
+
     private static EngineAnalysisSnapshot Snapshot(
         EngineRunOptions engine,
         IReadOnlyList<EnginePvLineSnapshot> lines)
@@ -280,5 +302,17 @@ public sealed class MultiEngineAnalysisTests
 
         return count;
     }
+
+    private static T GetPrivateField<T>(object target, string fieldName)
+        => (T)(target.GetType()
+            .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(target)
+            ?? throw new MissingFieldException(target.GetType().Name, fieldName));
+
+    private static void SetPrivateField<T>(object target, string fieldName, T value)
+        => (target.GetType()
+            .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new MissingFieldException(target.GetType().Name, fieldName))
+            .SetValue(target, value);
 
 }

@@ -622,6 +622,7 @@ h1:focus {
 }
 
 .full-analysis-header,
+.full-analysis-actions,
 .full-analysis-settings,
 .number-field {
     display: flex;
@@ -668,6 +669,30 @@ h1:focus {
 
 .analyse-button:not(:disabled):hover {
     background: #6fa92c;
+}
+
+.full-analysis-actions {
+    flex: 0 0 auto;
+    gap: 8px;
+}
+
+.stop-analysis-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 36px;
+    border: 1px solid #8d4a42;
+    border-radius: 4px;
+    background: #5a2d28;
+    color: #ffd8d0;
+    padding: 6px 12px;
+    font-weight: 700;
+}
+
+.stop-analysis-button:not(:disabled):hover {
+    border-color: #ad5a50;
+    background: #6d3731;
 }
 
 .full-analysis-settings {
@@ -951,6 +976,10 @@ textarea.text-input {
     .full-analysis-header {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .full-analysis-actions {
+        align-items: stretch;
     }
 
     .engine-score {
