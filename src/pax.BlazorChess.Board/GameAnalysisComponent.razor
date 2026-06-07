@@ -1,13 +1,11 @@
 @using pax.BlazorChartJs
 @using System.Globalization
-@using Microsoft.JSInterop
 @using pax.chess
 @using pax.chess.Analyze
 @using pax.chess.Extensions
 @using pax.uciChessEngine
 @using pax.uciChessEngine.EngineServices
-@inject IJSRuntime JS
-@implements IAsyncDisposable
+@implements IDisposable
 
 <div class="game-analysis">
     <div class="game-analysis-chart-shell @(isAnalysing ? "is-running" : "")">
@@ -101,7 +99,6 @@
     };
     private AnalysisEvaluationDataset evaluationDataset = null!;
     private ChartJsConfig chartJsConfig = null!;
-    private IJSObjectReference? chartCallbacksModule;
     private bool chartReady;
     private bool isAnalysing;
     private bool chartDirty;
@@ -298,30 +295,11 @@
             return;
 
         configuredCurrentMoveNumber = currentMoveNumber;
-        _ = UpdateCurrentLineOnChartAsync(currentMoveNumber);
-    }
-
-    private async Task UpdateCurrentLineOnChartAsync(int currentMoveNumber)
-    {
-        if (!chartReady)
-            return;
-
-        try
-        {
-            chartCallbacksModule ??= await JS.InvokeAsync<IJSObjectReference>(
-                "import",
-                "/_content/pax.BlazorChess.Board/chartJsCallbacks.js");
-            await chartCallbacksModule.InvokeVoidAsync(
-                "setAnalysisCurrentLine",
-                chartJsConfig.ChartJsConfigGuid.ToString(),
-                currentMoveNumber);
-        }
-        catch (JSDisconnectedException)
-        {
-        }
-        catch (ObjectDisposedException)
-        {
-        }
+        chartJsConfig.SetDatasetsSmooth(
+            [evaluationDataset],
+            chartLabels,
+            updateOptions: true,
+            updateAnimation: "none");
     }
 
     private int UpdateCurrentLinePosition(int moveNumber)
@@ -336,7 +314,6 @@
         if (args is ChartJsInitEvent)
         {
             chartReady = true;
-            _ = UpdateCurrentLineOnChartAsync(configuredCurrentMoveNumber);
             RefreshChartData(forceSummary: true);
         }
         else if (args is ChartJsLabelClickEvent clickEvent)
@@ -783,21 +760,10 @@
         };
     }
 
-    public async ValueTask DisposeAsync()
+    public void Dispose()
     {
         isAnalysing = false;
         cts.Cancel();
         cts.Dispose();
-
-        if (chartCallbacksModule is not null)
-        {
-            try
-            {
-                await chartCallbacksModule.DisposeAsync();
-            }
-            catch (JSDisconnectedException)
-            {
-            }
-        }
     }
 }

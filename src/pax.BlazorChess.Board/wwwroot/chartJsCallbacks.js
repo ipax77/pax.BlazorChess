@@ -19,17 +19,3 @@ const callbacks = Object.freeze({
 });
 
 export const chartJsCallbacks = callbacks;
-
-export function setAnalysisCurrentLine(chartId, xPosition) {
-    const canvas = document.getElementById(chartId);
-    const chart = canvas && globalThis.Chart?.getChart
-        ? globalThis.Chart.getChart(canvas)
-        : null;
-    const lines = chart?.options?.plugins?.arbitraryLines;
-    if (!Array.isArray(lines) || lines.length === 0) {
-        return;
-    }
-
-    lines[0].xPosition = xPosition;
-    chart.update("none");
-}
