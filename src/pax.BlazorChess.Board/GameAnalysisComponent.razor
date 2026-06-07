@@ -388,8 +388,9 @@
         lock (evalLock)
         {
             engineResults.Clear();
+            var fillRawDataset = engines.Count == 1;
             for (var i = 0; i < engines.Count; i++)
-                engineResults.Add(new AnalysisEngineResult(engines[i], MoveCount, EnginePalette[i % EnginePalette.Length]));
+                engineResults.Add(new AnalysisEngineResult(engines[i], MoveCount, EnginePalette[i % EnginePalette.Length], fillRawDataset));
 
             summaryResult = FindSummaryResult() ?? engineResults.FirstOrDefault();
             evals = summaryResult?.Evals ?? new Eval?[MoveCount];
@@ -544,29 +545,44 @@
         if (engineResults.Count == 0)
             return;
 
-        var displayScoreLines = engineResults.Select(static r => (IReadOnlyList<double?>)r.DisplayScores).ToList();
-        combinedDisplayScores = AnalysisEvaluationMetrics.BuildAverageDisplayScores(displayScoreLines, MoveCount);
-        var adjustedLines = AnalysisEvaluationMetrics.BuildAdjustedDisplayScores(displayScoreLines, MoveCount);
-
-        for (var i = 0; i < combinedDisplayScores.Length && i < combinedChartData.Count; i++)
+        for (var moveIndex = 0; moveIndex < combinedDisplayScores.Length && moveIndex < combinedChartData.Count; moveIndex++)
         {
-            if (combinedDisplayScores[i] is not { } average)
-                continue;
-
-            var contributorCount = engineResults.Count(r => i < r.DisplayScores.Length && r.DisplayScores[i] is not null);
-            combinedChartData[i] = average;
-            combinedTooltipPoints[i] = CreateCombinedTooltipPoint(i + 1, average, contributorCount);
-        }
-
-        for (var engineIndex = 0; engineIndex < engineResults.Count && engineIndex < adjustedLines.Count; engineIndex++)
-        {
-            var result = engineResults[engineIndex];
-            var adjustedLine = adjustedLines[engineIndex];
-            for (var moveIndex = 0; moveIndex < adjustedLine.Length && moveIndex < result.AdjustedData.Count; moveIndex++)
+            double sum = 0;
+            var contributorCount = 0;
+            foreach (var result in engineResults)
             {
-                if (adjustedLine[moveIndex] is not { } adjusted)
+                if (moveIndex >= result.DisplayScores.Length || result.DisplayScores[moveIndex] is not { } score)
                     continue;
 
+                sum += score;
+                contributorCount++;
+            }
+
+            if (contributorCount == 0)
+            {
+                combinedDisplayScores[moveIndex] = null;
+                continue;
+            }
+
+            var average = sum / contributorCount;
+            combinedDisplayScores[moveIndex] = average;
+            combinedChartData[moveIndex] = average;
+            combinedTooltipPoints[moveIndex] = CreateCombinedTooltipPoint(moveIndex + 1, average, contributorCount);
+        }
+
+        for (var engineIndex = 0; engineIndex < engineResults.Count; engineIndex++)
+        {
+            var result = engineResults[engineIndex];
+            for (var moveIndex = 0; moveIndex < combinedDisplayScores.Length && moveIndex < result.AdjustedData.Count; moveIndex++)
+            {
+                if (moveIndex >= result.DisplayScores.Length
+                    || result.DisplayScores[moveIndex] is not { } score
+                    || combinedDisplayScores[moveIndex] is not { } average)
+                {
+                    continue;
+                }
+
+                var adjusted = score - average;
                 result.AdjustedData[moveIndex] = adjusted;
                 if (engineResults.Count > 1)
                 {
@@ -595,11 +611,17 @@
         if (chartView == GameAnalysisChartView.Adjusted && engineResults.Count > 1)
         {
             List<ChartJsDataset> adjusted = new(engineResults.Count + 1) { combinedDataset };
-            adjusted.AddRange(engineResults.Select(static r => (ChartJsDataset)r.AdjustedDataset));
+            foreach (var result in engineResults)
+                adjusted.Add(result.AdjustedDataset);
+
             return adjusted;
         }
 
-        return engineResults.Select(static r => (ChartJsDataset)r.RawDataset).ToList();
+        List<ChartJsDataset> raw = new(engineResults.Count);
+        foreach (var result in engineResults)
+            raw.Add(result.RawDataset);
+
+        return raw;
     }
 
     private void CalculateSummary()
@@ -978,7 +1000,7 @@
 
     private sealed class AnalysisEngineResult
     {
-        public AnalysisEngineResult(EngineRunOptions engine, int moveCount, string color)
+        public AnalysisEngineResult(EngineRunOptions engine, int moveCount, string color, bool fillRawDataset)
         {
             Engine = engine;
             EngineName = string.IsNullOrWhiteSpace(engine.Name) ? "Unnamed engine" : engine.Name!;
@@ -994,7 +1016,7 @@
                 RawData,
                 RawTooltipPoints,
                 color,
-                fillPrimary: false);
+                fillPrimary: fillRawDataset);
             AdjustedDataset = CreateEvaluationDataset(
                 $"game-analysis-{engine.Id:N}-adjusted",
                 $"{EngineName} difference",
