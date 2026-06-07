@@ -65,6 +65,7 @@ h1:focus {
 .moves-panel,
 .controls-panel,
 .settings-panel,
+.full-analysis-panel,
 .position-bar {
     background: #26231f;
     border: 1px solid #3a352e;
@@ -612,6 +613,86 @@ h1:focus {
     padding: 6px 8px;
 }
 
+.full-analysis-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    padding: 12px;
+}
+
+.full-analysis-header,
+.full-analysis-settings,
+.number-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.full-analysis-header {
+    justify-content: space-between;
+}
+
+.full-analysis-header h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.full-analysis-header span,
+.full-analysis-settings label > span,
+.number-field small {
+    color: #aaa196;
+    font-size: 0.82rem;
+}
+
+.full-analysis-header > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.analyse-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 36px;
+    border: 1px solid #6f9d34;
+    border-radius: 4px;
+    background: #5b8d22;
+    color: #f2f7e9;
+    padding: 6px 12px;
+    font-weight: 700;
+}
+
+.analyse-button:not(:disabled):hover {
+    background: #6fa92c;
+}
+
+.full-analysis-settings {
+    flex-wrap: wrap;
+    border-top: 1px solid #332f29;
+    border-bottom: 1px solid #332f29;
+    padding: 10px 0;
+}
+
+.full-analysis-settings label {
+    display: flex;
+    flex: 1 1 160px;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.number-field {
+    min-width: 0;
+}
+
+.number-field .text-input {
+    max-width: 120px;
+}
+
 .position-bar label {
     width: 32px;
     flex: 0 0 auto;
@@ -865,6 +946,11 @@ textarea.text-input {
     .field-grid,
     .settings-summary-grid {
         grid-template-columns: 1fr;
+    }
+
+    .full-analysis-header {
+        align-items: stretch;
+        flex-direction: column;
     }
 
     .engine-score {

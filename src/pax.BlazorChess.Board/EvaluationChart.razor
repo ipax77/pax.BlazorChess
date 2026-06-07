@@ -1,0 +1,82 @@
+@using pax.chess
+@using pax.chess.Analyze
+@using pax.uciChessEngine.EngineServices
+
+<section class="evaluation-chart-panel">
+    <header class="evaluation-chart-header">
+        <div>
+            <h2>@Title</h2>
+            <span>@Subtitle</span>
+        </div>
+        @if (ShowAnalyzeButton)
+        {
+            <button type="button"
+                    class="evaluation-chart-action"
+                    disabled="@(!CanAnalyze)"
+                    @onclick="Analyze">
+                Analyse
+            </button>
+        }
+    </header>
+
+    @if (EngineRunOptions is null)
+    {
+        <div class="evaluation-empty">Configure an engine before running full-game analysis.</div>
+    }
+    else if (ChessGame.Moves.Count == 0)
+    {
+        <div class="evaluation-empty">Play or load moves before running full-game analysis.</div>
+    }
+    else
+    {
+        <GameAnalysisComponent @ref="chart"
+                               ChessGame="ChessGame"
+                               AnalysisBoard="AnalysisBoard"
+                               EngineRunOptions="EngineRunOptions"
+                               ThinkTimePerMoveMs="ThinkTimePerMoveMs"
+                               AnalysisThreads="AnalysisThreads"
+                               OnMoveClicked="OnMoveClicked"
+                               OnAnnotationsChanged="OnAnnotationsChanged" />
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public required ChessGame ChessGame { get; set; }
+
+    [Parameter]
+    public AnalysisBoard? AnalysisBoard { get; set; }
+
+    [Parameter]
+    public EngineRunOptions? EngineRunOptions { get; set; }
+
+    [Parameter]
+    public int ThinkTimePerMoveMs { get; set; } = 1000;
+
+    [Parameter]
+    public int AnalysisThreads { get; set; } = 8;
+
+    [Parameter]
+    public string Title { get; set; } = "Evaluation Chart";
+
+    [Parameter]
+    public string Subtitle { get; set; } = "Full-game engine analysis";
+
+    [Parameter]
+    public bool ShowAnalyzeButton { get; set; } = true;
+
+    [Parameter]
+    public EventCallback<int> OnMoveClicked { get; set; }
+
+    [Parameter]
+    public EventCallback OnAnnotationsChanged { get; set; }
+
+    private GameAnalysisComponent? chart;
+    private bool CanAnalyze => EngineRunOptions is not null && ChessGame.Moves.Count > 0;
+
+    public async Task Analyze()
+    {
+        if (chart is not null)
+            await chart.Analyse();
+    }
+}

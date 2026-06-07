@@ -1,0 +1,166 @@
+.game-analysis {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+    gap: 12px;
+    min-width: 0;
+}
+
+.game-analysis-chart-shell {
+    position: relative;
+    min-width: 0;
+    min-height: 260px;
+    overflow: hidden;
+    border: 1px solid #3f3931;
+    border-radius: 4px;
+    background: #171511;
+}
+
+.game-analysis-chart-shell.is-running .game-analysis-chart {
+    opacity: 0.64;
+}
+
+.game-analysis-chart {
+    width: 100%;
+    height: clamp(260px, 34vw, 420px);
+    min-width: 0;
+    padding: 8px;
+}
+
+.game-analysis-overlay {
+    position: absolute;
+    inset: auto 12px 12px auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: calc(100% - 24px);
+    border: 1px solid #4f5f3d;
+    border-radius: 4px;
+    background: rgb(31 35 25 / 94%);
+    color: #edf5df;
+    padding: 8px 10px;
+    box-shadow: 0 8px 22px rgb(0 0 0 / 35%);
+}
+
+.game-analysis-overlay div:last-child {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 0.8rem;
+}
+
+.game-analysis-overlay span {
+    color: #bac8a4;
+}
+
+.game-analysis-spinner {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    border: 2px solid #586249;
+    border-top-color: #9fd169;
+    border-radius: 999px;
+    animation: game-analysis-spin 0.7s linear infinite;
+}
+
+.game-analysis-summary {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-content: start;
+    gap: 10px;
+    min-width: 0;
+}
+
+.analysis-empty {
+    border: 1px dashed #4a4339;
+    border-radius: 4px;
+    color: #aaa196;
+    padding: 14px;
+    font-size: 0.86rem;
+    line-height: 1.35;
+}
+
+.summary-side {
+    display: grid;
+    gap: 6px;
+    border: 1px solid #3f3931;
+    border-radius: 4px;
+    background: #211f1b;
+    padding: 8px;
+}
+
+.summary-side > span {
+    color: #d9d1c5;
+    font-weight: 700;
+    font-size: 0.88rem;
+}
+
+.summary-button {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    border: 1px solid #3c382f;
+    border-radius: 4px;
+    background: #181713;
+    color: #d9d1c5;
+    padding: 4px 7px;
+    text-align: left;
+}
+
+.summary-button span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.summary-button strong {
+    font-variant-numeric: tabular-nums;
+}
+
+.summary-button:not(:disabled):hover {
+    border-color: #8ab94a;
+    background: #29321f;
+}
+
+.summary-button.danger strong {
+    color: #ff8f7d;
+}
+
+.summary-button.warn strong {
+    color: #ffd166;
+}
+
+.summary-button.info strong {
+    color: #8ed7ff;
+}
+
+.summary-button.ok strong {
+    color: #a5dc77;
+}
+
+.summary-button.best strong {
+    color: #9fb8ff;
+}
+
+@keyframes game-analysis-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 760px) {
+    .game-analysis {
+        grid-template-columns: 1fr;
+    }
+
+    .game-analysis-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 520px) {
+    .game-analysis-summary {
+        grid-template-columns: 1fr;
+    }
+}

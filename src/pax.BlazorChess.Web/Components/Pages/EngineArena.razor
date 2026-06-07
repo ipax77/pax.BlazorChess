@@ -74,10 +74,10 @@
                 <EngineGameViewer Session="ActiveSession" OnStopRequested="StopActiveGame" />
             </div>
 
-            <EvaluationChart ChessGame="Workspace.AnalysisBoard.ChessGame"
-                             AnalysisBoard="Workspace.AnalysisBoard"
-                             EngineRunOptions="PrimaryEngine"
-                             ThinkTimePerMoveMs="setup.ThinkTimePerMoveMs" />
+            <pax.BlazorChess.Web.Components.Results.EvaluationChart ChessGame="Workspace.AnalysisBoard.ChessGame"
+                                                                     AnalysisBoard="Workspace.AnalysisBoard"
+                                                                     EngineRunOptions="PrimaryEngine"
+                                                                     ThinkTimePerMoveMs="setup.ThinkTimePerMoveMs" />
         </main>
     </div>
 </section>

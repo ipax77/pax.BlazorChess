@@ -35,6 +35,65 @@
         {
             <div class="engine-error">@Workspace.ImportError</div>
         }
+
+        <section class="full-analysis-panel">
+            <header class="full-analysis-header">
+                <div>
+                    <h2>Game analysis</h2>
+                    <span>@FullAnalysisStatus</span>
+                </div>
+                <button type="button"
+                        class="analyse-button"
+                        disabled="@(!CanAnalyzeGame)"
+                        @onclick="AnalyzeGame">
+                    <span class="bi bi-activity" aria-hidden="true"></span>
+                    <span>Analyse</span>
+                </button>
+            </header>
+
+            <div class="full-analysis-settings">
+                <label>
+                    <span>Time</span>
+                    <div class="number-field">
+                        <input class="text-input"
+                               type="number"
+                               min="0.1"
+                               step="0.1"
+                               @bind="analysisThinkTimeSeconds"
+                               @bind:after="ClampAnalysisSettings"
+                               @onkeydown:stopPropagation="true" />
+                        <small>s</small>
+                    </div>
+                </label>
+                <label>
+                    <span>Threads</span>
+                    <div class="number-field">
+                        <input class="text-input"
+                               type="number"
+                               min="1"
+                               max="@MaxAnalysisThreads"
+                               step="1"
+                               @bind="analysisThreads"
+                               @bind:after="ClampAnalysisSettings"
+                               @onkeydown:stopPropagation="true" />
+                        <small>/ @MaxAnalysisThreads</small>
+                    </div>
+                </label>
+            </div>
+
+            <pax.BlazorChess.Board.EvaluationChart @key="analysisChartVersion"
+                                                   @ref="evaluationChart"
+                                                   ChessGame="Workspace.AnalysisBoard.ChessGame"
+                                                   AnalysisBoard="Workspace.AnalysisBoard"
+                                                   EngineRunOptions="Workspace.SelectedEngine"
+                                                   ThinkTimePerMoveMs="AnalysisThinkTimeMs"
+                                                   AnalysisThreads="ClampedAnalysisThreads"
+                                                   Title="Evaluation"
+                                                   Subtitle="Main-line full-game engine analysis"
+                                                   ShowAnalyzeButton="false"
+                                                   OnMoveClicked="AnalysisMoveClicked"
+                                                   OnAnnotationsChanged="AnalysisAnnotationsChanged" />
+        </section>
     </section>
 
     <aside class="side-panel">
@@ -97,10 +156,30 @@
     private LiveAnalysisPanel? liveAnalysis;
     private EngineSettingsPanel? engineSettings;
     private AnalysisAnnotationComponent? annotation;
+    private pax.BlazorChess.Board.EvaluationChart? evaluationChart;
     private string fenInput = string.Empty;
     private string pgnInput = string.Empty;
+    private double analysisThinkTimeSeconds = 1;
+    private int analysisThreads = 8;
+    private int analysisChartVersion;
 
     private int MoveCount => CountMainLineMoves();
+    private int MaxAnalysisThreads => Math.Max(1, Environment.ProcessorCount);
+    private int ClampedAnalysisThreads => Math.Clamp(analysisThreads, 1, MaxAnalysisThreads);
+    private int AnalysisThinkTimeMs => Math.Max(100, (int)Math.Round(Math.Max(0.1, analysisThinkTimeSeconds) * 1000));
+    private bool CanAnalyzeGame
+        => MoveCount > 0
+            && Workspace.SelectedEngine is not null
+            && !string.IsNullOrWhiteSpace(Workspace.SelectedEngine.BinaryPath)
+            && File.Exists(Workspace.SelectedEngine.BinaryPath);
+    private string FullAnalysisStatus
+        => Workspace.SelectedEngine is null
+            ? "Select an engine before analysing the game."
+            : MoveCount == 0
+                ? "Load or play a game to analyse the main line."
+                : !File.Exists(Workspace.SelectedEngine.BinaryPath)
+                    ? "Selected engine binary is missing."
+                    : $"{MoveCount} ply / {AnalysisThinkTimeMs} ms / {ClampedAnalysisThreads} threads";
 
     protected override async Task OnInitializedAsync()
     {
@@ -111,6 +190,7 @@
     private async Task ApplyMove(Move move)
     {
         Workspace.ApplyMove(move);
+        ResetAnalysisChart();
         board?.Update(Workspace.AnalysisBoard.CurrentPosition, move);
         SyncText();
         if (liveAnalysis is not null)
@@ -201,7 +281,10 @@
     private async Task LoadFen()
     {
         if (Workspace.TryLoadFen(fenInput))
+        {
+            ResetAnalysisChart();
             await RefreshPositionAsync();
+        }
         else
             StateHasChanged();
     }
@@ -209,7 +292,10 @@
     private async Task LoadPgn()
     {
         if (Workspace.TryLoadPgn(pgnInput))
+        {
+            ResetAnalysisChart();
             await RefreshPositionAsync();
+        }
         else
             StateHasChanged();
     }
@@ -217,7 +303,39 @@
     private async Task ResetBoard()
     {
         Workspace.Reset();
+        ResetAnalysisChart();
         await RefreshPositionAsync();
+    }
+
+    private async Task AnalyzeGame()
+    {
+        ClampAnalysisSettings();
+        if (evaluationChart is not null && CanAnalyzeGame)
+            await evaluationChart.Analyze();
+    }
+
+    private async Task AnalysisMoveClicked(int moveNumber)
+    {
+        if (MoveCount == 0)
+            return;
+
+        var targetPly = Math.Clamp(moveNumber <= 0 ? 1 : moveNumber, 1, MoveCount);
+        var node = Workspace.AnalysisBoard.Root.MainLine;
+        for (var i = 1; i < targetPly && node is not null; i++)
+            node = node.MainLine;
+
+        if (node is null)
+            return;
+
+        Workspace.MoveToNode(node);
+        await RefreshPositionAsync();
+    }
+
+    private Task AnalysisAnnotationsChanged()
+    {
+        annotation?.Update();
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
     private async Task ApplyCurrentBestMove()
@@ -241,6 +359,7 @@
         if (!changed)
             return;
 
+        ResetAnalysisChart();
         annotation?.Update();
         await RefreshPositionAsync();
     }
@@ -290,6 +409,17 @@
     {
         fenInput = Workspace.Fen;
         pgnInput = Workspace.Pgn;
+    }
+
+    private void ResetAnalysisChart()
+    {
+        analysisChartVersion++;
+    }
+
+    private void ClampAnalysisSettings()
+    {
+        analysisThinkTimeSeconds = Math.Max(0.1, analysisThinkTimeSeconds);
+        analysisThreads = ClampedAnalysisThreads;
     }
 
     private int CountMainLineMoves()

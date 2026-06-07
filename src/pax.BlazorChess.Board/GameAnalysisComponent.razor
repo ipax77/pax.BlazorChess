@@ -1,4 +1,3 @@
-@using System.Collections.Concurrent
 @using pax.BlazorChartJs
 @using pax.chess
 @using pax.chess.Analyze
@@ -7,75 +6,58 @@
 @using pax.uciChessEngine.EngineServices
 @implements IDisposable
 
-<div class="row">
-    <div class="position-relative col-auto w-75" style="min-width: 600px;">
-        <div class="@(isAnalysing ? "opacity-50" : "opacity-100") transition-opacity">
-            <div class="border rounded border-secondary bgchart"
-                 style="min-width: 850px; width: 55vw; height: calc(55vw * 0.5); min-height: 425px;">
-                <ChartComponent ChartJsConfig="chartJsConfig" OnEventTriggered="ChartEventTriggerd" />
-            </div>
+<div class="game-analysis">
+    <div class="game-analysis-chart-shell @(isAnalysing ? "is-running" : "")">
+        <div class="game-analysis-chart">
+            <ChartComponent ChartJsConfig="chartJsConfig" OnEventTriggered="ChartEventTriggerd" />
         </div>
 
         @if (isAnalysing)
         {
-            <div class="position-absolute top-50 start-50 translate-middle d-flex align-items-center bg-white border rounded-pill px-3 py-2 shadow-sm">
-                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
-                    <span class="visually-hidden">Loading...</span>
+            <div class="game-analysis-overlay" aria-live="polite">
+                <div class="game-analysis-spinner" aria-hidden="true"></div>
+                <div>
+                    <strong>Engine analysing</strong>
+                    <span>@AnalysedMoveCount / @MoveCount moves</span>
                 </div>
-                <small class="fw-bold text-secondary">Engine Analyzing...</small>
             </div>
         }
     </div>
 
-    <div class="col-auto">
-        @if (evals.Any())
+    <aside class="game-analysis-summary" aria-label="Analysis summary">
+        @if (MoveCount == 0)
         {
-            <style>
-                .clickable-badge {
-                    cursor: pointer;
-                    transition: transform 0.1s;
-                }
-
-                    .clickable-badge:hover {
-                        transform: scale(1.1);
-                        filter: brightness(1.2);
-                    }
-
-                    .clickable-badge:active {
-                        transform: scale(0.95);
-                    }
-            </style>
-
-            <div class="mt-3 p-3 bg-dark text-white rounded shadow-sm border border-secondary">
-                <h5 class="text-center mb-3 text-warning">Analysis Summary</h5>
-                <div class="row">
-                    <div class="col-6 border-end border-secondary px-4">
-                        <h6 class="text-light border-bottom border-secondary pb-1 mb-3">White</h6>
-                        <div class="d-flex flex-column gap-2">
-                            <div class="d-flex justify-content-between align-items-center small"><span>Blunders:</span> <span class="badge bg-danger rounded-pill clickable-badge" @onclick='() => JumpToCategoryMove("white", "blunder")'>@whiteSummary.Blunders</span></div>
-                            <div class="d-flex justify-content-between align-items-center small"><span>Mistakes:</span> <span class="badge bg-warning text-dark rounded-pill clickable-badge" @onclick='() => JumpToCategoryMove("white", "mistake")'>@whiteSummary.Mistakes</span></div>
-                            <div class="d-flex justify-content-between align-items-center small"><span>Inaccuracies:</span> <span class="badge bg-info text-dark rounded-pill clickable-badge" @onclick='() => JumpToCategoryMove("white", "inaccuracy")'>@whiteSummary.Inaccuracies</span></div>
-                            <div class="d-flex justify-content-between align-items-center small"><span>Club House:</span> <span class="badge bg-success rounded-pill clickable-badge" @onclick='() => JumpToCategoryMove("white", "clubhouse")'>@whiteSummary.ClubHouseMoves</span></div>
-                            <div class="d-flex justify-content-between align-items-center small"><span>Best:</span> <span class="badge bg-primary rounded-pill clickable-badge" @onclick='() => JumpToCategoryMove("white", "best")'>@whiteSummary.BestMoves</span></div>
-                        </div>
-                    </div>
-                    <div class="col-6 px-4">
-                        <h6 class="text-light border-bottom border-secondary pb-1 mb-3">Black</h6>
-                        <div class="d-flex flex-column gap-2">
-                            <div class="d-flex justify-content-between align-items-center small"><span>Blunders:</span> <span class="badge bg-danger rounded-pill clickable-badge" @onclick='() => JumpToCategoryMove("black", "blunder")'>@blackSummary.Blunders</span></div>
-                            <div class="d-flex justify-content-between align-items-center small"><span>Mistakes:</span> <span class="badge bg-warning text-dark rounded-pill clickable-badge" @onclick='() => JumpToCategoryMove("black", "mistake")'>@blackSummary.Mistakes</span></div>
-                            <div class="d-flex justify-content-between align-items-center small"><span>Inaccuracies:</span> <span class="badge bg-info text-dark rounded-pill clickable-badge" @onclick='() => JumpToCategoryMove("black", "inaccuracy")'>@blackSummary.Inaccuracies</span></div>
-                            <div class="d-flex justify-content-between align-items-center small"><span>Club House:</span> <span class="badge bg-success rounded-pill clickable-badge" @onclick='() => JumpToCategoryMove("black", "clubhouse")'>@blackSummary.ClubHouseMoves</span></div>
-                            <div class="d-flex justify-content-between align-items-center small"><span>Best:</span> <span class="badge bg-primary rounded-pill clickable-badge" @onclick='() => JumpToCategoryMove("black", "best")'>@blackSummary.BestMoves</span></div>
-                        </div>
-                    </div>
-                </div>
+            <div class="analysis-empty">Load or play a game before running full-game analysis.</div>
+        }
+        else if (!HasEvaluations)
+        {
+            <div class="analysis-empty">Run analysis to classify moves and inspect the evaluation curve.</div>
+        }
+        else
+        {
+            <div class="summary-side">
+                <span>White</span>
+                @SummaryButton("Blunders", whiteSummary.BlunderMoves, "white", "blunder", "danger")
+                @SummaryButton("Mistakes", whiteSummary.MistakeMoves, "white", "mistake", "warn")
+                @SummaryButton("Inaccuracies", whiteSummary.InaccuracyMoves, "white", "inaccuracy", "info")
+                @SummaryButton("Good", whiteSummary.ClubHouseMovesList, "white", "clubhouse", "ok")
+                @SummaryButton("Best", whiteSummary.BestMovesList, "white", "best", "best")
+            </div>
+            <div class="summary-side">
+                <span>Black</span>
+                @SummaryButton("Blunders", blackSummary.BlunderMoves, "black", "blunder", "danger")
+                @SummaryButton("Mistakes", blackSummary.MistakeMoves, "black", "mistake", "warn")
+                @SummaryButton("Inaccuracies", blackSummary.InaccuracyMoves, "black", "inaccuracy", "info")
+                @SummaryButton("Good", blackSummary.ClubHouseMovesList, "black", "clubhouse", "ok")
+                @SummaryButton("Best", blackSummary.BestMovesList, "black", "best", "best")
             </div>
         }
-    </div>
+    </aside>
 </div>
 
 @code {
+    private const int ChartRefreshMs = 350;
+
     [Parameter, EditorRequired]
     public required ChessGame ChessGame { get; set; }
 
@@ -94,80 +76,200 @@
     [Parameter]
     public int ThinkTimePerMoveMs { get; set; } = 1000;
 
-    CancellationTokenSource cts = new();
+    [Parameter]
+    public int AnalysisThreads { get; set; }
 
-    ConcurrentDictionary<int, Eval> evals = [];
-
-    ChartJsConfig chartJsConfig = null!;
-
+    private readonly object evalLock = new();
+    private CancellationTokenSource cts = new();
+    private Eval?[] evals = [];
+    private ChartJsConfig chartJsConfig = null!;
     private bool chartReady;
     private bool isAnalysing;
+    private bool chartDirty;
+    private bool summaryDirty;
+    private int analysedMoveCount;
+    private int configuredMoveCount = -1;
 
     private AnalysisSummary whiteSummary = new();
     private AnalysisSummary blackSummary = new();
-
     private string? lastCategoryClicked;
     private int lastCategoryIndex;
 
+    private int MoveCount => ChessGame.Moves.Count;
+    private int AnalysedMoveCount => analysedMoveCount;
+    private bool HasEvaluations => analysedMoveCount > 0;
+
     protected override void OnInitialized()
     {
-        base.OnInitialized();
         chartJsConfig = GetChartJsConfig();
-        List<string> labels = ChessGame.Moves
-            .Select((s, i) => i % 2 == 0 ? "" : ((i + 1) / 2).ToString())
-            .ToList();
+        ConfigureChartForCurrentGame();
+    }
 
-        if (ChessGame.Conclusion != null &&
-            (ChessGame.Conclusion.Termination == GameTermination.Checkmate || ChessGame.Conclusion.Termination == GameTermination.Stalemate))
+    protected override void OnParametersSet()
+    {
+        if (configuredMoveCount != MoveCount)
+            ConfigureChartForCurrentGame();
+    }
+
+    public async Task Analyse()
+    {
+        if (isAnalysing || MoveCount == 0)
+            return;
+
+        ResetAnalysisState();
+        isAnalysing = true;
+        await InvokeAsync(StateHasChanged);
+
+        _ = StartChartRefreshLoop();
+
+        var provider = EngineService.GetEngineSessionProvider(EngineRunOptions);
+        var requestedThreads = AnalysisThreads > 0
+            ? AnalysisThreads
+            : EngineRunOptions.Threads > 0
+                ? EngineRunOptions.Threads
+                : 8;
+        var threads = Math.Clamp(requestedThreads, 1, Math.Max(1, Environment.ProcessorCount));
+        await using var gameAnalysis = new GameAnalysis(provider, ChessGame, threads, Math.Max(100, ThinkTimePerMoveMs));
+
+        try
         {
-            labels.Remove(labels.Last());
+            await foreach (var result in gameAnalysis.AnalyseGameStream(cts.Token))
+            {
+                if (result.Eval is null)
+                    continue;
+
+                var index = result.MoveNumber - 1;
+                if (index < 0 || index >= evals.Length)
+                    continue;
+
+                lock (evalLock)
+                {
+                    evals[index] = result.Eval;
+                    analysedMoveCount++;
+                    chartDirty = true;
+                    summaryDirty = true;
+                }
+            }
         }
-        chartJsConfig.SetLabels(labels);
-        var lineDataSet = chartJsConfig.Data.Datasets.FirstOrDefault() as LineDataset;
-        if (lineDataSet is not null)
+        catch (OperationCanceledException)
         {
-            lineDataSet.Data = labels.Select(s => 0 as object).ToList();
+        }
+        finally
+        {
+            isAnalysing = false;
+            RefreshChartData(forceSummary: true);
+
+            if (AddCategoryVariations())
+                await OnAnnotationsChanged.InvokeAsync();
+
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private async Task StartChartRefreshLoop()
     {
-        isAnalysing = true;
-        while (isAnalysing && !cts.IsCancellationRequested)
+        try
         {
-            await Task.Delay(500);
-            RefreshChartData();
+            while (isAnalysing && !cts.IsCancellationRequested)
+            {
+                await Task.Delay(ChartRefreshMs, cts.Token);
+                RefreshChartData(forceSummary: false);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 
-    private void RefreshChartData()
+    private void ConfigureChartForCurrentGame()
     {
-        if (!chartReady) return;
+        configuredMoveCount = MoveCount;
+        evals = new Eval?[MoveCount];
+        analysedMoveCount = 0;
+        whiteSummary = new();
+        blackSummary = new();
+        lastCategoryClicked = null;
+        lastCategoryIndex = 0;
+        chartDirty = false;
+        summaryDirty = false;
+
+        var labels = ChessGame.Moves
+            .Select((_, i) => i % 2 == 0 ? string.Empty : ((i + 1) / 2).ToString())
+            .ToList();
+
+        chartJsConfig.SetLabels(labels);
+        if (chartJsConfig.Data.Datasets.FirstOrDefault() is LineDataset lineDataSet)
+            lineDataSet.Data = labels.Select(_ => 0 as object).ToList();
+    }
+
+    private void ResetAnalysisState()
+    {
+        if (cts.IsCancellationRequested)
+        {
+            cts.Dispose();
+            cts = new CancellationTokenSource();
+        }
+
+        lock (evalLock)
+        {
+            Array.Clear(evals);
+            analysedMoveCount = 0;
+            whiteSummary = new();
+            blackSummary = new();
+            lastCategoryClicked = null;
+            lastCategoryIndex = 0;
+            chartDirty = true;
+            summaryDirty = true;
+        }
+
+        if (chartJsConfig.Data.Datasets.FirstOrDefault() is LineDataset lineDataSet)
+            lineDataSet.Data = Enumerable.Repeat(0 as object, MoveCount).ToList();
+    }
+
+    private void RefreshChartData(bool forceSummary)
+    {
+        if (!chartReady)
+            return;
 
         var lineDataSet = chartJsConfig.Data.Datasets.FirstOrDefault() as LineDataset;
-        if (lineDataSet?.Data == null) return;
+        if (lineDataSet?.Data is null)
+            return;
 
-        bool hasChanges = false;
+        bool shouldUpdateChart;
+        bool shouldUpdateSummary;
+        Eval?[] snapshot;
 
-        foreach (var kvp in evals)
+        lock (evalLock)
         {
-            int index = kvp.Key - 1;
-            if (index >= 0 && index < lineDataSet.Data.Count)
-            {
-                var newScore = kvp.Value.ChartScore;
-                if (!lineDataSet.Data[index].Equals(newScore))
-                {
-                    lineDataSet.Data[index] = newScore;
-                    hasChanges = true;
-                }
-            }
+            shouldUpdateChart = chartDirty;
+            shouldUpdateSummary = forceSummary || summaryDirty;
+            if (!shouldUpdateChart && !shouldUpdateSummary)
+                return;
+
+            snapshot = (Eval?[])evals.Clone();
+            chartDirty = false;
+            summaryDirty = false;
         }
 
-        if (hasChanges)
+        if (shouldUpdateChart)
         {
-            CalculateSummary();
+            for (var i = 0; i < snapshot.Length && i < lineDataSet.Data.Count; i++)
+            {
+                var eval = snapshot[i];
+                if (eval is null)
+                    continue;
+
+                var newScore = eval.ChartScore;
+                if (!lineDataSet.Data[i].Equals(newScore))
+                    lineDataSet.Data[i] = newScore;
+            }
+
             chartJsConfig.UpdateDatasetSmooth(lineDataSet);
         }
+
+        if (shouldUpdateSummary)
+            CalculateSummary(snapshot);
     }
 
     private void ChartEventTriggerd(ChartJsEvent args)
@@ -175,6 +277,7 @@
         if (args is ChartJsInitEvent)
         {
             chartReady = true;
+            RefreshChartData(forceSummary: true);
         }
         else if (args is ChartJsLabelClickEvent clickEvent)
         {
@@ -182,81 +285,62 @@
         }
     }
 
-    public async Task Analyse()
+    private void CalculateSummary(Eval?[] snapshot)
     {
-        var provider = EngineService.GetEngineSessionProvider(EngineRunOptions);
-        var threads = EngineRunOptions.Threads > 0 ? EngineRunOptions.Threads : 8;
-        var gameAnalysis = new GameAnalysis(provider, ChessGame, threads, ThinkTimePerMoveMs);
+        var white = new AnalysisSummary();
+        var black = new AnalysisSummary();
+        double previousScore = 30;
 
-        _ = StartChartRefreshLoop();
-
-        try
+        for (var i = 0; i < snapshot.Length; i++)
         {
-            await foreach (var result in gameAnalysis.AnalyseGameStream(cts.Token))
+            var eval = snapshot[i];
+            if (eval is null)
+                continue;
+
+            var moveNumber = i + 1;
+            var currentScore = GetScore(eval);
+            double loss;
+
+            if (moveNumber % 2 != 0)
             {
-                if (result.Eval == null) continue;
-                evals.AddOrUpdate(result.MoveNumber, result.Eval, (k, v) => result.Eval);
+                loss = previousScore - currentScore;
+                UpdateSummary(white, loss, moveNumber);
             }
+            else
+            {
+                loss = currentScore - previousScore;
+                UpdateSummary(black, loss, moveNumber);
+            }
+
+            previousScore = currentScore;
         }
-        finally
-        {
-            isAnalysing = false;
-            CalculateSummary();
-            AddCategoryVariations();
-            RefreshChartData();
-            await InvokeAsync(StateHasChanged);
-        }
+
+        whiteSummary = white;
+        blackSummary = black;
     }
 
-    private void CalculateSummary()
-    {
-        whiteSummary = new();
-        blackSummary = new();
-
-        double prevScore = 30; // 0.3 CP starting
-
-        var sortedKeys = evals.Keys.OrderBy(k => k).ToList();
-
-        foreach (var key in sortedKeys)
-        {
-            if (evals.TryGetValue(key, out var eval))
-            {
-                double currentScore = GetScore(eval);
-                double loss;
-
-                if (key % 2 != 0) // White's move
-                {
-                    loss = prevScore - currentScore;
-                    UpdateSummary(whiteSummary, loss, key);
-                }
-                else // Black's move
-                {
-                    loss = currentScore - prevScore;
-                    UpdateSummary(blackSummary, loss, key);
-                }
-                prevScore = currentScore;
-            }
-        }
-    }
-
-    private void AddCategoryVariations()
+    private bool AddCategoryVariations()
     {
         if (AnalysisBoard is null)
-            return;
+            return false;
 
         HashSet<int> criticalMoves = new(whiteSummary.BlunderMoves);
         criticalMoves.UnionWith(whiteSummary.MistakeMoves);
         criticalMoves.UnionWith(blackSummary.BlunderMoves);
         criticalMoves.UnionWith(blackSummary.MistakeMoves);
 
+        var changed = false;
         foreach (var move in criticalMoves)
         {
-            if (evals.TryGetValue(move, out var eval))
+            var eval = move > 0 && move <= evals.Length ? evals[move - 1] : null;
+            if (eval is not null)
             {
                 var label = GetCategoryLabel(move);
-                AddVariationToAnalysisBoard(move, eval, label);
+                changed |= AddVariationToAnalysisBoard(move, eval, label);
             }
         }
+
+        return changed;
     }
 
     private string? GetCategoryLabel(int moveNumber)
@@ -268,14 +352,14 @@
         return null;
     }
 
-    private void AddVariationToAnalysisBoard(int moveNumber, Eval eval, string? label)
+    private bool AddVariationToAnalysisBoard(int moveNumber, Eval eval, string? label)
     {
-        if (AnalysisBoard is null || eval?.PvInfo?.Moves is null || eval.PvInfo.Moves.Count == 0)
-            return;
+        if (AnalysisBoard is null || eval.PvInfo?.Moves is null || eval.PvInfo.Moves.Count == 0)
+            return false;
 
         var node = GetMainLineNode(moveNumber);
         if (node is null)
-            return;
+            return false;
 
         try
         {
@@ -283,19 +367,19 @@
 
             var firstMoveUci = eval.PvInfo.Moves.First();
             var firstNode = node.Children
-                .FirstOrDefault(c => c.Move != null && string.Equals(Uci.GetUci(c.Move), firstMoveUci, StringComparison.Ordinal));
-            if (firstNode != null)
+                .FirstOrDefault(c => c.Move is not null && string.Equals(Uci.GetUci(c.Move), firstMoveUci, StringComparison.Ordinal));
+            if (firstNode is not null)
             {
                 firstNode.Note = label;
                 firstNode.Evaluation = eval.Score;
                 firstNode.Depth = eval.PvInfo.Depth;
             }
 
-            _ = OnAnnotationsChanged.InvokeAsync();
+            return true;
         }
         catch
         {
-            // best-effort; ignore PVs that fail to apply
+            return false;
         }
     }
 
@@ -306,25 +390,27 @@
 
         var node = AnalysisBoard.Root.MainLine;
         var current = 1;
-        while (node != null && current < moveNumber)
+        while (node is not null && current < moveNumber)
         {
             node = node.MainLine;
             current++;
         }
+
         return node;
     }
 
-    private double GetScore(Eval eval)
+    private static double GetScore(Eval eval)
     {
         if (eval.Mate.HasValue && eval.Mate != 0)
         {
-            int mate = eval.Mate.Value;
+            var mate = eval.Mate.Value;
             return mate > 0 ? 10000 - mate : -10000 - mate;
         }
-        return (double)eval.Score;
+
+        return eval.Score;
     }
 
-    private void UpdateSummary(AnalysisSummary summary, double loss, int moveNumber)
+    private static void UpdateSummary(AnalysisSummary summary, double loss, int moveNumber)
     {
         if (loss > 200) summary.BlunderMoves.Add(moveNumber);
         else if (loss > 100) summary.MistakeMoves.Add(moveNumber);
@@ -336,23 +422,22 @@
     private void JumpToCategoryMove(string player, string category)
     {
         var summary = player == "white" ? whiteSummary : blackSummary;
-        List<int> moves = category switch
+        var moves = category switch
         {
             "blunder" => summary.BlunderMoves,
             "mistake" => summary.MistakeMoves,
             "inaccuracy" => summary.InaccuracyMoves,
             "clubhouse" => summary.ClubHouseMovesList,
             "best" => summary.BestMovesList,
-            _ => new()
+            _ => []
         };
 
-        if (!moves.Any()) return;
+        if (moves.Count == 0)
+            return;
 
-        string key = $"{player}_{category}";
+        var key = $"{player}_{category}";
         if (lastCategoryClicked == key)
-        {
             lastCategoryIndex = (lastCategoryIndex + 1) % moves.Count;
-        }
         else
         {
             lastCategoryClicked = key;
@@ -362,139 +447,123 @@
         OnMoveClicked.InvokeAsync(moves[lastCategoryIndex]);
     }
 
-    private class AnalysisSummary
-    {
-        public List<int> BlunderMoves { get; } = new();
-        public List<int> MistakeMoves { get; } = new();
-        public List<int> InaccuracyMoves { get; } = new();
-        public List<int> ClubHouseMovesList { get; } = new();
-        public List<int> BestMovesList { get; } = new();
+    private RenderFragment SummaryButton(
+        string label,
+        IReadOnlyCollection<int> moves,
+        string player,
+        string category,
+        string tone)
+        => @<button type="button"
+                    class="summary-button @tone"
+                    disabled="@(moves.Count == 0)"
+                    title="@($"{label}: {moves.Count}")"
+                    @onclick="() => JumpToCategoryMove(player, category)">
+                <span>@label</span>
+                <strong>@moves.Count</strong>
+            </button>;
 
-        public int Blunders => BlunderMoves.Count;
-        public int Mistakes => MistakeMoves.Count;
-        public int Inaccuracies => InaccuracyMoves.Count;
-        public int ClubHouseMoves => ClubHouseMovesList.Count;
-        public int BestMoves => BestMovesList.Count;
+    private sealed class AnalysisSummary
+    {
+        public List<int> BlunderMoves { get; } = [];
+        public List<int> MistakeMoves { get; } = [];
+        public List<int> InaccuracyMoves { get; } = [];
+        public List<int> ClubHouseMovesList { get; } = [];
+        public List<int> BestMovesList { get; } = [];
     }
 
-    private void UpdateChart(int moveNumber, int score)
-    {
-        var lineDataSet = chartJsConfig.Data.Datasets.FirstOrDefault() as LineDataset;
-
-        if (lineDataSet is null)
-        {
-            return;
-        }
-        int index = moveNumber - 1;
-        if (index >= 0 && index < lineDataSet.Data.Count)
-        {
-            lineDataSet.Data[index] = score;
-
-            if (chartReady)
-            {
-                chartJsConfig.UpdateDatasetSmooth(lineDataSet);
-            }
-        }
-    }
-
-    private ChartJsConfig GetChartJsConfig()
+    private static ChartJsConfig GetChartJsConfig()
     {
         return new()
         {
             Type = ChartType.line,
-            Data = new ChartJsData()
+            Data = new ChartJsData
             {
-                Labels = new List<string>(),
-                Datasets = new List<ChartJsDataset>()
-                {
-                    new LineDataset()
+                Labels = [],
+                Datasets =
+                [
+                    new LineDataset
                     {
-                        Label = "Rating",
-                        BackgroundColor = "white",
-                        BorderColor = "#ffffff",
+                        Label = "Evaluation",
+                        BackgroundColor = "rgba(226, 232, 240, 0.2)",
+                        BorderColor = "#9fd169",
                         Fill = new
-                            {
-                                target = "origin",
-                                above = "rgb(255, 255, 255, 0.6)",
-                                below = "rgb(0, 0, 0, 0.6)"
-                            },
-                        PointBackgroundColor = new IndexableOption<string>("white"),
-                        PointBorderColor = new IndexableOption<string>("yellow"),
-                        PointRadius = new IndexableOption<double>(3),
-                        PointBorderWidth = new IndexableOption<double>(2),
-                        PointHitRadius = new IndexableOption<double>(5),
-                        Tension = 0.4
+                        {
+                            target = "origin",
+                            above = "rgba(159, 209, 105, 0.28)",
+                            below = "rgba(218, 93, 75, 0.24)"
+                        },
+                        PointBackgroundColor = new IndexableOption<string>("#f4f7ef"),
+                        PointBorderColor = new IndexableOption<string>("#1d211a"),
+                        PointRadius = new IndexableOption<double>(2.5),
+                        PointBorderWidth = new IndexableOption<double>(1.5),
+                        PointHitRadius = new IndexableOption<double>(8),
+                        Tension = 0.32
                     }
-                }
+                ]
             },
-            Options = new ChartJsOptions()
+            Options = new ChartJsOptions
             {
                 Responsive = true,
+                MaintainAspectRatio = false,
                 OnClickEvent = true,
-                Plugins = new Plugins()
+                Plugins = new Plugins
                 {
-                    Legend = new Legend()
+                    Legend = new Legend
                     {
                         Position = "top"
                     },
-                    Title = new Title()
+                    Title = new Title
                     {
-                        Display = true,
-                        Text = new IndexableOption<string>("Game Evaluation"),
-                        Color = "yellow",
-                        Font = new Font()
-                        {
-                            Size = 16
-                        }
+                        Display = false
                     },
-                    ArbitraryLines = new List<ArbitraryLineConfig>()
-                    {
-                        new ArbitraryLineConfig()
+                    ArbitraryLines =
+                    [
+                        new ArbitraryLineConfig
                         {
-                            ArbitraryLineColor = "blue",
+                            ArbitraryLineColor = "#77a6d9",
                             XPosition = 0,
-                            XWidth = 3,
+                            XWidth = 2,
                             Text = "Current"
                         }
-                    }
+                    ]
                 },
-                Scales = new ChartJsOptionsScales()
+                Scales = new ChartJsOptionsScales
                 {
-                    X = new LinearAxis()
+                    X = new LinearAxis
                     {
                         Display = true,
-                        Title = new Title()
+                        Title = new Title
                         {
                             Display = true,
                             Text = new IndexableOption<string>("Moves"),
-                            Color = "yellow"
+                            Color = "#bcb4a8"
                         },
-                        Ticks = new LinearAxisTick()
+                        Ticks = new LinearAxisTick
                         {
-                            Color = "yellow",
+                            Color = "#bcb4a8"
                         },
-                        Grid = new ChartJsGrid()
+                        Grid = new ChartJsGrid
                         {
-                            Color = "grey"
+                            Color = "rgba(188, 180, 168, 0.18)"
                         }
                     },
-                    Y = new LinearAxis()
+                    Y = new LinearAxis
                     {
                         Display = true,
                         BeginAtZero = true,
-                        Title = new Title()
+                        Title = new Title
                         {
                             Display = true,
                             Text = new IndexableOption<string>("Evaluation"),
-                            Color = "yellow"
+                            Color = "#bcb4a8"
                         },
-                        Ticks = new LinearAxisTick()
+                        Ticks = new LinearAxisTick
                         {
-                            Color = "yellow"
+                            Color = "#bcb4a8"
                         },
-                        Grid = new ChartJsGrid()
+                        Grid = new ChartJsGrid
                         {
-                            Color = "grey"
+                            Color = "rgba(188, 180, 168, 0.18)"
                         }
                     }
                 }

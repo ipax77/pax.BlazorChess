@@ -1,29 +1,18 @@
-@using pax.BlazorChess.Board
 @using pax.chess
 @using pax.chess.Analyze
 @using pax.uciChessEngine.EngineServices
 
-<div class="tool-panel chart-panel">
-    <div class="tool-panel-header">
-        <h2>Evaluation Chart</h2>
-        <button class="btn btn-sm btn-outline-light" disabled="@(EngineRunOptions is null)" @onclick="Analyze">
-            Analyze
-        </button>
-    </div>
-
-    @if (EngineRunOptions is null)
-    {
-        <div class="empty-state">Configure an engine before running analysis.</div>
-    }
-    else
-    {
-        <GameAnalysisComponent @ref="chart"
-                               ChessGame="ChessGame"
-                               AnalysisBoard="AnalysisBoard"
-                               EngineRunOptions="EngineRunOptions"
-                               ThinkTimePerMoveMs="ThinkTimePerMoveMs" />
-    }
-</div>
+<pax.BlazorChess.Board.EvaluationChart @ref="chart"
+                                        ChessGame="ChessGame"
+                                        AnalysisBoard="AnalysisBoard"
+                                        EngineRunOptions="EngineRunOptions"
+                                        ThinkTimePerMoveMs="ThinkTimePerMoveMs"
+                                        AnalysisThreads="AnalysisThreads"
+                                        Title="Title"
+                                        Subtitle="Subtitle"
+                                        ShowAnalyzeButton="ShowAnalyzeButton"
+                                        OnMoveClicked="OnMoveClicked"
+                                        OnAnnotationsChanged="OnAnnotationsChanged" />
 
 @code {
     [Parameter, EditorRequired]
@@ -38,11 +27,29 @@
     [Parameter]
     public int ThinkTimePerMoveMs { get; set; } = 1000;
 
-    private GameAnalysisComponent? chart;
+    [Parameter]
+    public int AnalysisThreads { get; set; } = 8;
+
+    [Parameter]
+    public string Title { get; set; } = "Evaluation Chart";
+
+    [Parameter]
+    public string Subtitle { get; set; } = "Full-game engine analysis";
+
+    [Parameter]
+    public bool ShowAnalyzeButton { get; set; } = true;
+
+    [Parameter]
+    public EventCallback<int> OnMoveClicked { get; set; }
+
+    [Parameter]
+    public EventCallback OnAnnotationsChanged { get; set; }
+
+    private pax.BlazorChess.Board.EvaluationChart? chart;
 
     public async Task Analyze()
     {
         if (chart is not null)
-            await chart.Analyse();
+            await chart.Analyze();
     }
 }

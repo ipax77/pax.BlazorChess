@@ -96,11 +96,11 @@
                 }
             </div>
 
-            <EvaluationChart @ref="evaluationChart"
-                             ChessGame="Workspace.AnalysisBoard.ChessGame"
-                             AnalysisBoard="Workspace.AnalysisBoard"
-                             EngineRunOptions="SelectedEngine"
-                             ThinkTimePerMoveMs="thinkTimePerMoveMs" />
+            <pax.BlazorChess.Web.Components.Results.EvaluationChart @ref="evaluationChart"
+                                                                     ChessGame="Workspace.AnalysisBoard.ChessGame"
+                                                                     AnalysisBoard="Workspace.AnalysisBoard"
+                                                                     EngineRunOptions="SelectedEngine"
+                                                                     ThinkTimePerMoveMs="thinkTimePerMoveMs" />
         </div>
 
         <div class="tool-panel">
@@ -137,7 +137,7 @@
     private Guid selectedEngineId;
     private ChessBoard? boardView;
     private LiveEvalComponent? liveEval;
-    private EvaluationChart? evaluationChart;
+    private pax.BlazorChess.Web.Components.Results.EvaluationChart? evaluationChart;
 
     private PositionSnapshot Snapshot => PositionSnapshot.FromPosition(Workspace.AnalysisBoard.CurrentPosition);
     private bool HasMoveHistory => Workspace.AnalysisBoard.ChessGame.Moves.Count > 0;

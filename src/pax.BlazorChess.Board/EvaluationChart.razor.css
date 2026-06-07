@@ -1,0 +1,66 @@
+.evaluation-chart-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    border: 1px solid #3a352e;
+    border-radius: 4px;
+    background: #26231f;
+    padding: 12px;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 35%);
+}
+
+.evaluation-chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+}
+
+.evaluation-chart-header div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.evaluation-chart-header h2 {
+    margin: 0;
+    color: #f2efe7;
+    font-size: 1rem;
+}
+
+.evaluation-chart-header span,
+.evaluation-empty {
+    color: #aaa196;
+    font-size: 0.82rem;
+}
+
+.evaluation-chart-action {
+    min-height: 34px;
+    border: 1px solid #6f9d34;
+    border-radius: 4px;
+    background: #5b8d22;
+    color: #f2f7e9;
+    padding: 6px 12px;
+    font-weight: 700;
+}
+
+.evaluation-chart-action:not(:disabled):hover {
+    background: #6fa92c;
+}
+
+.evaluation-empty {
+    border: 1px dashed #4a4339;
+    border-radius: 4px;
+    padding: 16px;
+    text-align: center;
+}
+
+@media (max-width: 520px) {
+    .evaluation-chart-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
