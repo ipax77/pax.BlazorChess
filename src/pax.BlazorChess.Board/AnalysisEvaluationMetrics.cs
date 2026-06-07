@@ -45,4 +45,60 @@ public static class AnalysisEvaluationMetrics
             : winningChanceLoss >= 10 ? AnalysisMoveQuality.Inaccuracy
             : winningChanceLoss >= 3 ? AnalysisMoveQuality.Good
             : AnalysisMoveQuality.Best;
+
+    public static double?[] BuildAverageDisplayScores(
+        IReadOnlyList<IReadOnlyList<double?>> engineDisplayScores,
+        int moveCount)
+    {
+        ArgumentNullException.ThrowIfNull(engineDisplayScores);
+
+        var averages = new double?[Math.Max(0, moveCount)];
+        for (var moveIndex = 0; moveIndex < averages.Length; moveIndex++)
+        {
+            double sum = 0;
+            var count = 0;
+            foreach (var engineScores in engineDisplayScores)
+            {
+                if (moveIndex >= engineScores.Count || engineScores[moveIndex] is not { } score)
+                    continue;
+
+                sum += score;
+                count++;
+            }
+
+            averages[moveIndex] = count == 0 ? null : sum / count;
+        }
+
+        return averages;
+    }
+
+    public static List<double?[]> BuildAdjustedDisplayScores(
+        IReadOnlyList<IReadOnlyList<double?>> engineDisplayScores,
+        int moveCount)
+    {
+        ArgumentNullException.ThrowIfNull(engineDisplayScores);
+
+        var averages = BuildAverageDisplayScores(engineDisplayScores, moveCount);
+        List<double?[]> adjusted = new(engineDisplayScores.Count);
+
+        foreach (var engineScores in engineDisplayScores)
+        {
+            var line = new double?[averages.Length];
+            for (var moveIndex = 0; moveIndex < averages.Length; moveIndex++)
+            {
+                if (moveIndex >= engineScores.Count
+                    || engineScores[moveIndex] is not { } score
+                    || averages[moveIndex] is not { } average)
+                {
+                    continue;
+                }
+
+                line[moveIndex] = score - average;
+            }
+
+            adjusted.Add(line);
+        }
+
+        return adjusted;
+    }
 }

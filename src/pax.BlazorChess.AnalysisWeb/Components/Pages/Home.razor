@@ -114,6 +114,23 @@
 
         <div class="full-analysis-settings">
             <label>
+                <span>Scope</span>
+                <div class="segmented-control" role="group" aria-label="Game analysis scope">
+                    <button type="button"
+                            class="@(gameAnalysisMode == GameAnalysisMode.SelectedEngine ? "active" : "")"
+                            disabled="@fullAnalysisRunning"
+                            @onclick="() => SetGameAnalysisMode(GameAnalysisMode.SelectedEngine)">
+                        Selected engine
+                    </button>
+                    <button type="button"
+                            class="@(gameAnalysisMode == GameAnalysisMode.EnabledEngines ? "active" : "")"
+                            disabled="@fullAnalysisRunning"
+                            @onclick="() => SetGameAnalysisMode(GameAnalysisMode.EnabledEngines)">
+                        Enabled engines
+                    </button>
+                </div>
+            </label>
+            <label>
                 <span>Time</span>
                 <div class="number-field">
                     <input class="text-input"
@@ -147,6 +164,8 @@
                                                ChessGame="Workspace.AnalysisBoard.ChessGame"
                                                AnalysisBoard="Workspace.AnalysisBoard"
                                                EngineRunOptions="Workspace.SelectedEngine"
+                                               EngineRunOptionsList="Workspace.EngineRunOptions"
+                                               AnalysisMode="gameAnalysisMode"
                                                CurrentMoveNumber="Workspace.CurrentPly"
                                                ThinkTimePerMoveMs="AnalysisThinkTimeMs"
                                                AnalysisThreads="ClampedAnalysisThreads"
@@ -178,6 +197,7 @@
     private int analysisThreads = 8;
     private int analysisChartVersion;
     private readonly string analysisShellId = $"analysis_shell_{Guid.NewGuid():N}";
+    private GameAnalysisMode gameAnalysisMode = GameAnalysisMode.SelectedEngine;
     private bool navigationKeyDefaultsRegistered;
     private bool fullAnalysisRunning;
 
@@ -185,21 +205,31 @@
     private int MaxAnalysisThreads => Math.Max(1, Environment.ProcessorCount);
     private int ClampedAnalysisThreads => Math.Clamp(analysisThreads, 1, MaxAnalysisThreads);
     private int AnalysisThinkTimeMs => Math.Max(100, (int)Math.Round(Math.Max(0.1, analysisThinkTimeSeconds) * 1000));
+    private int AvailableAnalysisEngineCount => Workspace.EngineRunOptions.Count(IsEnabledAnalysisEngineAvailable);
     private bool CanAnalyzeGame
-        => MoveCount > 0
-            && Workspace.SelectedEngine is not null
-            && !string.IsNullOrWhiteSpace(Workspace.SelectedEngine.BinaryPath)
-            && File.Exists(Workspace.SelectedEngine.BinaryPath);
+        => MoveCount > 0 && (gameAnalysisMode == GameAnalysisMode.EnabledEngines
+            ? AvailableAnalysisEngineCount > 0
+            : Workspace.SelectedEngine is not null && HasEngineBinary(Workspace.SelectedEngine));
     private string FullAnalysisStatus
         => fullAnalysisRunning
-            ? $"Analysing {MoveCount} ply / {AnalysisThinkTimeMs} ms / {ClampedAnalysisThreads} threads"
+            ? $"Analysing {MoveCount} ply / {AnalysisThinkTimeMs} ms / {ClampedAnalysisThreads} threads / {AnalysisScopeText}"
+            : gameAnalysisMode == GameAnalysisMode.EnabledEngines
+            ? MoveCount == 0
+                ? "Load or play a game to analyse the main line."
+                : AvailableAnalysisEngineCount == 0
+                    ? "Enable at least one engine with a valid binary before analysing the game."
+                    : $"{MoveCount} ply / {AnalysisThinkTimeMs} ms / {ClampedAnalysisThreads} threads / {AvailableAnalysisEngineCount} engines"
             : Workspace.SelectedEngine is null
             ? "Select an engine before analysing the game."
             : MoveCount == 0
                 ? "Load or play a game to analyse the main line."
-                : !File.Exists(Workspace.SelectedEngine.BinaryPath)
+                : !HasEngineBinary(Workspace.SelectedEngine)
                     ? "Selected engine binary is missing."
                     : $"{MoveCount} ply / {AnalysisThinkTimeMs} ms / {ClampedAnalysisThreads} threads";
+    private string AnalysisScopeText
+        => gameAnalysisMode == GameAnalysisMode.EnabledEngines
+            ? $"{AvailableAnalysisEngineCount} engines"
+            : Workspace.SelectedEngine?.Name ?? "selected engine";
 
     protected override async Task OnInitializedAsync()
     {
@@ -375,6 +405,15 @@
         evaluationChart?.StopAnalysis();
     }
 
+    private void SetGameAnalysisMode(GameAnalysisMode mode)
+    {
+        if (fullAnalysisRunning || gameAnalysisMode == mode)
+            return;
+
+        gameAnalysisMode = mode;
+        ResetAnalysisChart();
+    }
+
     private async Task AnalysisMoveClicked(int moveNumber)
     {
         if (MoveCount == 0)
@@ -495,4 +534,12 @@
 
         return count;
     }
+
+    private static bool IsEnabledAnalysisEngineAvailable(EngineRunOptions engine)
+        => engine.IsEnabled
+            && HasEngineBinary(engine);
+
+    private static bool HasEngineBinary(EngineRunOptions engine)
+        => !string.IsNullOrWhiteSpace(engine.BinaryPath)
+            && File.Exists(engine.BinaryPath);
 }

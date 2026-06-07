@@ -9,6 +9,22 @@
 
 <div class="game-analysis">
     <div class="game-analysis-chart-shell @(isAnalysing ? "is-running" : "")">
+        @if (AnalysisMode == GameAnalysisMode.EnabledEngines)
+        {
+            <div class="game-analysis-chart-toolbar">
+                <label>
+                    <span>View</span>
+                    <select class="text-input"
+                            value="@chartView"
+                            disabled="@isAnalysing"
+                            @onchange="ChartViewChanged">
+                        <option value="@GameAnalysisChartView.Raw">Raw</option>
+                        <option value="@GameAnalysisChartView.Adjusted">Adjusted</option>
+                    </select>
+                </label>
+            </div>
+        }
+
         <div class="game-analysis-chart">
             <ChartComponent ChartJsConfig="chartJsConfig" OnEventTriggered="ChartEventTriggerd" />
         </div>
@@ -19,13 +35,26 @@
                 <div class="game-analysis-spinner" aria-hidden="true"></div>
                 <div>
                     <strong>Engine analysing</strong>
-                    <span>@AnalysedMoveCount / @MoveCount moves</span>
+                    <span>@AnalysisProgressText</span>
                 </div>
             </div>
         }
     </div>
 
     <aside class="game-analysis-summary" aria-label="Analysis summary">
+        @if (AnalysisMode == GameAnalysisMode.EnabledEngines && engineResults.Count > 0)
+        {
+            <div class="engine-result-list" aria-label="Game analysis engines">
+                @foreach (var result in engineResults)
+                {
+                    <div class="engine-result-row">
+                        <span>@result.EngineName</span>
+                        <small>@result.StatusText</small>
+                    </div>
+                }
+            </div>
+        }
+
         @if (MoveCount == 0)
         {
             <div class="analysis-empty">Load or play a game before running full-game analysis.</div>
@@ -59,6 +88,20 @@
 @code {
     private const int ChartRefreshMs = 350;
     private const string EvaluationDatasetId = "game-analysis-evaluation";
+    private const string CombinedDatasetId = "game-analysis-combined-average";
+    private const int MaxParallelGameAnalysisEngines = 1;
+
+    private static readonly string[] EnginePalette =
+    [
+        "#9fd169",
+        "#8ed7ff",
+        "#f2d16b",
+        "#ff9f8f",
+        "#c6a5ff",
+        "#7ee0c3",
+        "#f49bd4",
+        "#b8d45f"
+    ];
 
     [Parameter, EditorRequired]
     public required ChessGame ChessGame { get; set; }
@@ -66,8 +109,14 @@
     [Parameter]
     public AnalysisBoard? AnalysisBoard { get; set; }
 
-    [Parameter, EditorRequired]
-    public required EngineRunOptions EngineRunOptions { get; set; }
+    [Parameter]
+    public EngineRunOptions? EngineRunOptions { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<EngineRunOptions> EngineRunOptionsList { get; set; } = [];
+
+    [Parameter]
+    public GameAnalysisMode AnalysisMode { get; set; } = GameAnalysisMode.SelectedEngine;
 
     [Parameter]
     public int CurrentMoveNumber { get; set; }
@@ -90,6 +139,12 @@
     private List<string> chartLabels = [];
     private List<object> chartData = [];
     private List<AnalysisTooltipPoint> tooltipPoints = [];
+    private readonly List<AnalysisEngineResult> engineResults = [];
+    private AnalysisEngineResult? summaryResult;
+    private double?[] combinedDisplayScores = [];
+    private List<object> combinedChartData = [];
+    private List<AnalysisTooltipPoint> combinedTooltipPoints = [];
+    private AnalysisEvaluationDataset combinedDataset = null!;
     private readonly ArbitraryLineConfig currentLine = new()
     {
         ArbitraryLineColor = "#77a6d9",
@@ -99,6 +154,8 @@
     };
     private AnalysisEvaluationDataset evaluationDataset = null!;
     private ChartJsConfig chartJsConfig = null!;
+    private GameAnalysisMode configuredAnalysisMode = GameAnalysisMode.SelectedEngine;
+    private GameAnalysisChartView chartView = GameAnalysisChartView.Raw;
     private bool chartReady;
     private bool isAnalysing;
     private bool chartDirty;
@@ -106,6 +163,7 @@
     private int analysedMoveCount;
     private int configuredMoveCount = -1;
     private int configuredCurrentMoveNumber = -1;
+    private Guid configuredSelectedEngineId;
 
     private AnalysisSummary whiteSummary = new();
     private AnalysisSummary blackSummary = new();
@@ -114,7 +172,11 @@
 
     private int MoveCount => ChessGame.Moves.Count;
     private int AnalysedMoveCount => analysedMoveCount;
-    private bool HasEvaluations => analysedMoveCount > 0;
+    private bool HasEvaluations => evals.Any(static eval => eval is not null);
+    private string AnalysisProgressText
+        => AnalysisMode == GameAnalysisMode.EnabledEngines && engineResults.Count > 1
+            ? $"{engineResults.Sum(static r => r.AnalysedMoveCount)} / {Math.Max(1, engineResults.Count) * MoveCount} engine moves"
+            : $"{AnalysedMoveCount} / {MoveCount} moves";
 
     protected override void OnInitialized()
     {
@@ -124,10 +186,17 @@
 
     protected override void OnParametersSet()
     {
-        if (configuredMoveCount != MoveCount)
+        var selectedEngineId = EngineRunOptions?.Id ?? Guid.Empty;
+        if (configuredMoveCount != MoveCount
+            || configuredAnalysisMode != AnalysisMode
+            || configuredSelectedEngineId != selectedEngineId)
+        {
             ConfigureChartForCurrentGame();
+        }
         else
+        {
             UpdateCurrentLine(CurrentMoveNumber);
+        }
     }
 
     public async Task Analyse()
@@ -135,40 +204,28 @@
         if (isAnalysing || MoveCount == 0)
             return;
 
-        ResetAnalysisState();
+        var engines = SelectAnalysisEnginesForMode(AnalysisMode, EngineRunOptions, EngineRunOptionsList);
+        if (engines.Count == 0)
+            return;
+
+        ResetAnalysisState(engines);
         isAnalysing = true;
         var completedNaturally = false;
         await InvokeAsync(StateHasChanged);
 
         _ = StartChartRefreshLoop();
 
-        var provider = EngineService.GetEngineSessionProvider(EngineRunOptions);
-        var requestedThreads = AnalysisThreads > 0
-            ? AnalysisThreads
-            : EngineRunOptions.Threads > 0
-                ? EngineRunOptions.Threads
-                : 8;
-        var threads = Math.Clamp(requestedThreads, 1, Math.Max(1, Environment.ProcessorCount));
-        await using var gameAnalysis = new GameAnalysis(provider, ChessGame, threads, Math.Max(100, ThinkTimePerMoveMs));
-
         try
         {
-            await foreach (var result in gameAnalysis.AnalyseGameStream(cts.Token))
+            foreach (var batch in engineResults.Chunk(MaxParallelGameAnalysisEngines))
             {
-                if (result.Eval is null)
-                    continue;
+                var tasks = batch
+                    .Select(result => AnalyseEngineAsync(result, ReferenceEquals(result, summaryResult), cts.Token))
+                    .ToArray();
 
-                var index = result.MoveNumber - 1;
-                if (index < 0 || index >= evals.Length)
-                    continue;
-
-                lock (evalLock)
-                {
-                    evals[index] = result.Eval;
-                    analysedMoveCount++;
-                    chartDirty = true;
-                    summaryDirty = true;
-                }
+                await Task.WhenAll(tasks);
+                if (cts.IsCancellationRequested)
+                    break;
             }
 
             completedNaturally = !cts.IsCancellationRequested;
@@ -196,6 +253,86 @@
         cts.Cancel();
     }
 
+    public static IReadOnlyList<EngineRunOptions> SelectAnalysisEnginesForMode(
+        GameAnalysisMode mode,
+        EngineRunOptions? selectedEngine,
+        IReadOnlyList<EngineRunOptions> engines,
+        Func<EngineRunOptions, bool>? isEnabledEngineAvailable = null)
+    {
+        if (mode == GameAnalysisMode.SelectedEngine)
+            return selectedEngine is null ? [] : [selectedEngine];
+
+        var predicate = isEnabledEngineAvailable ?? IsEnabledEngineAvailable;
+        return engines.Where(predicate).ToList();
+    }
+
+    private async Task AnalyseEngineAsync(
+        AnalysisEngineResult result,
+        bool drivesSummary,
+        CancellationToken token)
+    {
+        try
+        {
+            SetEngineStatus(result, "Starting");
+
+            var provider = EngineService.GetEngineSessionProvider(result.Engine);
+            var requestedThreads = AnalysisThreads > 0
+                ? AnalysisThreads
+                : result.Engine.Threads > 0
+                    ? result.Engine.Threads
+                    : 8;
+            var threads = Math.Clamp(requestedThreads, 1, Math.Max(1, Environment.ProcessorCount));
+            await using var gameAnalysis = new GameAnalysis(provider, ChessGame, threads, Math.Max(100, ThinkTimePerMoveMs));
+
+            SetEngineStatus(result, "Analysing");
+            await foreach (var analysis in gameAnalysis.AnalyseGameStream(token))
+            {
+                if (analysis.Eval is null)
+                    continue;
+
+                var index = analysis.MoveNumber - 1;
+                if (index < 0 || index >= result.Evals.Length)
+                    continue;
+
+                lock (evalLock)
+                {
+                    if (result.Evals[index] is null)
+                        result.AnalysedMoveCount++;
+
+                    result.Evals[index] = analysis.Eval;
+                    if (drivesSummary)
+                    {
+                        evals = result.Evals;
+                        analysedMoveCount = result.AnalysedMoveCount;
+                        summaryDirty = true;
+                    }
+
+                    chartDirty = true;
+                }
+            }
+
+            SetEngineStatus(result, token.IsCancellationRequested ? "Stopped" : "Ready");
+        }
+        catch (OperationCanceledException)
+        {
+            SetEngineStatus(result, "Stopped");
+        }
+        catch (Exception ex)
+        {
+            result.Error = ex.Message;
+            SetEngineStatus(result, "Error");
+        }
+    }
+
+    private void SetEngineStatus(AnalysisEngineResult result, string statusText)
+    {
+        lock (evalLock)
+        {
+            result.StatusText = statusText;
+            chartDirty = true;
+        }
+    }
+
     private async Task StartChartRefreshLoop()
     {
         try
@@ -215,6 +352,10 @@
     private void ConfigureChartForCurrentGame()
     {
         configuredMoveCount = MoveCount;
+        configuredAnalysisMode = AnalysisMode;
+        configuredSelectedEngineId = EngineRunOptions?.Id ?? Guid.Empty;
+        engineResults.Clear();
+        summaryResult = null;
         evals = new Eval?[MoveCount];
         analysedMoveCount = 0;
         whiteSummary = new();
@@ -227,12 +368,16 @@
         chartLabels = CreateChartLabels(MoveCount);
         chartData = CreatePendingChartData(MoveCount);
         tooltipPoints = CreatePendingTooltipPoints(MoveCount);
-        evaluationDataset = CreateEvaluationDataset(chartData, tooltipPoints);
+        combinedDisplayScores = new double?[MoveCount];
+        combinedChartData = CreatePendingChartData(MoveCount);
+        combinedTooltipPoints = CreatePendingTooltipPoints(MoveCount);
+        evaluationDataset = CreateEvaluationDataset(EvaluationDatasetId, "Evaluation", chartData, tooltipPoints, "#9fd169", fillPrimary: true);
+        combinedDataset = CreateEvaluationDataset(CombinedDatasetId, "Combined average", combinedChartData, combinedTooltipPoints, "#f2d16b", fillPrimary: false);
         configuredCurrentMoveNumber = UpdateCurrentLinePosition(CurrentMoveNumber);
         chartJsConfig.SetDatasetsSmooth([evaluationDataset], chartLabels);
     }
 
-    private void ResetAnalysisState()
+    private void ResetAnalysisState(IReadOnlyList<EngineRunOptions> engines)
     {
         if (cts.IsCancellationRequested)
         {
@@ -240,10 +385,14 @@
             cts = new CancellationTokenSource();
         }
 
-        EnsureChartStorage();
         lock (evalLock)
         {
-            Array.Clear(evals);
+            engineResults.Clear();
+            for (var i = 0; i < engines.Count; i++)
+                engineResults.Add(new AnalysisEngineResult(engines[i], MoveCount, EnginePalette[i % EnginePalette.Length]));
+
+            summaryResult = FindSummaryResult() ?? engineResults.FirstOrDefault();
+            evals = summaryResult?.Evals ?? new Eval?[MoveCount];
             ResetChartData();
             analysedMoveCount = 0;
             whiteSummary = new();
@@ -255,14 +404,20 @@
         }
     }
 
+    private AnalysisEngineResult? FindSummaryResult()
+    {
+        if (EngineRunOptions is null)
+            return null;
+
+        return engineResults.FirstOrDefault(r => r.Engine.Id == EngineRunOptions.Id);
+    }
+
     private void RefreshChartData(bool forceSummary)
     {
         if (!chartReady)
             return;
 
         EnsureChartStorage();
-        if (evaluationDataset.Data is null)
-            return;
 
         bool shouldUpdateChart;
         bool shouldUpdateSummary;
@@ -285,7 +440,7 @@
         }
 
         if (shouldUpdateChart)
-            chartJsConfig.SetDatasetsSmooth([evaluationDataset], chartLabels);
+            chartJsConfig.SetDatasetsSmooth(GetActiveDatasets(), chartLabels);
     }
 
     private void UpdateCurrentLine(int moveNumber)
@@ -296,7 +451,7 @@
 
         configuredCurrentMoveNumber = currentMoveNumber;
         chartJsConfig.SetDatasetsSmooth(
-            [evaluationDataset],
+            GetActiveDatasets(),
             chartLabels,
             updateOptions: true,
             updateAnimation: "none");
@@ -322,18 +477,129 @@
         }
     }
 
+    private void ChartViewChanged(ChangeEventArgs args)
+    {
+        if (args.Value is string value
+            && Enum.TryParse<GameAnalysisChartView>(value, out var view)
+            && chartView != view)
+        {
+            chartView = view;
+            lock (evalLock)
+                chartDirty = true;
+
+            RefreshChartData(forceSummary: false);
+            StateHasChanged();
+        }
+    }
+
     private void RefreshChartDataFromEvaluations()
     {
-        for (var i = 0; i < evals.Length && i < chartData.Count; i++)
+        if (engineResults.Count == 0)
         {
-            var eval = evals[i];
+            RefreshSingleEvaluationData(evals, chartData, tooltipPoints, "Evaluation");
+            return;
+        }
+
+        foreach (var result in engineResults)
+            RefreshEngineEvaluationData(result);
+
+        RefreshAdjustedChartData();
+    }
+
+    private void RefreshEngineEvaluationData(AnalysisEngineResult result)
+    {
+        for (var i = 0; i < result.Evals.Length && i < result.RawData.Count; i++)
+        {
+            var eval = result.Evals[i];
             if (eval is null)
                 continue;
 
             var displayScore = AnalysisEvaluationMetrics.GetDisplayScore(eval.Score, eval.Mate);
-            chartData[i] = displayScore;
-            tooltipPoints[i] = CreateTooltipPoint(i + 1, eval, displayScore);
+            result.DisplayScores[i] = displayScore;
+            result.RawData[i] = displayScore;
+            result.RawTooltipPoints[i] = CreateTooltipPoint(i + 1, eval, displayScore, result.EngineName);
         }
+    }
+
+    private void RefreshSingleEvaluationData(
+        IReadOnlyList<Eval?> sourceEvals,
+        List<object> data,
+        List<AnalysisTooltipPoint> points,
+        string engineName)
+    {
+        for (var i = 0; i < sourceEvals.Count && i < data.Count; i++)
+        {
+            var eval = sourceEvals[i];
+            if (eval is null)
+                continue;
+
+            var displayScore = AnalysisEvaluationMetrics.GetDisplayScore(eval.Score, eval.Mate);
+            data[i] = displayScore;
+            points[i] = CreateTooltipPoint(i + 1, eval, displayScore, engineName);
+        }
+    }
+
+    private void RefreshAdjustedChartData()
+    {
+        if (engineResults.Count == 0)
+            return;
+
+        var displayScoreLines = engineResults.Select(static r => (IReadOnlyList<double?>)r.DisplayScores).ToList();
+        combinedDisplayScores = AnalysisEvaluationMetrics.BuildAverageDisplayScores(displayScoreLines, MoveCount);
+        var adjustedLines = AnalysisEvaluationMetrics.BuildAdjustedDisplayScores(displayScoreLines, MoveCount);
+
+        for (var i = 0; i < combinedDisplayScores.Length && i < combinedChartData.Count; i++)
+        {
+            if (combinedDisplayScores[i] is not { } average)
+                continue;
+
+            var contributorCount = engineResults.Count(r => i < r.DisplayScores.Length && r.DisplayScores[i] is not null);
+            combinedChartData[i] = average;
+            combinedTooltipPoints[i] = CreateCombinedTooltipPoint(i + 1, average, contributorCount);
+        }
+
+        for (var engineIndex = 0; engineIndex < engineResults.Count && engineIndex < adjustedLines.Count; engineIndex++)
+        {
+            var result = engineResults[engineIndex];
+            var adjustedLine = adjustedLines[engineIndex];
+            for (var moveIndex = 0; moveIndex < adjustedLine.Length && moveIndex < result.AdjustedData.Count; moveIndex++)
+            {
+                if (adjustedLine[moveIndex] is not { } adjusted)
+                    continue;
+
+                result.AdjustedData[moveIndex] = adjusted;
+                if (engineResults.Count > 1)
+                {
+                    result.RawTooltipPoints[moveIndex] = result.RawTooltipPoints[moveIndex] with
+                    {
+                        DifferenceText = FormatSigned(adjusted)
+                    };
+                }
+
+                result.AdjustedTooltipPoints[moveIndex] = CreateAdjustedTooltipPoint(
+                    moveIndex + 1,
+                    result.Evals[moveIndex],
+                    result.DisplayScores[moveIndex],
+                    combinedDisplayScores[moveIndex],
+                    adjusted,
+                    result.EngineName);
+            }
+        }
+    }
+
+    private List<ChartJsDataset> GetActiveDatasets()
+    {
+        if (engineResults.Count == 0)
+            return [evaluationDataset];
+
+        if (chartView == GameAnalysisChartView.Adjusted && engineResults.Count > 1)
+        {
+            List<ChartJsDataset> adjusted = new(engineResults.Count + 1) { combinedDataset };
+            adjusted.AddRange(engineResults.Select(static r => (ChartJsDataset)r.AdjustedDataset));
+            return adjusted;
+        }
+
+        return engineResults.Select(static r => (ChartJsDataset)r.RawDataset).ToList();
     }
 
     private void CalculateSummary()
@@ -544,18 +810,24 @@
             return;
         }
 
-        chartLabels = CreateChartLabels(MoveCount);
-        chartData = CreatePendingChartData(MoveCount);
-        tooltipPoints = CreatePendingTooltipPoints(MoveCount);
-        evaluationDataset = CreateEvaluationDataset(chartData, tooltipPoints);
+        ConfigureChartForCurrentGame();
     }
 
     private void ResetChartData()
     {
-        for (var i = 0; i < chartData.Count; i++)
+        ResetData(chartData, tooltipPoints);
+        ResetData(combinedChartData, combinedTooltipPoints);
+        Array.Clear(combinedDisplayScores);
+        foreach (var result in engineResults)
+            result.Reset();
+    }
+
+    private static void ResetData(List<object> data, List<AnalysisTooltipPoint> points)
+    {
+        for (var i = 0; i < data.Count; i++)
         {
-            chartData[i] = null!;
-            tooltipPoints[i] = CreatePendingTooltipPoint(i + 1);
+            data[i] = null!;
+            points[i] = CreatePendingTooltipPoint(i + 1);
         }
     }
 
@@ -587,30 +859,50 @@
     }
 
     private static AnalysisEvaluationDataset CreateEvaluationDataset(
+        string datasetId,
+        string label,
         List<object> data,
-        List<AnalysisTooltipPoint> tooltipPoints)
+        List<AnalysisTooltipPoint> tooltipPoints,
+        string color,
+        bool fillPrimary,
+        bool adjusted = false)
         => new()
         {
-            Id = EvaluationDatasetId,
-            Label = "Evaluation",
+            Id = datasetId,
+            Label = label,
             Data = data,
             TooltipPoints = tooltipPoints,
-            BackgroundColor = "rgba(226, 232, 240, 0.2)",
-            BorderColor = "#9fd169",
-            Fill = new
-            {
-                target = "origin",
-                above = "rgba(159, 209, 105, 0.28)",
-                below = "rgba(218, 93, 75, 0.24)"
-            },
+            BackgroundColor = new IndexableOption<string>(ToAlpha(color, fillPrimary ? 0.22 : 0.06)),
+            BorderColor = new IndexableOption<string>(color),
+            BorderDash = adjusted ? new IndexableOption<object>(new double[] { 6, 4 }) : null,
+            BorderWidth = new IndexableOption<double>(fillPrimary ? 2.5 : 1.8),
+            Fill = fillPrimary
+                ? new
+                {
+                    target = "origin",
+                    above = "rgba(159, 209, 105, 0.20)",
+                    below = "rgba(218, 93, 75, 0.18)"
+                }
+                : false,
             PointBackgroundColor = new IndexableOption<string>("#f4f7ef"),
             PointBorderColor = new IndexableOption<string>("#1d211a"),
-            PointRadius = new IndexableOption<double>(2.5),
-            PointBorderWidth = new IndexableOption<double>(1.5),
+            PointRadius = new IndexableOption<double>(adjusted ? 1.6 : 2.5),
+            PointBorderWidth = new IndexableOption<double>(1.2),
             PointHitRadius = new IndexableOption<double>(8),
             SpanGaps = true,
-            Tension = 0.32
+            Tension = new IndexableOption<double>(0.32)
         };
+
+    private static string ToAlpha(string hexColor, double alpha)
+    {
+        if (hexColor.Length != 7 || hexColor[0] != '#')
+            return hexColor;
+
+        var red = Convert.ToInt32(hexColor[1..3], 16);
+        var green = Convert.ToInt32(hexColor[3..5], 16);
+        var blue = Convert.ToInt32(hexColor[5..7], 16);
+        return string.Create(CultureInfo.InvariantCulture, $"rgba({red}, {green}, {blue}, {alpha:0.##})");
+    }
 
     private static AnalysisTooltipPoint CreatePendingTooltipPoint(int moveNumber)
         => new()
@@ -621,15 +913,48 @@
             DisplayScoreText = "0.00"
         };
 
-    private static AnalysisTooltipPoint CreateTooltipPoint(int moveNumber, Eval eval, double displayScore)
+    private static AnalysisTooltipPoint CreateTooltipPoint(int moveNumber, Eval eval, double displayScore, string engineName)
         => new()
         {
-            Title = FormatMoveTitle(moveNumber),
+            Title = $"{FormatMoveTitle(moveNumber)} / {engineName}",
+            EngineName = engineName,
             RawScoreText = AnalysisEvaluationMetrics.GetRawScoreText(eval.Score, eval.Mate),
             WinningChanceText = AnalysisEvaluationMetrics.GetWinningChance(eval.Score, eval.Mate)
                 .ToString("0.0'%' white", CultureInfo.InvariantCulture),
-            DisplayScoreText = displayScore.ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture)
+            DisplayScoreText = FormatSigned(displayScore)
         };
+
+    private static AnalysisTooltipPoint CreateCombinedTooltipPoint(int moveNumber, double average, int contributorCount)
+        => new()
+        {
+            Title = $"{FormatMoveTitle(moveNumber)} / combined",
+            EngineName = "Combined average",
+            RawScoreText = "Average",
+            WinningChanceText = $"{contributorCount} engines",
+            DisplayScoreText = FormatSigned(average)
+        };
+
+    private static AnalysisTooltipPoint CreateAdjustedTooltipPoint(
+        int moveNumber,
+        Eval? eval,
+        double? displayScore,
+        double? average,
+        double adjusted,
+        string engineName)
+        => new()
+        {
+            Title = $"{FormatMoveTitle(moveNumber)} / {engineName}",
+            EngineName = engineName,
+            RawScoreText = eval is null ? "Pending" : AnalysisEvaluationMetrics.GetRawScoreText(eval.Score, eval.Mate),
+            WinningChanceText = average is null
+                ? "Average pending"
+                : $"average {FormatSigned(average.Value)}",
+            DisplayScoreText = FormatSigned(adjusted),
+            DifferenceText = FormatSigned(adjusted)
+        };
+
+    private static string FormatSigned(double value)
+        => value.ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture);
 
     private static string FormatMoveTitle(int moveNumber)
         => moveNumber % 2 == 0
@@ -644,9 +969,66 @@
     private sealed record AnalysisTooltipPoint
     {
         public string Title { get; init; } = string.Empty;
+        public string EngineName { get; init; } = string.Empty;
         public string RawScoreText { get; init; } = string.Empty;
         public string WinningChanceText { get; init; } = string.Empty;
         public string DisplayScoreText { get; init; } = string.Empty;
+        public string DifferenceText { get; init; } = string.Empty;
+    }
+
+    private sealed class AnalysisEngineResult
+    {
+        public AnalysisEngineResult(EngineRunOptions engine, int moveCount, string color)
+        {
+            Engine = engine;
+            EngineName = string.IsNullOrWhiteSpace(engine.Name) ? "Unnamed engine" : engine.Name!;
+            Evals = new Eval?[moveCount];
+            DisplayScores = new double?[moveCount];
+            RawData = CreatePendingChartData(moveCount);
+            AdjustedData = CreatePendingChartData(moveCount);
+            RawTooltipPoints = CreatePendingTooltipPoints(moveCount);
+            AdjustedTooltipPoints = CreatePendingTooltipPoints(moveCount);
+            RawDataset = CreateEvaluationDataset(
+                $"game-analysis-{engine.Id:N}-raw",
+                EngineName,
+                RawData,
+                RawTooltipPoints,
+                color,
+                fillPrimary: false);
+            AdjustedDataset = CreateEvaluationDataset(
+                $"game-analysis-{engine.Id:N}-adjusted",
+                $"{EngineName} difference",
+                AdjustedData,
+                AdjustedTooltipPoints,
+                color,
+                fillPrimary: false,
+                adjusted: true);
+        }
+
+        public EngineRunOptions Engine { get; }
+        public string EngineName { get; }
+        public Eval?[] Evals { get; }
+        public double?[] DisplayScores { get; }
+        public List<object> RawData { get; }
+        public List<object> AdjustedData { get; }
+        public List<AnalysisTooltipPoint> RawTooltipPoints { get; }
+        public List<AnalysisTooltipPoint> AdjustedTooltipPoints { get; }
+        public AnalysisEvaluationDataset RawDataset { get; }
+        public AnalysisEvaluationDataset AdjustedDataset { get; }
+        public string StatusText { get; set; } = "Queued";
+        public string Error { get; set; } = string.Empty;
+        public int AnalysedMoveCount { get; set; }
+
+        public void Reset()
+        {
+            Array.Clear(Evals);
+            Array.Clear(DisplayScores);
+            ResetData(RawData, RawTooltipPoints);
+            ResetData(AdjustedData, AdjustedTooltipPoints);
+            StatusText = "Queued";
+            Error = string.Empty;
+            AnalysedMoveCount = 0;
+        }
     }
 
     private ChartJsConfig GetChartJsConfig()
@@ -665,8 +1047,8 @@
                         Label = "Evaluation",
                         Data = [],
                         TooltipPoints = [],
-                        BackgroundColor = "rgba(226, 232, 240, 0.2)",
-                        BorderColor = "#9fd169",
+                        BackgroundColor = new IndexableOption<string>("rgba(226, 232, 240, 0.2)"),
+                        BorderColor = new IndexableOption<string>("#9fd169"),
                         Fill = new
                         {
                             target = "origin",
@@ -679,7 +1061,7 @@
                         PointBorderWidth = new IndexableOption<double>(1.5),
                         PointHitRadius = new IndexableOption<double>(8),
                         SpanGaps = true,
-                        Tension = 0.32
+                        Tension = new IndexableOption<double>(0.32)
                     }
                 ]
             },
@@ -688,6 +1070,12 @@
                 Responsive = true,
                 MaintainAspectRatio = false,
                 OnClickEvent = true,
+                Interaction = new Interactions
+                {
+                    Mode = "index",
+                    Intersect = false,
+                    Axis = "x"
+                },
                 Plugins = new Plugins
                 {
                     Legend = new Legend
@@ -701,7 +1089,10 @@
                     Tooltip = new Tooltip
                     {
                         Enabled = true,
-                        DisplayColors = false,
+                        Mode = "index",
+                        Intersect = false,
+                        Axis = "x",
+                        DisplayColors = true,
                         Callbacks = new TooltipCallbacks
                         {
                             Title = ChartJsFunction.FromName("analysisTooltipTitle"),
@@ -759,6 +1150,11 @@
             }
         };
     }
+
+    private static bool IsEnabledEngineAvailable(EngineRunOptions engine)
+        => engine.IsEnabled
+            && !string.IsNullOrWhiteSpace(engine.BinaryPath)
+            && File.Exists(engine.BinaryPath);
 
     public void Dispose()
     {

@@ -68,6 +68,75 @@ public sealed class MultiEngineAnalysisTests
     }
 
     [TestMethod]
+    public void Adjusted_display_scores_ignore_missing_engine_values()
+    {
+        var average = AnalysisEvaluationMetrics.BuildAverageDisplayScores(
+            [
+                [1.0, null, 7.0],
+                [3.0, 5.0, null],
+                [null, 9.0, 9.0]
+            ],
+            moveCount: 3);
+
+        Assert.AreEqual(2.0, average[0]);
+        Assert.AreEqual(7.0, average[1]);
+        Assert.AreEqual(8.0, average[2]);
+    }
+
+    [TestMethod]
+    public void Adjusted_display_scores_center_engine_lines_around_average()
+    {
+        var adjusted = AnalysisEvaluationMetrics.BuildAdjustedDisplayScores(
+            [
+                [2.0, 10.0],
+                [6.0, 4.0]
+            ],
+            moveCount: 2);
+
+        Assert.AreEqual(-2.0, adjusted[0][0]);
+        Assert.AreEqual(3.0, adjusted[0][1]);
+        Assert.AreEqual(2.0, adjusted[1][0]);
+        Assert.AreEqual(-3.0, adjusted[1][1]);
+    }
+
+    [TestMethod]
+    public void Selected_game_analysis_mode_keeps_disabled_selected_engine_available()
+    {
+        var selected = new EngineRunOptions
+        {
+            Name = "Selected",
+            BinaryPath = "missing.exe",
+            IsEnabled = false
+        };
+
+        var engines = pax.BlazorChess.Board.GameAnalysisComponent.SelectAnalysisEnginesForMode(
+            GameAnalysisMode.SelectedEngine,
+            selected,
+            [],
+            _ => false);
+
+        Assert.AreEqual(1, engines.Count);
+        Assert.AreSame(selected, engines[0]);
+    }
+
+    [TestMethod]
+    public void Multi_game_analysis_mode_uses_available_enabled_engines()
+    {
+        var disabled = new EngineRunOptions { Name = "Disabled", IsEnabled = false };
+        var enabled = new EngineRunOptions { Name = "Enabled", IsEnabled = true };
+        var missing = new EngineRunOptions { Name = "Missing", IsEnabled = true };
+
+        var engines = pax.BlazorChess.Board.GameAnalysisComponent.SelectAnalysisEnginesForMode(
+            GameAnalysisMode.EnabledEngines,
+            disabled,
+            [disabled, enabled, missing],
+            engine => engine.IsEnabled && engine.Name == "Enabled");
+
+        Assert.AreEqual(1, engines.Count);
+        Assert.AreSame(enabled, engines[0]);
+    }
+
+    [TestMethod]
     public void Comparison_builder_unions_candidates_and_marks_ranks()
     {
         var board = new AnalysisBoard(new ChessGame());

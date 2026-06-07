@@ -720,6 +720,40 @@ h1:focus {
     min-width: 0;
 }
 
+.segmented-control {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+    border: 1px solid #514a40;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #181713;
+}
+
+.segmented-control button {
+    min-height: 34px;
+    border: 0;
+    border-right: 1px solid #514a40;
+    background: transparent;
+    color: #d9d1c5;
+    padding: 6px 10px;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.segmented-control button:last-child {
+    border-right: 0;
+}
+
+.segmented-control button.active {
+    background: #5b8d22;
+    color: #f2f7e9;
+}
+
+.segmented-control button:not(:disabled):not(.active):hover {
+    background: #27231d;
+}
+
 .number-field .text-input {
     max-width: 120px;
 }

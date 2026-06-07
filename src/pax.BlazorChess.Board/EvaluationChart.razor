@@ -19,7 +19,7 @@
         }
     </header>
 
-    @if (EngineRunOptions is null)
+    @if (!HasAnalysisEngines)
     {
         <div class="evaluation-empty">Configure an engine before running full-game analysis.</div>
     }
@@ -33,6 +33,8 @@
                                ChessGame="ChessGame"
                                AnalysisBoard="AnalysisBoard"
                                EngineRunOptions="EngineRunOptions"
+                               EngineRunOptionsList="EngineRunOptionsList"
+                               AnalysisMode="AnalysisMode"
                                CurrentMoveNumber="CurrentMoveNumber"
                                ThinkTimePerMoveMs="ThinkTimePerMoveMs"
                                AnalysisThreads="AnalysisThreads"
@@ -50,6 +52,12 @@
 
     [Parameter]
     public EngineRunOptions? EngineRunOptions { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<EngineRunOptions> EngineRunOptionsList { get; set; } = [];
+
+    [Parameter]
+    public GameAnalysisMode AnalysisMode { get; set; } = GameAnalysisMode.SelectedEngine;
 
     [Parameter]
     public int CurrentMoveNumber { get; set; }
@@ -76,7 +84,17 @@
     public EventCallback OnAnnotationsChanged { get; set; }
 
     private GameAnalysisComponent? chart;
-    private bool CanAnalyze => EngineRunOptions is not null && ChessGame.Moves.Count > 0;
+    private bool HasAnalysisEngines
+        => AnalysisMode == GameAnalysisMode.EnabledEngines
+            ? EngineRunOptionsList.Any(IsEngineAvailable)
+            : EngineRunOptions is not null;
+
+    private bool CanAnalyze => HasAnalysisEngines && ChessGame.Moves.Count > 0;
+
+    private static bool IsEngineAvailable(EngineRunOptions engine)
+        => engine.IsEnabled
+            && !string.IsNullOrWhiteSpace(engine.BinaryPath)
+            && File.Exists(engine.BinaryPath);
 
     public async Task Analyze()
     {

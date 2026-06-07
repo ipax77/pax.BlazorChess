@@ -6,7 +6,8 @@ const callbacks = Object.freeze({
     analysisTooltipTitle(items) {
         const first = items?.[0];
         const point = first ? getAnalysisTooltipPoint(first) : null;
-        return point?.title ?? first?.label ?? "";
+        const title = point?.title ?? first?.label ?? "";
+        return title.split(" / ")[0] ?? title;
     },
     analysisTooltipLabel(context) {
         const point = getAnalysisTooltipPoint(context);
@@ -14,7 +15,18 @@ const callbacks = Object.freeze({
             return `${context.dataset.label}: ${context.formattedValue ?? context.raw}`;
         }
 
-        return `${point.rawScoreText} | ${point.winningChanceText} | chart ${point.displayScoreText}`;
+        const label = point.engineName || context.dataset.label || "Evaluation";
+        const parts = [
+            `${label}: ${point.rawScoreText}`,
+            point.winningChanceText,
+            `chart ${point.displayScoreText}`
+        ];
+
+        if (point.differenceText) {
+            parts.push(`diff ${point.differenceText}`);
+        }
+
+        return parts.join(" | ");
     }
 });
 

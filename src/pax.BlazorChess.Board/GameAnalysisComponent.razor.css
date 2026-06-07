@@ -26,6 +26,27 @@
     padding: 8px;
 }
 
+.game-analysis-chart-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 8px 8px 0;
+}
+
+.game-analysis-chart-toolbar label {
+    display: grid;
+    grid-template-columns: auto minmax(112px, 140px);
+    align-items: center;
+    gap: 8px;
+    color: #aaa196;
+    font-size: 0.8rem;
+}
+
+.game-analysis-chart-toolbar .text-input {
+    min-height: 30px;
+    padding: 4px 8px;
+}
+
 .game-analysis-overlay {
     position: absolute;
     inset: auto 12px 12px auto;
@@ -68,6 +89,36 @@
     align-content: start;
     gap: 10px;
     min-width: 0;
+}
+
+.engine-result-list {
+    display: grid;
+    gap: 6px;
+    border: 1px solid #3f3931;
+    border-radius: 4px;
+    background: #211f1b;
+    padding: 8px;
+}
+
+.engine-result-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: #d9d1c5;
+    font-size: 0.82rem;
+}
+
+.engine-result-row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.engine-result-row small {
+    color: #aaa196;
+    font-variant-numeric: tabular-nums;
 }
 
 .analysis-empty {
