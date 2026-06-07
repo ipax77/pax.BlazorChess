@@ -33,6 +33,7 @@
                                ChessGame="ChessGame"
                                AnalysisBoard="AnalysisBoard"
                                EngineRunOptions="EngineRunOptions"
+                               CurrentMoveNumber="CurrentMoveNumber"
                                ThinkTimePerMoveMs="ThinkTimePerMoveMs"
                                AnalysisThreads="AnalysisThreads"
                                OnMoveClicked="OnMoveClicked"
@@ -49,6 +50,9 @@
 
     [Parameter]
     public EngineRunOptions? EngineRunOptions { get; set; }
+
+    [Parameter]
+    public int CurrentMoveNumber { get; set; }
 
     [Parameter]
     public int ThinkTimePerMoveMs { get; set; } = 1000;

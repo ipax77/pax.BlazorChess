@@ -1,11 +1,13 @@
 @using pax.BlazorChartJs
 @using System.Globalization
+@using Microsoft.JSInterop
 @using pax.chess
 @using pax.chess.Analyze
 @using pax.chess.Extensions
 @using pax.uciChessEngine
 @using pax.uciChessEngine.EngineServices
-@implements IDisposable
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <div class="game-analysis">
     <div class="game-analysis-chart-shell @(isAnalysing ? "is-running" : "")">
@@ -70,6 +72,9 @@
     public required EngineRunOptions EngineRunOptions { get; set; }
 
     [Parameter]
+    public int CurrentMoveNumber { get; set; }
+
+    [Parameter]
     public EventCallback<int> OnMoveClicked { get; set; }
 
     [Parameter]
@@ -87,14 +92,23 @@
     private List<string> chartLabels = [];
     private List<object> chartData = [];
     private List<AnalysisTooltipPoint> tooltipPoints = [];
+    private readonly ArbitraryLineConfig currentLine = new()
+    {
+        ArbitraryLineColor = "#77a6d9",
+        XPosition = 0,
+        XWidth = 2,
+        Text = "Current"
+    };
     private AnalysisEvaluationDataset evaluationDataset = null!;
     private ChartJsConfig chartJsConfig = null!;
+    private IJSObjectReference? chartCallbacksModule;
     private bool chartReady;
     private bool isAnalysing;
     private bool chartDirty;
     private bool summaryDirty;
     private int analysedMoveCount;
     private int configuredMoveCount = -1;
+    private int configuredCurrentMoveNumber = -1;
 
     private AnalysisSummary whiteSummary = new();
     private AnalysisSummary blackSummary = new();
@@ -115,6 +129,8 @@
     {
         if (configuredMoveCount != MoveCount)
             ConfigureChartForCurrentGame();
+        else
+            UpdateCurrentLine(CurrentMoveNumber);
     }
 
     public async Task Analyse()
@@ -215,6 +231,7 @@
         chartData = CreatePendingChartData(MoveCount);
         tooltipPoints = CreatePendingTooltipPoints(MoveCount);
         evaluationDataset = CreateEvaluationDataset(chartData, tooltipPoints);
+        configuredCurrentMoveNumber = UpdateCurrentLinePosition(CurrentMoveNumber);
         chartJsConfig.SetDatasetsSmooth([evaluationDataset], chartLabels);
     }
 
@@ -274,11 +291,52 @@
             chartJsConfig.SetDatasetsSmooth([evaluationDataset], chartLabels);
     }
 
+    private void UpdateCurrentLine(int moveNumber)
+    {
+        var currentMoveNumber = UpdateCurrentLinePosition(moveNumber);
+        if (configuredCurrentMoveNumber == currentMoveNumber || !chartReady)
+            return;
+
+        configuredCurrentMoveNumber = currentMoveNumber;
+        _ = UpdateCurrentLineOnChartAsync(currentMoveNumber);
+    }
+
+    private async Task UpdateCurrentLineOnChartAsync(int currentMoveNumber)
+    {
+        if (!chartReady)
+            return;
+
+        try
+        {
+            chartCallbacksModule ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import",
+                "/_content/pax.BlazorChess.Board/chartJsCallbacks.js");
+            await chartCallbacksModule.InvokeVoidAsync(
+                "setAnalysisCurrentLine",
+                chartJsConfig.ChartJsConfigGuid.ToString(),
+                currentMoveNumber);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private int UpdateCurrentLinePosition(int moveNumber)
+    {
+        var currentMoveNumber = Math.Clamp(moveNumber, 0, MoveCount);
+        currentLine.XPosition = currentMoveNumber;
+        return currentMoveNumber;
+    }
+
     private void ChartEventTriggerd(ChartJsEvent args)
     {
         if (args is ChartJsInitEvent)
         {
             chartReady = true;
+            _ = UpdateCurrentLineOnChartAsync(configuredCurrentMoveNumber);
             RefreshChartData(forceSummary: true);
         }
         else if (args is ChartJsLabelClickEvent clickEvent)
@@ -614,7 +672,7 @@
         public string DisplayScoreText { get; init; } = string.Empty;
     }
 
-    private static ChartJsConfig GetChartJsConfig()
+    private ChartJsConfig GetChartJsConfig()
     {
         return new()
         {
@@ -675,13 +733,7 @@
                     },
                     ArbitraryLines =
                     [
-                        new ArbitraryLineConfig
-                        {
-                            ArbitraryLineColor = "#77a6d9",
-                            XPosition = 0,
-                            XWidth = 2,
-                            Text = "Current"
-                        }
+                        currentLine
                     ]
                 },
                 Scales = new ChartJsOptionsScales
@@ -731,10 +783,21 @@
         };
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         isAnalysing = false;
         cts.Cancel();
         cts.Dispose();
+
+        if (chartCallbacksModule is not null)
+        {
+            try
+            {
+                await chartCallbacksModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
     }
 }

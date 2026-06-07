@@ -30,6 +30,7 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
     public List<EngineRunOptions> EngineRunOptions { get; } = [];
     public Guid SelectedEngineId { get; set; }
     public Move? LastMove { get; private set; }
+    public int CurrentPly { get; private set; }
     public string ImportError { get; private set; } = string.Empty;
 
     public string Fen => FenSerializer.Serialize(AnalysisBoard.CurrentPosition);
@@ -86,32 +87,33 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
     public void ApplyMove(Move move)
     {
         AnalysisBoard.AddVariation(move);
-        LastMove = move;
+        UpdateCurrentNodeState();
         ImportError = string.Empty;
     }
 
     public void MoveBackward()
     {
         AnalysisBoard.MoveBackward();
-        LastMove = AnalysisBoard.CurrentNode.Move;
+        UpdateCurrentNodeState();
     }
 
     public void MoveForward()
     {
         AnalysisBoard.MoveForward();
-        LastMove = AnalysisBoard.CurrentNode.Move;
+        UpdateCurrentNodeState();
     }
 
     public void MoveToNode(MoveNode node)
     {
         AnalysisBoard.MoveToNode(node);
-        LastMove = node.Move;
+        UpdateCurrentNodeState();
     }
 
     public void Reset()
     {
         AnalysisBoard = CreateInitialAnalysisBoard();
         LastMove = null;
+        CurrentPly = 0;
         ImportError = string.Empty;
     }
 
@@ -122,6 +124,7 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
             var position = FenSerializer.Parse(fen);
             AnalysisBoard = new AnalysisBoard(new ChessGame(position));
             LastMove = null;
+            CurrentPly = 0;
             ImportError = string.Empty;
             return true;
         }
@@ -217,7 +220,26 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
             current = current.MainLine;
 
         AnalysisBoard.MoveToNode(current);
-        LastMove = current.Move;
+        UpdateCurrentNodeState();
+    }
+
+    private void UpdateCurrentNodeState()
+    {
+        LastMove = AnalysisBoard.CurrentNode.Move;
+        CurrentPly = GetNodePly(AnalysisBoard.CurrentNode);
+    }
+
+    private static int GetNodePly(MoveNode node)
+    {
+        var ply = 0;
+        var current = node;
+        while (current.Move is not null)
+        {
+            ply++;
+            current = current.Parent!;
+        }
+
+        return ply;
     }
 
     private string BuildMainLinePgn()
