@@ -28,6 +28,10 @@ h1:focus {
 }
 
 .analysis-shell {
+    --analysis-board-size: max(360px, min(72vh, calc(100vw - 450px), 788px));
+    --board-stack-extra: 164px;
+    --board-stack-height: calc(var(--analysis-board-size) + var(--board-stack-extra));
+
     display: grid;
     grid-template-columns: minmax(360px, min(72vh, calc(100vw - 450px))) minmax(330px, 400px);
     gap: 12px;
@@ -40,7 +44,7 @@ h1:focus {
 
 .board-column {
     display: grid;
-    grid-template-rows: auto auto minmax(84px, auto) auto;
+    grid-template-rows: auto auto minmax(84px, auto);
     align-content: start;
     gap: 12px;
     min-width: 0;
@@ -56,9 +60,10 @@ h1:focus {
     display: grid;
     grid-template-rows: auto minmax(var(--moves-panel-min), 1fr) auto;
     gap: 8px;
-    height: calc(100vh - 12px);
+    height: min(var(--board-stack-height), calc(100vh - 12px));
     min-height: 0;
     min-width: 0;
+    overflow: hidden;
 }
 
 .analysis-panel,
@@ -614,6 +619,7 @@ h1:focus {
 }
 
 .full-analysis-panel {
+    grid-column: 1 / -1;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -947,14 +953,25 @@ textarea.text-input {
 
 @media (max-width: 920px) {
     .analysis-shell {
+        --analysis-board-size: min(calc(100vw - 20px), 720px);
+
         grid-template-columns: 1fr;
         max-width: 720px;
+    }
+
+    .full-analysis-panel {
+        grid-column: auto;
     }
 
     .side-panel {
         grid-template-rows: auto minmax(260px, 420px) auto;
         height: auto;
+        max-height: none;
         min-height: 0;
+    }
+
+    .moves-panel {
+        max-height: 420px;
     }
 
     .moves-panel .table-responsive {

@@ -38,76 +38,6 @@
         {
             <div class="engine-error">@Workspace.ImportError</div>
         }
-
-        <section class="full-analysis-panel">
-            <header class="full-analysis-header">
-                <div>
-                    <h2>Game analysis</h2>
-                    <span>@FullAnalysisStatus</span>
-                </div>
-                <div class="full-analysis-actions">
-                    <button type="button"
-                            class="analyse-button"
-                            disabled="@(!CanAnalyzeGame || fullAnalysisRunning)"
-                            @onclick="AnalyzeGame">
-                        <span class="bi bi-activity" aria-hidden="true"></span>
-                        <span>Analyse</span>
-                    </button>
-                    @if (fullAnalysisRunning)
-                    {
-                        <button type="button"
-                                class="stop-analysis-button"
-                                @onclick="StopFullAnalysis">
-                            <span class="bi bi-stop-fill" aria-hidden="true"></span>
-                            <span>Stop</span>
-                        </button>
-                    }
-                </div>
-            </header>
-
-            <div class="full-analysis-settings">
-                <label>
-                    <span>Time</span>
-                    <div class="number-field">
-                        <input class="text-input"
-                               type="number"
-                               min="0.1"
-                               step="0.1"
-                               @bind="analysisThinkTimeSeconds"
-                               @bind:after="ClampAnalysisSettings"
-                               @onkeydown:stopPropagation="true" />
-                        <small>s</small>
-                    </div>
-                </label>
-                <label>
-                    <span>Threads</span>
-                    <div class="number-field">
-                        <input class="text-input"
-                               type="number"
-                               min="1"
-                               max="@MaxAnalysisThreads"
-                               step="1"
-                               @bind="analysisThreads"
-                               @bind:after="ClampAnalysisSettings"
-                               @onkeydown:stopPropagation="true" />
-                        <small>/ @MaxAnalysisThreads</small>
-                    </div>
-                </label>
-            </div>
-
-            <pax.BlazorChess.Board.EvaluationChart @key="analysisChartVersion"
-                                                   @ref="evaluationChart"
-                                                   ChessGame="Workspace.AnalysisBoard.ChessGame"
-                                                   AnalysisBoard="Workspace.AnalysisBoard"
-                                                   EngineRunOptions="Workspace.SelectedEngine"
-                                                   ThinkTimePerMoveMs="AnalysisThinkTimeMs"
-                                                   AnalysisThreads="ClampedAnalysisThreads"
-                                                   Title="Evaluation"
-                                                   Subtitle="Main-line full-game engine analysis"
-                                                   ShowAnalyzeButton="false"
-                                                   OnMoveClicked="AnalysisMoveClicked"
-                                                   OnAnnotationsChanged="AnalysisAnnotationsChanged" />
-        </section>
     </section>
 
     <aside class="side-panel">
@@ -155,6 +85,76 @@
             </div>
         </section>
     </aside>
+
+    <section class="full-analysis-panel">
+        <header class="full-analysis-header">
+            <div>
+                <h2>Game analysis</h2>
+                <span>@FullAnalysisStatus</span>
+            </div>
+            <div class="full-analysis-actions">
+                <button type="button"
+                        class="analyse-button"
+                        disabled="@(!CanAnalyzeGame || fullAnalysisRunning)"
+                        @onclick="AnalyzeGame">
+                    <span class="bi bi-activity" aria-hidden="true"></span>
+                    <span>Analyse</span>
+                </button>
+                @if (fullAnalysisRunning)
+                {
+                    <button type="button"
+                            class="stop-analysis-button"
+                            @onclick="StopFullAnalysis">
+                        <span class="bi bi-stop-fill" aria-hidden="true"></span>
+                        <span>Stop</span>
+                    </button>
+                }
+            </div>
+        </header>
+
+        <div class="full-analysis-settings">
+            <label>
+                <span>Time</span>
+                <div class="number-field">
+                    <input class="text-input"
+                           type="number"
+                           min="0.1"
+                           step="0.1"
+                           @bind="analysisThinkTimeSeconds"
+                           @bind:after="ClampAnalysisSettings"
+                           @onkeydown:stopPropagation="true" />
+                    <small>s</small>
+                </div>
+            </label>
+            <label>
+                <span>Threads</span>
+                <div class="number-field">
+                    <input class="text-input"
+                           type="number"
+                           min="1"
+                           max="@MaxAnalysisThreads"
+                           step="1"
+                           @bind="analysisThreads"
+                           @bind:after="ClampAnalysisSettings"
+                           @onkeydown:stopPropagation="true" />
+                    <small>/ @MaxAnalysisThreads</small>
+                </div>
+            </label>
+        </div>
+
+        <pax.BlazorChess.Board.EvaluationChart @key="analysisChartVersion"
+                                               @ref="evaluationChart"
+                                               ChessGame="Workspace.AnalysisBoard.ChessGame"
+                                               AnalysisBoard="Workspace.AnalysisBoard"
+                                               EngineRunOptions="Workspace.SelectedEngine"
+                                               ThinkTimePerMoveMs="AnalysisThinkTimeMs"
+                                               AnalysisThreads="ClampedAnalysisThreads"
+                                               Title="Evaluation"
+                                               Subtitle="Main-line full-game engine analysis"
+                                               ShowAnalyzeButton="false"
+                                               OnMoveClicked="AnalysisMoveClicked"
+                                               OnAnnotationsChanged="AnalysisAnnotationsChanged" />
+    </section>
 </main>
 
 <EngineSettingsPanel @ref="engineSettings"
