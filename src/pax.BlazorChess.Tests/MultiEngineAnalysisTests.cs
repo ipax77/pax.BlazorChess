@@ -148,6 +148,67 @@ public sealed class MultiEngineAnalysisTests
         CollectionAssert.AreEqual(new[] { "e2e4" }, lines[0].UciMoves.ToArray());
     }
 
+    [TestMethod]
+    public void Build_lines_returns_empty_for_empty_evals()
+    {
+        var board = new AnalysisBoard(new ChessGame());
+
+        var lines = MultiEngineAnalysisCoordinator.BuildLines(
+            [],
+            board.Root,
+            board.CurrentPosition);
+
+        Assert.AreEqual(0, lines.Count);
+    }
+
+    [TestMethod]
+    public void Game_analysis_does_not_add_variation_after_final_move()
+    {
+        var board = CreateBoardAtEnd("1. e4 e5");
+        var originalMainLineCount = CountMainLineMoves(board.Root);
+#pragma warning disable BL0005
+        var component = new pax.BlazorChess.Board.GameAnalysisComponent
+        {
+            ChessGame = board.ChessGame,
+            AnalysisBoard = board,
+            EngineRunOptions = new EngineRunOptions()
+        };
+#pragma warning restore BL0005
+
+        var method = typeof(pax.BlazorChess.Board.GameAnalysisComponent)
+            .GetMethod("AddVariationToAnalysisBoard", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(nameof(pax.BlazorChess.Board.GameAnalysisComponent), "AddVariationToAnalysisBoard");
+
+        var changed = (bool)method.Invoke(component, [originalMainLineCount, Eval(1, 12, ["g1f3"]), "Final move"])!;
+
+        Assert.IsFalse(changed);
+        Assert.AreEqual(originalMainLineCount, CountMainLineMoves(board.Root));
+    }
+
+    [TestMethod]
+    public void Game_analysis_does_not_extend_main_line_when_pv_starts_with_next_game_move()
+    {
+        var board = CreateBoardAtEnd("1. e4 e5");
+        var originalMainLineCount = CountMainLineMoves(board.Root);
+#pragma warning disable BL0005
+        var component = new pax.BlazorChess.Board.GameAnalysisComponent
+        {
+            ChessGame = board.ChessGame,
+            AnalysisBoard = board,
+            EngineRunOptions = new EngineRunOptions()
+        };
+#pragma warning restore BL0005
+
+        var method = typeof(pax.BlazorChess.Board.GameAnalysisComponent)
+            .GetMethod("AddVariationToAnalysisBoard", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(nameof(pax.BlazorChess.Board.GameAnalysisComponent), "AddVariationToAnalysisBoard");
+
+        var changed = (bool)method.Invoke(component, [1, Eval(1, 12, ["e7e5", "g1f3"]), "Continuation"])!;
+
+        Assert.IsFalse(changed);
+        Assert.AreEqual(originalMainLineCount, CountMainLineMoves(board.Root));
+    }
+
     private static EngineAnalysisSnapshot Snapshot(
         EngineRunOptions engine,
         IReadOnlyList<EnginePvLineSnapshot> lines)
@@ -195,4 +256,29 @@ public sealed class MultiEngineAnalysisTests
             PvInfo = pvInfo
         };
     }
+
+    private static AnalysisBoard CreateBoardAtEnd(string pgn)
+    {
+        var board = new AnalysisBoard(PgnSerializer.Parse(pgn));
+        var current = board.Root;
+        while (current.MainLine is not null)
+            current = current.MainLine;
+
+        board.MoveToNode(current);
+        return board;
+    }
+
+    private static int CountMainLineMoves(MoveNode root)
+    {
+        var count = 0;
+        var current = root.MainLine;
+        while (current is not null)
+        {
+            count++;
+            current = current.MainLine;
+        }
+
+        return count;
+    }
+
 }

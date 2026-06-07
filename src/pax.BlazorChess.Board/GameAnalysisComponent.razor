@@ -357,8 +357,14 @@
         if (AnalysisBoard is null || eval.PvInfo?.Moves is null || eval.PvInfo.Moves.Count == 0)
             return false;
 
+        if (moveNumber >= MoveCount)
+            return false;
+
         var node = GetMainLineNode(moveNumber);
         if (node is null)
+            return false;
+
+        if (PvStartsWithMainLine(node, eval.PvInfo.Moves[0]))
             return false;
 
         try
@@ -382,6 +388,10 @@
             return false;
         }
     }
+
+    private static bool PvStartsWithMainLine(MoveNode node, string firstMoveUci)
+        => node.MainLine?.Move is not null
+            && string.Equals(Uci.GetUci(node.MainLine.Move), firstMoveUci, StringComparison.Ordinal);
 
     private MoveNode? GetMainLineNode(int moveNumber)
     {
