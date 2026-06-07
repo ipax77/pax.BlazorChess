@@ -351,7 +351,7 @@ public sealed class MultiEngineAnalysisCoordinator : IAsyncDisposable
         return EngineAnalysisStatus.Queued;
     }
 
-    private static List<EnginePvLineSnapshot> BuildLines(
+    internal static List<EnginePvLineSnapshot> BuildLines(
         List<Eval> evals,
         MoveNode baseNode,
         BoardPosition basePosition)
@@ -370,7 +370,7 @@ public sealed class MultiEngineAnalysisCoordinator : IAsyncDisposable
                 eval.Mate,
                 eval.Depth,
                 baseNode,
-                eval.PvInfo.Moves.ToArray(),
+                moves.Select(static move => move.Uci).ToArray(),
                 moves));
         }
 
@@ -386,16 +386,48 @@ public sealed class MultiEngineAnalysisCoordinator : IAsyncDisposable
 
         foreach (var engineMove in engineMoves)
         {
-            var move = Uci.CreateMove(engineMove, position);
-            if (move is null)
+            if (string.IsNullOrWhiteSpace(engineMove)
+                || engineMove.Equals("(none)", StringComparison.OrdinalIgnoreCase)
+                || !TryCreateMoveSnapshot(engineMove, position, out var snapshot, out var nextPosition))
+            {
                 break;
+            }
 
-            var san = PgnSerializer.ToSan(move, position);
-            moves.Add(new EnginePvMoveSnapshot(engineMove, san, move));
-            position = position.MakeMove(move);
+            moves.Add(snapshot);
+            position = nextPosition;
         }
 
         return moves;
+    }
+
+    private static bool TryCreateMoveSnapshot(
+        string engineMove,
+        BoardPosition position,
+        out EnginePvMoveSnapshot snapshot,
+        out BoardPosition nextPosition)
+    {
+        snapshot = default!;
+        nextPosition = position;
+
+        try
+        {
+            var move = Uci.CreateMove(engineMove, position);
+            if (move is null)
+                return false;
+
+            var san = PgnSerializer.ToSan(move, position);
+            nextPosition = position.MakeMove(move);
+            snapshot = new EnginePvMoveSnapshot(engineMove, san, move);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 
     private static string BuildEngineMoveString(MoveNode node)

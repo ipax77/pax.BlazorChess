@@ -73,6 +73,81 @@ public sealed class MultiEngineAnalysisTests
         Assert.AreEqual(string.Empty, snapshot.Error);
     }
 
+    [TestMethod]
+    public void Build_lines_ignores_invalid_first_pv_move()
+    {
+        var board = new AnalysisBoard(new ChessGame());
+        var evals = new List<Eval>
+        {
+            Eval(1, 12, ["a3a4"])
+        };
+
+        var lines = MultiEngineAnalysisCoordinator.BuildLines(
+            evals,
+            board.Root,
+            board.CurrentPosition);
+
+        Assert.AreEqual(0, lines.Count);
+    }
+
+    [TestMethod]
+    public void Build_lines_ignores_empty_and_no_move_pvs()
+    {
+        var board = new AnalysisBoard(new ChessGame());
+        var evals = new List<Eval>
+        {
+            Eval(1, 12, []),
+            Eval(2, 12, ["(none)"])
+        };
+
+        var lines = MultiEngineAnalysisCoordinator.BuildLines(
+            evals,
+            board.Root,
+            board.CurrentPosition);
+
+        Assert.AreEqual(0, lines.Count);
+    }
+
+    [TestMethod]
+    public void Build_lines_preserves_legal_pv_snapshots()
+    {
+        var board = new AnalysisBoard(new ChessGame());
+        var evals = new List<Eval>
+        {
+            Eval(1, 12, ["e2e4", "e7e5"])
+        };
+
+        var lines = MultiEngineAnalysisCoordinator.BuildLines(
+            evals,
+            board.Root,
+            board.CurrentPosition);
+
+        Assert.AreEqual(1, lines.Count);
+        Assert.AreEqual(2, lines[0].Moves.Count);
+        CollectionAssert.AreEqual(new[] { "e2e4", "e7e5" }, lines[0].UciMoves.ToArray());
+        Assert.AreEqual("e4", lines[0].Moves[0].San);
+        Assert.AreEqual("e5", lines[0].Moves[1].San);
+    }
+
+    [TestMethod]
+    public void Build_lines_trims_invalid_pv_tail()
+    {
+        var board = new AnalysisBoard(new ChessGame());
+        var evals = new List<Eval>
+        {
+            Eval(1, 12, ["e2e4", "a3a4"])
+        };
+
+        var lines = MultiEngineAnalysisCoordinator.BuildLines(
+            evals,
+            board.Root,
+            board.CurrentPosition);
+
+        Assert.AreEqual(1, lines.Count);
+        Assert.AreEqual(1, lines[0].Moves.Count);
+        CollectionAssert.AreEqual(new[] { "e2e4" }, lines[0].UciMoves.ToArray());
+    }
+
     private static EngineAnalysisSnapshot Snapshot(
         EngineRunOptions engine,
         IReadOnlyList<EnginePvLineSnapshot> lines)
@@ -100,5 +175,24 @@ public sealed class MultiEngineAnalysisTests
             node,
             [uci],
             [new EnginePvMoveSnapshot(uci, san, move)]);
+    }
+
+    private static Eval Eval(int multiPv, int depth, ICollection<string> moves)
+    {
+        var values = new Dictionary<string, int>
+        {
+            ["multipv"] = multiPv,
+            ["depth"] = depth,
+            ["cp"] = 0
+        };
+        var pvInfo = new pax.uciChessEngine.PvInfo(multiPv, values, moves);
+
+        return new Eval
+        {
+            Score = pvInfo.Score,
+            Mate = pvInfo.Mate,
+            Depth = pvInfo.Depth,
+            PvInfo = pvInfo
+        };
     }
 }
