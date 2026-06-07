@@ -11,6 +11,8 @@ public interface IBoardJsInterop
     ValueTask UpdateBoardSize(Guid boardGuid);
     ValueTask ScrollToElement(string elementId, string behavior = "auto");
     ValueTask ScrollToBottom(string elementId, string containerId);
+    ValueTask PreventNavigationKeyDefaults(string elementId);
+    ValueTask ReleaseNavigationKeyDefaults(string elementId);
 }
 
 public class BoardJsInterop(IJSRuntime jsRuntime) : IAsyncDisposable, IBoardJsInterop
@@ -56,6 +58,18 @@ public class BoardJsInterop(IJSRuntime jsRuntime) : IAsyncDisposable, IBoardJsIn
     {
         var module = await moduleTask.Value;
         await module.InvokeVoidAsync("scrollToBottom", elementId, containerId);
+    }
+
+    public async ValueTask PreventNavigationKeyDefaults(string elementId)
+    {
+        var module = await moduleTask.Value;
+        await module.InvokeVoidAsync("preventNavigationKeyDefaults", elementId);
+    }
+
+    public async ValueTask ReleaseNavigationKeyDefaults(string elementId)
+    {
+        var module = await moduleTask.Value;
+        await module.InvokeVoidAsync("releaseNavigationKeyDefaults", elementId);
     }
 
     public async ValueTask DisposeAsync()

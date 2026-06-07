@@ -6,11 +6,14 @@
 @using pax.chess.Analyze
 @using pax.uciChessEngine.EngineServices
 @inject AnalysisWorkspaceState Workspace
+@inject IBoardJsInterop BoardJsInterop
+@implements IAsyncDisposable
 @rendermode InteractiveServer
 
 <PageTitle>BlazorChess Analysis</PageTitle>
 
-<main class="analysis-shell"
+<main id="@analysisShellId"
+      class="analysis-shell"
       tabindex="0"
       @onkeydown="OnKeyDown">
     <section class="board-column">
@@ -162,6 +165,8 @@
     private double analysisThinkTimeSeconds = 1;
     private int analysisThreads = 8;
     private int analysisChartVersion;
+    private readonly string analysisShellId = $"analysis_shell_{Guid.NewGuid():N}";
+    private bool navigationKeyDefaultsRegistered;
 
     private int MoveCount => CountMainLineMoves();
     private int MaxAnalysisThreads => Math.Max(1, Environment.ProcessorCount);
@@ -185,6 +190,29 @@
     {
         await Workspace.LoadEngineSettingsAsync();
         SyncText();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        await BoardJsInterop.PreventNavigationKeyDefaults(analysisShellId);
+        navigationKeyDefaultsRegistered = true;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (!navigationKeyDefaultsRegistered)
+            return;
+
+        try
+        {
+            await BoardJsInterop.ReleaseNavigationKeyDefaults(analysisShellId);
+        }
+        catch (Microsoft.JSInterop.JSDisconnectedException)
+        {
+        }
     }
 
     private async Task ApplyMove(Move move)

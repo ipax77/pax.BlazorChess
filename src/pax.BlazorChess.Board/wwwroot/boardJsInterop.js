@@ -47,6 +47,8 @@ export function updateBoardSize(boardId) {
 }
 
 const pendingScrolls = new Map();
+const navigationKeyHandlers = new Map();
+const handledNavigationKeys = new Set(["ArrowLeft", "ArrowRight", " ", "Space", "Spacebar"]);
 
 export function scrollToElement(elementId, behavior = "auto") {
     const element = document.getElementById(elementId);
@@ -54,7 +56,11 @@ export function scrollToElement(elementId, behavior = "auto") {
         return;
     }
 
-    const container = element.closest(".table-responsive") ?? element.parentElement;
+    const container = element.closest(".table-responsive");
+    if (!container) {
+        return;
+    }
+
     const scrollKey = container?.id || elementId;
     const pending = pendingScrolls.get(scrollKey);
     if (pending) {
@@ -64,12 +70,68 @@ export function scrollToElement(elementId, behavior = "auto") {
     const frame = requestAnimationFrame(() => {
         pendingScrolls.delete(scrollKey);
         const target = document.getElementById(elementId);
-        if (target) {
-            target.scrollIntoView({ behavior, block: "center", inline: "nearest" });
+        const currentContainer = target?.closest(".table-responsive");
+        if (target && currentContainer) {
+            scrollElementInsideContainer(currentContainer, target, behavior);
         }
     });
 
     pendingScrolls.set(scrollKey, { frame, elementId, behavior });
+}
+
+function scrollElementInsideContainer(container, element, behavior) {
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    const elementTop = elementRect.top - containerRect.top + container.scrollTop;
+    const centeredTop = elementTop - ((container.clientHeight - elementRect.height) / 2);
+    const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+    const top = Math.min(Math.max(0, centeredTop), maxTop);
+
+    if (behavior === "smooth" && typeof container.scrollTo === "function") {
+        container.scrollTo({ top, behavior });
+    } else {
+        container.scrollTop = top;
+    }
+}
+
+export function preventNavigationKeyDefaults(elementId) {
+    if (navigationKeyHandlers.has(elementId)) {
+        return;
+    }
+
+    const element = document.getElementById(elementId);
+    if (!element) {
+        return;
+    }
+
+    const handler = event => {
+        if (!handledNavigationKeys.has(event.key) || isTextEntryTarget(event.target)) {
+            return;
+        }
+
+        event.preventDefault();
+    };
+
+    element.addEventListener("keydown", handler, { capture: true });
+    navigationKeyHandlers.set(elementId, { element, handler });
+}
+
+export function releaseNavigationKeyDefaults(elementId) {
+    const registration = navigationKeyHandlers.get(elementId);
+    if (!registration) {
+        return;
+    }
+
+    registration.element.removeEventListener("keydown", registration.handler, true);
+    navigationKeyHandlers.delete(elementId);
+}
+
+function isTextEntryTarget(target) {
+    if (!(target instanceof Element)) {
+        return false;
+    }
+
+    return target.closest("input, textarea, select, [contenteditable]") !== null;
 }
 
 export function scrollToBottom(elementId, containerId) {
