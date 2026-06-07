@@ -13,6 +13,7 @@ public static class ServiceCollectionExtensions
         {
             options.ChartJsLocation = "/_content/pax.BlazorChess.Board/chart.umd.min.js";
             options.ChartJsPluginDatalabelsLocation = "/_content/pax.BlazorChess.Board/chartjs-plugin-datalabels.min.js";
+            options.ChartJsCallbacksModuleLocation = "/_content/pax.BlazorChess.Board/chartJsCallbacks.js";
         });
 
         services.AddScoped<IBoardJsInterop, BoardJsInterop>();

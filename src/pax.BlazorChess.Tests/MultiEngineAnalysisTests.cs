@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pax.BlazorChess.AnalysisWeb.Services;
+using pax.BlazorChess.Board;
 using pax.chess;
 using pax.chess.Analyze;
 using pax.chess.Extensions;
@@ -12,6 +13,60 @@ namespace pax.BlazorChess.Tests;
 [TestClass]
 public sealed class MultiEngineAnalysisTests
 {
+    [TestMethod]
+    public void Analysis_display_score_compresses_centipawns()
+    {
+        var equal = AnalysisEvaluationMetrics.GetDisplayScore(0, null);
+        var whiteAdvantage = AnalysisEvaluationMetrics.GetDisplayScore(500, null);
+        var blackAdvantage = AnalysisEvaluationMetrics.GetDisplayScore(-500, null);
+
+        Assert.AreEqual(0, equal, 0.0001);
+        Assert.AreEqual(7.6159, whiteAdvantage, 0.0001);
+        Assert.AreEqual(-7.6159, blackAdvantage, 0.0001);
+    }
+
+    [TestMethod]
+    public void Analysis_display_score_caps_mates()
+    {
+        Assert.AreEqual(10, AnalysisEvaluationMetrics.GetDisplayScore(0, 3));
+        Assert.AreEqual(-10, AnalysisEvaluationMetrics.GetDisplayScore(0, -4));
+    }
+
+    [TestMethod]
+    public void Analysis_winning_chance_saturates_mates()
+    {
+        Assert.AreEqual(50, AnalysisEvaluationMetrics.GetWinningChance(0, null), 0.0001);
+        Assert.AreEqual(100, AnalysisEvaluationMetrics.GetWinningChance(0, 1), 0.0001);
+        Assert.AreEqual(0, AnalysisEvaluationMetrics.GetWinningChance(0, -1), 0.0001);
+    }
+
+    [TestMethod]
+    public void Analysis_raw_score_text_formats_centipawns_and_mates()
+    {
+        Assert.AreEqual("+1.23", AnalysisEvaluationMetrics.GetRawScoreText(123, null));
+        Assert.AreEqual("-0.45", AnalysisEvaluationMetrics.GetRawScoreText(-45, null));
+        Assert.AreEqual("M-4", AnalysisEvaluationMetrics.GetRawScoreText(0, -4));
+    }
+
+    [TestMethod]
+    public void Analysis_classification_uses_winning_chance_loss_thresholds()
+    {
+        Assert.AreEqual(AnalysisMoveQuality.Blunder, AnalysisEvaluationMetrics.ClassifyLoss(30));
+        Assert.AreEqual(AnalysisMoveQuality.Mistake, AnalysisEvaluationMetrics.ClassifyLoss(20));
+        Assert.AreEqual(AnalysisMoveQuality.Inaccuracy, AnalysisEvaluationMetrics.ClassifyLoss(10));
+        Assert.AreEqual(AnalysisMoveQuality.Good, AnalysisEvaluationMetrics.ClassifyLoss(3));
+        Assert.AreEqual(AnalysisMoveQuality.Best, AnalysisEvaluationMetrics.ClassifyLoss(2.99));
+    }
+
+    [TestMethod]
+    public void Analysis_mate_regression_does_not_emit_exploding_chart_score()
+    {
+        var mateDisplayScore = AnalysisEvaluationMetrics.GetDisplayScore(0, -2);
+
+        Assert.AreEqual(-AnalysisEvaluationMetrics.MateDisplayScore, mateDisplayScore);
+        Assert.IsTrue(Math.Abs(mateDisplayScore) < 10000);
+    }
+
     [TestMethod]
     public void Comparison_builder_unions_candidates_and_marks_ranks()
     {

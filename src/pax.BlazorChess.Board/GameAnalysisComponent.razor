@@ -1,4 +1,5 @@
 @using pax.BlazorChartJs
+@using System.Globalization
 @using pax.chess
 @using pax.chess.Analyze
 @using pax.chess.Extensions
@@ -57,6 +58,7 @@
 
 @code {
     private const int ChartRefreshMs = 350;
+    private const string EvaluationDatasetId = "game-analysis-evaluation";
 
     [Parameter, EditorRequired]
     public required ChessGame ChessGame { get; set; }
@@ -82,6 +84,10 @@
     private readonly object evalLock = new();
     private CancellationTokenSource cts = new();
     private Eval?[] evals = [];
+    private List<string> chartLabels = [];
+    private List<object> chartData = [];
+    private List<AnalysisTooltipPoint> tooltipPoints = [];
+    private AnalysisEvaluationDataset evaluationDataset = null!;
     private ChartJsConfig chartJsConfig = null!;
     private bool chartReady;
     private bool isAnalysing;
@@ -205,13 +211,11 @@
         chartDirty = false;
         summaryDirty = false;
 
-        var labels = ChessGame.Moves
-            .Select((_, i) => i % 2 == 0 ? string.Empty : ((i + 1) / 2).ToString())
-            .ToList();
-
-        chartJsConfig.SetLabels(labels);
-        if (chartJsConfig.Data.Datasets.FirstOrDefault() is LineDataset lineDataSet)
-            lineDataSet.Data = labels.Select(_ => 0 as object).ToList();
+        chartLabels = CreateChartLabels(MoveCount);
+        chartData = CreatePendingChartData(MoveCount);
+        tooltipPoints = CreatePendingTooltipPoints(MoveCount);
+        evaluationDataset = CreateEvaluationDataset(chartData, tooltipPoints);
+        chartJsConfig.SetDatasetsSmooth([evaluationDataset], chartLabels);
     }
 
     private void ResetAnalysisState()
@@ -222,9 +226,11 @@
             cts = new CancellationTokenSource();
         }
 
+        EnsureChartStorage();
         lock (evalLock)
         {
             Array.Clear(evals);
+            ResetChartData();
             analysedMoveCount = 0;
             whiteSummary = new();
             blackSummary = new();
@@ -233,9 +239,6 @@
             chartDirty = true;
             summaryDirty = true;
         }
-
-        if (chartJsConfig.Data.Datasets.FirstOrDefault() is LineDataset lineDataSet)
-            lineDataSet.Data = Enumerable.Repeat(0 as object, MoveCount).ToList();
     }
 
     private void RefreshChartData(bool forceSummary)
@@ -243,13 +246,12 @@
         if (!chartReady)
             return;
 
-        var lineDataSet = chartJsConfig.Data.Datasets.FirstOrDefault() as LineDataset;
-        if (lineDataSet?.Data is null)
+        EnsureChartStorage();
+        if (evaluationDataset.Data is null)
             return;
 
         bool shouldUpdateChart;
         bool shouldUpdateSummary;
-        Eval?[] snapshot;
 
         lock (evalLock)
         {
@@ -258,29 +260,18 @@
             if (!shouldUpdateChart && !shouldUpdateSummary)
                 return;
 
-            snapshot = (Eval?[])evals.Clone();
+            if (shouldUpdateChart)
+                RefreshChartDataFromEvaluations();
+
+            if (shouldUpdateSummary)
+                CalculateSummary();
+
             chartDirty = false;
             summaryDirty = false;
         }
 
         if (shouldUpdateChart)
-        {
-            for (var i = 0; i < snapshot.Length && i < lineDataSet.Data.Count; i++)
-            {
-                var eval = snapshot[i];
-                if (eval is null)
-                    continue;
-
-                var newScore = eval.ChartScore;
-                if (!lineDataSet.Data[i].Equals(newScore))
-                    lineDataSet.Data[i] = newScore;
-            }
-
-            chartJsConfig.UpdateDatasetSmooth(lineDataSet);
-        }
-
-        if (shouldUpdateSummary)
-            CalculateSummary(snapshot);
+            chartJsConfig.SetDatasetsSmooth([evaluationDataset], chartLabels);
     }
 
     private void ChartEventTriggerd(ChartJsEvent args)
@@ -296,34 +287,48 @@
         }
     }
 
-    private void CalculateSummary(Eval?[] snapshot)
+    private void RefreshChartDataFromEvaluations()
+    {
+        for (var i = 0; i < evals.Length && i < chartData.Count; i++)
+        {
+            var eval = evals[i];
+            if (eval is null)
+                continue;
+
+            var displayScore = AnalysisEvaluationMetrics.GetDisplayScore(eval.Score, eval.Mate);
+            chartData[i] = displayScore;
+            tooltipPoints[i] = CreateTooltipPoint(i + 1, eval, displayScore);
+        }
+    }
+
+    private void CalculateSummary()
     {
         var white = new AnalysisSummary();
         var black = new AnalysisSummary();
-        double previousScore = 30;
+        double previousWinningChance = 50;
 
-        for (var i = 0; i < snapshot.Length; i++)
+        for (var i = 0; i < evals.Length; i++)
         {
-            var eval = snapshot[i];
+            var eval = evals[i];
             if (eval is null)
                 continue;
 
             var moveNumber = i + 1;
-            var currentScore = GetScore(eval);
+            var currentWinningChance = AnalysisEvaluationMetrics.GetWinningChance(eval.Score, eval.Mate);
             double loss;
 
             if (moveNumber % 2 != 0)
             {
-                loss = previousScore - currentScore;
+                loss = previousWinningChance - currentWinningChance;
                 UpdateSummary(white, loss, moveNumber);
             }
             else
             {
-                loss = currentScore - previousScore;
+                loss = currentWinningChance - previousWinningChance;
                 UpdateSummary(black, loss, moveNumber);
             }
 
-            previousScore = currentScore;
+            previousWinningChance = currentWinningChance;
         }
 
         whiteSummary = white;
@@ -420,24 +425,26 @@
         return node;
     }
 
-    private static double GetScore(Eval eval)
-    {
-        if (eval.Mate.HasValue && eval.Mate != 0)
-        {
-            var mate = eval.Mate.Value;
-            return mate > 0 ? 10000 - mate : -10000 - mate;
-        }
-
-        return eval.Score;
-    }
-
     private static void UpdateSummary(AnalysisSummary summary, double loss, int moveNumber)
     {
-        if (loss > 200) summary.BlunderMoves.Add(moveNumber);
-        else if (loss > 100) summary.MistakeMoves.Add(moveNumber);
-        else if (loss > 50) summary.InaccuracyMoves.Add(moveNumber);
-        else if (loss > 20) summary.ClubHouseMovesList.Add(moveNumber);
-        else summary.BestMovesList.Add(moveNumber);
+        switch (AnalysisEvaluationMetrics.ClassifyLoss(loss))
+        {
+            case AnalysisMoveQuality.Blunder:
+                summary.BlunderMoves.Add(moveNumber);
+                break;
+            case AnalysisMoveQuality.Mistake:
+                summary.MistakeMoves.Add(moveNumber);
+                break;
+            case AnalysisMoveQuality.Inaccuracy:
+                summary.InaccuracyMoves.Add(moveNumber);
+                break;
+            case AnalysisMoveQuality.Good:
+                summary.ClubHouseMovesList.Add(moveNumber);
+                break;
+            default:
+                summary.BestMovesList.Add(moveNumber);
+                break;
+        }
     }
 
     private void JumpToCategoryMove(string player, string category)
@@ -492,6 +499,121 @@
         public List<int> BestMovesList { get; } = [];
     }
 
+    private void EnsureChartStorage()
+    {
+        if (evaluationDataset is not null
+            && chartData.Count == MoveCount
+            && tooltipPoints.Count == MoveCount
+            && chartLabels.Count == MoveCount)
+        {
+            return;
+        }
+
+        chartLabels = CreateChartLabels(MoveCount);
+        chartData = CreatePendingChartData(MoveCount);
+        tooltipPoints = CreatePendingTooltipPoints(MoveCount);
+        evaluationDataset = CreateEvaluationDataset(chartData, tooltipPoints);
+    }
+
+    private void ResetChartData()
+    {
+        for (var i = 0; i < chartData.Count; i++)
+        {
+            chartData[i] = null!;
+            tooltipPoints[i] = CreatePendingTooltipPoint(i + 1);
+        }
+    }
+
+    private static List<string> CreateChartLabels(int moveCount)
+    {
+        List<string> labels = new(moveCount);
+        for (var i = 0; i < moveCount; i++)
+            labels.Add(i % 2 == 0 ? string.Empty : ((i + 1) / 2).ToString(CultureInfo.InvariantCulture));
+
+        return labels;
+    }
+
+    private static List<object> CreatePendingChartData(int moveCount)
+    {
+        List<object> data = new(moveCount);
+        for (var i = 0; i < moveCount; i++)
+            data.Add(null!);
+
+        return data;
+    }
+
+    private static List<AnalysisTooltipPoint> CreatePendingTooltipPoints(int moveCount)
+    {
+        List<AnalysisTooltipPoint> points = new(moveCount);
+        for (var i = 0; i < moveCount; i++)
+            points.Add(CreatePendingTooltipPoint(i + 1));
+
+        return points;
+    }
+
+    private static AnalysisEvaluationDataset CreateEvaluationDataset(
+        List<object> data,
+        List<AnalysisTooltipPoint> tooltipPoints)
+        => new()
+        {
+            Id = EvaluationDatasetId,
+            Label = "Evaluation",
+            Data = data,
+            TooltipPoints = tooltipPoints,
+            BackgroundColor = "rgba(226, 232, 240, 0.2)",
+            BorderColor = "#9fd169",
+            Fill = new
+            {
+                target = "origin",
+                above = "rgba(159, 209, 105, 0.28)",
+                below = "rgba(218, 93, 75, 0.24)"
+            },
+            PointBackgroundColor = new IndexableOption<string>("#f4f7ef"),
+            PointBorderColor = new IndexableOption<string>("#1d211a"),
+            PointRadius = new IndexableOption<double>(2.5),
+            PointBorderWidth = new IndexableOption<double>(1.5),
+            PointHitRadius = new IndexableOption<double>(8),
+            SpanGaps = true,
+            Tension = 0.32
+        };
+
+    private static AnalysisTooltipPoint CreatePendingTooltipPoint(int moveNumber)
+        => new()
+        {
+            Title = FormatMoveTitle(moveNumber),
+            RawScoreText = "Pending",
+            WinningChanceText = "Win chance pending",
+            DisplayScoreText = "0.00"
+        };
+
+    private static AnalysisTooltipPoint CreateTooltipPoint(int moveNumber, Eval eval, double displayScore)
+        => new()
+        {
+            Title = FormatMoveTitle(moveNumber),
+            RawScoreText = AnalysisEvaluationMetrics.GetRawScoreText(eval.Score, eval.Mate),
+            WinningChanceText = AnalysisEvaluationMetrics.GetWinningChance(eval.Score, eval.Mate)
+                .ToString("0.0'%' white", CultureInfo.InvariantCulture),
+            DisplayScoreText = displayScore.ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture)
+        };
+
+    private static string FormatMoveTitle(int moveNumber)
+        => moveNumber % 2 == 0
+            ? $"{moveNumber / 2}... black"
+            : $"{(moveNumber + 1) / 2}. white";
+
+    private sealed record AnalysisEvaluationDataset : LineDataset
+    {
+        public IList<AnalysisTooltipPoint> TooltipPoints { get; set; } = [];
+    }
+
+    private sealed record AnalysisTooltipPoint
+    {
+        public string Title { get; init; } = string.Empty;
+        public string RawScoreText { get; init; } = string.Empty;
+        public string WinningChanceText { get; init; } = string.Empty;
+        public string DisplayScoreText { get; init; } = string.Empty;
+    }
+
     private static ChartJsConfig GetChartJsConfig()
     {
         return new()
@@ -502,9 +624,12 @@
                 Labels = [],
                 Datasets =
                 [
-                    new LineDataset
+                    new AnalysisEvaluationDataset
                     {
+                        Id = EvaluationDatasetId,
                         Label = "Evaluation",
+                        Data = [],
+                        TooltipPoints = [],
                         BackgroundColor = "rgba(226, 232, 240, 0.2)",
                         BorderColor = "#9fd169",
                         Fill = new
@@ -518,6 +643,7 @@
                         PointRadius = new IndexableOption<double>(2.5),
                         PointBorderWidth = new IndexableOption<double>(1.5),
                         PointHitRadius = new IndexableOption<double>(8),
+                        SpanGaps = true,
                         Tension = 0.32
                     }
                 ]
@@ -536,6 +662,16 @@
                     Title = new Title
                     {
                         Display = false
+                    },
+                    Tooltip = new Tooltip
+                    {
+                        Enabled = true,
+                        DisplayColors = false,
+                        Callbacks = new TooltipCallbacks
+                        {
+                            Title = ChartJsFunction.FromName("analysisTooltipTitle"),
+                            Label = ChartJsFunction.FromName("analysisTooltipLabel")
+                        }
                     },
                     ArbitraryLines =
                     [
@@ -572,6 +708,8 @@
                     {
                         Display = true,
                         BeginAtZero = true,
+                        Min = -AnalysisEvaluationMetrics.MateDisplayScore,
+                        Max = AnalysisEvaluationMetrics.MateDisplayScore,
                         Title = new Title
                         {
                             Display = true,
@@ -580,7 +718,8 @@
                         },
                         Ticks = new LinearAxisTick
                         {
-                            Color = "#bcb4a8"
+                            Color = "#bcb4a8",
+                            StepSize = 5
                         },
                         Grid = new ChartJsGrid
                         {
