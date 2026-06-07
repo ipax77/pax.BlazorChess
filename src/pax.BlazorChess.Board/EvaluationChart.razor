@@ -1,5 +1,6 @@
 @using pax.chess
 @using pax.chess.Analyze
+@using pax.BlazorChess.Board.Storage
 @using pax.uciChessEngine.EngineServices
 
 <section class="evaluation-chart-panel">
@@ -84,6 +85,7 @@
     public EventCallback OnAnnotationsChanged { get; set; }
 
     private GameAnalysisComponent? chart;
+    public bool HasAnalysisResults => chart?.HasAnalysisResults ?? false;
     private bool HasAnalysisEngines
         => AnalysisMode == GameAnalysisMode.EnabledEngines
             ? EngineRunOptionsList.Any(IsEngineAvailable)
@@ -106,4 +108,10 @@
     {
         chart?.StopAnalysis();
     }
+
+    public GameAnalysisRunSnapshot? CreateAnalysisRunSnapshot()
+        => chart?.CreateAnalysisRunSnapshot();
+
+    public bool LoadAnalysisRunSnapshot(GameAnalysisRunSnapshot snapshot)
+        => chart?.LoadAnalysisRunSnapshot(snapshot) ?? false;
 }

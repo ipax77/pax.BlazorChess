@@ -70,6 +70,7 @@ h1:focus {
 .moves-panel,
 .controls-panel,
 .settings-panel,
+.game-toolbar,
 .full-analysis-panel,
 .position-bar {
     background: #26231f;
@@ -89,6 +90,78 @@ h1:focus {
     display: flex;
     flex-direction: column;
     min-height: 0;
+}
+
+.game-toolbar {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    min-width: 0;
+}
+
+.game-toolbar-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto minmax(110px, auto);
+    align-items: end;
+    gap: 10px;
+    min-width: 0;
+}
+
+.toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.metadata-grid {
+    display: grid;
+    grid-template-columns: minmax(150px, 1.3fr) repeat(2, minmax(130px, 1fr)) repeat(2, minmax(80px, 0.55fr)) repeat(2, minmax(120px, 0.9fr)) minmax(80px, 0.55fr);
+    gap: 8px;
+    min-width: 0;
+}
+
+.toolbar-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.toolbar-field span,
+.save-status {
+    color: #aaa196;
+    font-size: 0.78rem;
+}
+
+.toolbar-field .text-input {
+    min-height: 32px;
+    padding: 5px 7px;
+    font-size: 0.86rem;
+}
+
+.save-status {
+    align-self: center;
+    justify-self: end;
+    white-space: nowrap;
+}
+
+.save-status.dirty {
+    color: #ffd166;
+}
+
+.save-status.clean {
+    color: #bdda8a;
+}
+
+.persistence-error {
+    border: 1px solid #8d4a42;
+    border-radius: 4px;
+    background: #4b2b25;
+    color: #ffd1c7;
+    padding: 7px 8px;
+    font-size: 0.86rem;
 }
 
 .multi-engine-panel {
@@ -628,6 +701,7 @@ h1:focus {
 }
 
 .full-analysis-header,
+.full-analysis-runbar,
 .full-analysis-actions,
 .full-analysis-settings,
 .number-field {
@@ -638,6 +712,15 @@ h1:focus {
 
 .full-analysis-header {
     justify-content: space-between;
+}
+
+.full-analysis-runbar {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.2fr) minmax(150px, 0.9fr) auto minmax(105px, auto);
+    gap: 8px;
+    align-items: end;
+    border-top: 1px solid #332f29;
+    padding-top: 10px;
 }
 
 .full-analysis-header h2 {
@@ -997,6 +1080,27 @@ textarea.text-input {
         grid-column: auto;
     }
 
+    .game-toolbar {
+        grid-column: auto;
+    }
+
+    .game-toolbar-row,
+    .metadata-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .toolbar-actions {
+        align-items: stretch;
+    }
+
+    .toolbar-actions .command-button {
+        flex: 1 1 120px;
+    }
+
+    .save-status {
+        justify-self: start;
+    }
+
     .side-panel {
         grid-template-rows: auto minmax(260px, 420px) auto;
         height: auto;
@@ -1027,6 +1131,10 @@ textarea.text-input {
     .full-analysis-header {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .full-analysis-runbar {
+        grid-template-columns: 1fr;
     }
 
     .full-analysis-actions {

@@ -1,4 +1,5 @@
 using System.Reflection;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using pax.BlazorChess.Board.Storage;
 using pax.BlazorChess.Db.Entities;
@@ -69,13 +70,13 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
 
     public async Task<IReadOnlyList<AnalyzedGameSummary>> ListAnalyzedGames(CancellationToken cancellationToken = default)
     {
-        var items = await _context.AnalyzedGames
-            .AsNoTracking()
-            .Select(a => new AnalyzedGameSummary(a.Id, a.Name, a.UpdatedAt))
+        var items = await _context.Database
+            .SqlQueryRaw<AnalyzedGameSummaryProjection>(
+                "SELECT Id, Name, UpdatedAt FROM AnalyzedGames ORDER BY UpdatedAt DESC")
             .ToListAsync(cancellationToken);
 
         return items
-            .OrderByDescending(a => a.UpdatedAt)
+            .Select(static a => new AnalyzedGameSummary(a.Id, a.Name, a.UpdatedAt))
             .ToList();
     }
 
@@ -91,7 +92,29 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
         return AnalysisSerializer.Restore(entity.AnalysisJson);
     }
 
-    public async Task<Guid> SaveAnalyzedGame(string name, AnalysisBoard analysisBoard, Guid? id = default, CancellationToken cancellationToken = default)
+    public async Task<AnalyzedGameDetails?> LoadAnalyzedGameDetails(Guid id, CancellationToken cancellationToken = default)
+    {
+        var entity = await _context.AnalyzedGames
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+
+        if (entity is null)
+            return null;
+
+        return new AnalyzedGameDetails(
+            entity.Id,
+            entity.Name,
+            AnalysisSerializer.Restore(entity.AnalysisJson),
+            ToMetadata(entity),
+            entity.UpdatedAt);
+    }
+
+    public async Task<Guid> SaveAnalyzedGame(
+        string name,
+        AnalysisBoard analysisBoard,
+        Guid? id = default,
+        AnalyzedGameMetadata? metadata = default,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(analysisBoard);
@@ -116,6 +139,7 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
         entity.InitialFen = FenSerializer.Serialize(analysisBoard.ChessGame.InitialPosition);
         entity.Pgn = PgnSerializer.Serialize(analysisBoard.ChessGame);
         entity.AnalysisJson = json;
+        Apply(metadata, entity);
         entity.UpdatedAt = now;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -131,6 +155,127 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
 
         _context.AnalyzedGames.Remove(entity);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AnalyzedGameAnalysisRunSummary>> ListAnalyzedGameAnalysisRuns(
+        Guid analyzedGameId,
+        CancellationToken cancellationToken = default)
+    {
+        var items = await _context.Database
+            .SqlQueryRaw<AnalyzedGameAnalysisRunSummaryProjection>(
+                """
+                SELECT Id, AnalyzedGameId, Name, UpdatedAt
+                FROM AnalyzedGameAnalysisRuns
+                WHERE AnalyzedGameId = @analyzedGameId
+                ORDER BY UpdatedAt DESC
+                """,
+                new SqliteParameter("@analyzedGameId", analyzedGameId))
+            .ToListAsync(cancellationToken);
+
+        return items
+            .Select(static a => new AnalyzedGameAnalysisRunSummary(a.Id, a.AnalyzedGameId, a.Name, a.UpdatedAt))
+            .ToList();
+    }
+
+    public async Task<AnalyzedGameAnalysisRunDetails?> LoadAnalyzedGameAnalysisRun(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await _context.AnalyzedGameAnalysisRuns
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+
+        if (entity is null)
+            return null;
+
+        return new AnalyzedGameAnalysisRunDetails(
+            entity.Id,
+            entity.AnalyzedGameId,
+            entity.Name,
+            GameAnalysisRunSerializer.Restore(entity.AnalysisJson),
+            entity.UpdatedAt);
+    }
+
+    public async Task<Guid> SaveAnalyzedGameAnalysisRun(
+        Guid analyzedGameId,
+        string name,
+        GameAnalysisRunSnapshot snapshot,
+        Guid? id = default,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var now = DateTimeOffset.UtcNow;
+        var targetId = id ?? Guid.NewGuid();
+        var json = GameAnalysisRunSerializer.Serialize(snapshot);
+        var entity = await _context.AnalyzedGameAnalysisRuns
+            .FirstOrDefaultAsync(a => a.Id == targetId, cancellationToken);
+
+        if (entity is null)
+        {
+            entity = new AnalyzedGameAnalysisRunEntity
+            {
+                Id = targetId,
+                AnalyzedGameId = analyzedGameId,
+                CreatedAt = now
+            };
+            _context.AnalyzedGameAnalysisRuns.Add(entity);
+        }
+
+        entity.AnalyzedGameId = analyzedGameId;
+        entity.Name = NormalizeRequired(name);
+        entity.AnalysisJson = json;
+        entity.UpdatedAt = now;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return entity.Id;
+    }
+
+    private static AnalyzedGameMetadata ToMetadata(AnalyzedGameEntity entity)
+        => new()
+        {
+            Event = entity.Event,
+            Site = entity.Site,
+            Date = entity.Date,
+            Round = entity.Round,
+            White = entity.White,
+            Black = entity.Black,
+            Result = entity.Result
+        };
+
+    private static void Apply(AnalyzedGameMetadata? metadata, AnalyzedGameEntity entity)
+    {
+        var value = metadata ?? AnalyzedGameMetadata.Empty;
+        entity.Event = Normalize(value.Event);
+        entity.Site = Normalize(value.Site);
+        entity.Date = Normalize(value.Date);
+        entity.Round = Normalize(value.Round);
+        entity.White = Normalize(value.White);
+        entity.Black = Normalize(value.Black);
+        entity.Result = Normalize(value.Result);
+    }
+
+    private static string? Normalize(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string NormalizeRequired(string value)
+        => string.IsNullOrWhiteSpace(value) ? "Analysis" : value.Trim();
+
+    private sealed class AnalyzedGameSummaryProjection
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public DateTimeOffset UpdatedAt { get; set; }
+    }
+
+    private sealed class AnalyzedGameAnalysisRunSummaryProjection
+    {
+        public Guid Id { get; set; }
+        public Guid AnalyzedGameId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public DateTimeOffset UpdatedAt { get; set; }
     }
 
     private static EngineRunOptions ToDomain(EngineRunOptionEntity entity)

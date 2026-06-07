@@ -33,7 +33,8 @@ public sealed class InMemoryChessBoardRepository : IChessBoardRepository
         }
     ];
 
-    private readonly Dictionary<Guid, (string Name, string Json, DateTimeOffset UpdatedAt)> _analyses = new();
+    private readonly Dictionary<Guid, (string Name, string Json, AnalyzedGameMetadata Metadata, DateTimeOffset UpdatedAt)> _analyses = new();
+    private readonly Dictionary<Guid, (Guid AnalyzedGameId, string Name, string Json, DateTimeOffset UpdatedAt)> _analysisRuns = new();
 
     public Task<List<EngineRunOptions>> GetEngineRunOptions(CancellationToken cancellationToken = default)
     {
@@ -66,7 +67,22 @@ public sealed class InMemoryChessBoardRepository : IChessBoardRepository
         return Task.FromResult<AnalysisBoard?>(board);
     }
 
-    public Task<Guid> SaveAnalyzedGame(string name, AnalysisBoard analysisBoard, Guid? id = default, CancellationToken cancellationToken = default)
+    public Task<AnalyzedGameDetails?> LoadAnalyzedGameDetails(Guid id, CancellationToken cancellationToken = default)
+    {
+        if (!_analyses.TryGetValue(id, out var data))
+            return Task.FromResult<AnalyzedGameDetails?>(null);
+
+        var board = AnalysisSerializer.Restore(data.Json);
+        var details = new AnalyzedGameDetails(id, data.Name, board, data.Metadata, data.UpdatedAt);
+        return Task.FromResult<AnalyzedGameDetails?>(details);
+    }
+
+    public Task<Guid> SaveAnalyzedGame(
+        string name,
+        AnalysisBoard analysisBoard,
+        Guid? id = default,
+        AnalyzedGameMetadata? metadata = default,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(analysisBoard);
@@ -74,7 +90,7 @@ public sealed class InMemoryChessBoardRepository : IChessBoardRepository
         var snapshotJson = AnalysisSerializer.Serialize(analysisBoard);
         var targetId = id ?? Guid.NewGuid();
 
-        _analyses[targetId] = (name, snapshotJson, DateTimeOffset.UtcNow);
+        _analyses[targetId] = (name, snapshotJson, Normalize(metadata), DateTimeOffset.UtcNow);
 
         return Task.FromResult(targetId);
     }
@@ -82,6 +98,82 @@ public sealed class InMemoryChessBoardRepository : IChessBoardRepository
     public Task DeleteAnalyzedGame(Guid id, CancellationToken cancellationToken = default)
     {
         _analyses.Remove(id);
+        foreach (var runId in _analysisRuns
+            .Where(r => r.Value.AnalyzedGameId == id)
+            .Select(r => r.Key)
+            .ToList())
+        {
+            _analysisRuns.Remove(runId);
+        }
+
         return Task.CompletedTask;
     }
+
+    public Task<IReadOnlyList<AnalyzedGameAnalysisRunSummary>> ListAnalyzedGameAnalysisRuns(
+        Guid analyzedGameId,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<AnalyzedGameAnalysisRunSummary> result = _analysisRuns
+            .Where(r => r.Value.AnalyzedGameId == analyzedGameId)
+            .Select(r => new AnalyzedGameAnalysisRunSummary(r.Key, r.Value.AnalyzedGameId, r.Value.Name, r.Value.UpdatedAt))
+            .OrderByDescending(r => r.UpdatedAt)
+            .ToList();
+
+        return Task.FromResult(result);
+    }
+
+    public Task<AnalyzedGameAnalysisRunDetails?> LoadAnalyzedGameAnalysisRun(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_analysisRuns.TryGetValue(id, out var data))
+            return Task.FromResult<AnalyzedGameAnalysisRunDetails?>(null);
+
+        var details = new AnalyzedGameAnalysisRunDetails(
+            id,
+            data.AnalyzedGameId,
+            data.Name,
+            GameAnalysisRunSerializer.Restore(data.Json),
+            data.UpdatedAt);
+
+        return Task.FromResult<AnalyzedGameAnalysisRunDetails?>(details);
+    }
+
+    public Task<Guid> SaveAnalyzedGameAnalysisRun(
+        Guid analyzedGameId,
+        string name,
+        GameAnalysisRunSnapshot snapshot,
+        Guid? id = default,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var targetId = id ?? Guid.NewGuid();
+        _analysisRuns[targetId] = (
+            analyzedGameId,
+            string.IsNullOrWhiteSpace(name) ? "Analysis" : name.Trim(),
+            GameAnalysisRunSerializer.Serialize(snapshot),
+            DateTimeOffset.UtcNow);
+
+        return Task.FromResult(targetId);
+    }
+
+    private static AnalyzedGameMetadata Normalize(AnalyzedGameMetadata? metadata)
+    {
+        var value = metadata ?? AnalyzedGameMetadata.Empty;
+        return new()
+        {
+            Event = Normalize(value.Event),
+            Site = Normalize(value.Site),
+            Date = Normalize(value.Date),
+            Round = Normalize(value.Round),
+            White = Normalize(value.White),
+            Black = Normalize(value.Black),
+            Result = Normalize(value.Result)
+        };
+    }
+
+    private static string? Normalize(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

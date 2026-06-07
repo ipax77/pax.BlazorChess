@@ -1,7 +1,9 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pax.BlazorChess.Board;
 using pax.BlazorChess.Db;
+using pax.BlazorChess.Db.Entities;
 using pax.BlazorChess.Board.Storage;
 using pax.chess;
 using pax.chess.Analyze;
@@ -26,6 +28,62 @@ public class EfChessBoardRepositoryTests
 
         Assert.IsNotNull(loaded, "Loaded analysis should not be null.");
         Assert.AreEqual(originalLength, GetMainLineCount(loaded!.Root), "Main line length changed after roundtrip.");
+    }
+
+    [TestMethod]
+    public async Task Save_and_load_details_roundtrips_metadata_and_analysis_tree()
+    {
+        await using var harness = await RepositoryHarness.Create();
+        var repo = harness.Repository;
+
+        var board = new AnalysisBoard(PgnSerializer.Parse("1. e4 e5 2. Nf3 Nc6"));
+        var metadata = new AnalyzedGameMetadata
+        {
+            Event = "Spring Open",
+            Site = "Berlin",
+            Date = "2026.06.07",
+            Round = "4",
+            White = "Alpha",
+            Black = "Beta",
+            Result = "1-0"
+        };
+
+        var id = await repo.SaveAnalyzedGame("Alpha vs Beta", board, metadata: metadata);
+        var loaded = await repo.LoadAnalyzedGameDetails(id);
+
+        Assert.IsNotNull(loaded);
+        Assert.AreEqual(id, loaded!.Id);
+        Assert.AreEqual("Alpha vs Beta", loaded.Name);
+        Assert.AreEqual("Spring Open", loaded.Metadata.Event);
+        Assert.AreEqual("Berlin", loaded.Metadata.Site);
+        Assert.AreEqual("2026.06.07", loaded.Metadata.Date);
+        Assert.AreEqual("4", loaded.Metadata.Round);
+        Assert.AreEqual("Alpha", loaded.Metadata.White);
+        Assert.AreEqual("Beta", loaded.Metadata.Black);
+        Assert.AreEqual("1-0", loaded.Metadata.Result);
+        Assert.AreEqual(GetMainLineCount(board.Root), GetMainLineCount(loaded.AnalysisBoard.Root));
+    }
+
+    [TestMethod]
+    public async Task Save_existing_analysis_updates_row_without_creating_duplicate()
+    {
+        await using var harness = await RepositoryHarness.Create();
+        var repo = harness.Repository;
+
+        var board = new AnalysisBoard(PgnSerializer.Parse("1. d4 d5"));
+        var id = await repo.SaveAnalyzedGame("Original", board, metadata: new AnalyzedGameMetadata { Event = "First event" });
+        var originalUpdatedAt = (await repo.LoadAnalyzedGameDetails(id))!.UpdatedAt;
+
+        await Task.Delay(20);
+        await repo.SaveAnalyzedGame("Updated", board, id, new AnalyzedGameMetadata { Event = "Second event" });
+
+        var rows = await harness.Context.AnalyzedGames.AsNoTracking().ToListAsync();
+        var loaded = await repo.LoadAnalyzedGameDetails(id);
+
+        Assert.AreEqual(1, rows.Count);
+        Assert.AreEqual("Updated", loaded?.Name);
+        Assert.AreEqual("Second event", loaded?.Metadata.Event);
+        Assert.IsTrue(loaded!.UpdatedAt > originalUpdatedAt);
     }
 
     [TestMethod]
@@ -129,6 +187,95 @@ public class EfChessBoardRepositoryTests
         Assert.AreEqual("First", summaries[1].Name);
     }
 
+    [TestMethod]
+    public async Task List_analyzed_games_does_not_deserialize_analysis_json()
+    {
+        await using var harness = await RepositoryHarness.Create();
+
+        harness.Context.AnalyzedGames.Add(new AnalyzedGameEntity
+        {
+            Id = Guid.NewGuid(),
+            Name = "Invalid JSON row",
+            InitialFen = "invalid",
+            AnalysisJson = "not-json",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await harness.Context.SaveChangesAsync();
+
+        var summaries = await harness.Repository.ListAnalyzedGames();
+
+        Assert.AreEqual(1, summaries.Count);
+        Assert.AreEqual("Invalid JSON row", summaries[0].Name);
+    }
+
+    [TestMethod]
+    public async Task Save_and_load_multiple_game_analysis_runs_per_game()
+    {
+        await using var harness = await RepositoryHarness.Create();
+        var repo = harness.Repository;
+        var gameId = await repo.SaveAnalyzedGame("Game", new AnalysisBoard(PgnSerializer.Parse("1. e4 e5")));
+        var firstSnapshot = CreateRunSnapshot("Stockfish", 42);
+        var secondSnapshot = CreateRunSnapshot("LC0", -18);
+
+        var firstRunId = await repo.SaveAnalyzedGameAnalysisRun(gameId, "Stockfish 1s", firstSnapshot);
+        await Task.Delay(20);
+        var secondRunId = await repo.SaveAnalyzedGameAnalysisRun(gameId, "LC0 1s", secondSnapshot);
+
+        var summaries = await repo.ListAnalyzedGameAnalysisRuns(gameId);
+        var firstRun = await repo.LoadAnalyzedGameAnalysisRun(firstRunId);
+        var secondRun = await repo.LoadAnalyzedGameAnalysisRun(secondRunId);
+
+        Assert.AreEqual(2, summaries.Count);
+        Assert.AreEqual("LC0 1s", summaries[0].Name);
+        Assert.AreEqual("Stockfish 1s", summaries[1].Name);
+        Assert.AreEqual("Stockfish", firstRun?.Snapshot.Engines[0].EngineName);
+        Assert.AreEqual(42, firstRun?.Snapshot.Engines[0].Evaluations[0].Score);
+        Assert.AreEqual("LC0", secondRun?.Snapshot.Engines[0].EngineName);
+        Assert.AreEqual(-18, secondRun?.Snapshot.Engines[0].Evaluations[0].Score);
+    }
+
+    [TestMethod]
+    public async Task Save_existing_game_analysis_run_updates_row_without_duplicate()
+    {
+        await using var harness = await RepositoryHarness.Create();
+        var repo = harness.Repository;
+        var gameId = await repo.SaveAnalyzedGame("Game", new AnalysisBoard(PgnSerializer.Parse("1. d4 d5")));
+        var runId = await repo.SaveAnalyzedGameAnalysisRun(gameId, "Original", CreateRunSnapshot("Stockfish", 10));
+
+        await repo.SaveAnalyzedGameAnalysisRun(gameId, "Updated", CreateRunSnapshot("Stockfish", 25), runId);
+
+        var rows = await harness.Context.AnalyzedGameAnalysisRuns.AsNoTracking().ToListAsync();
+        var loaded = await repo.LoadAnalyzedGameAnalysisRun(runId);
+
+        Assert.AreEqual(1, rows.Count);
+        Assert.AreEqual("Updated", loaded?.Name);
+        Assert.AreEqual(25, loaded?.Snapshot.Engines[0].Evaluations[0].Score);
+    }
+
+    [TestMethod]
+    public async Task List_game_analysis_runs_does_not_deserialize_analysis_json()
+    {
+        await using var harness = await RepositoryHarness.Create();
+        var gameId = await harness.Repository.SaveAnalyzedGame("Game", new AnalysisBoard(PgnSerializer.Parse("1. c4 e5")));
+
+        harness.Context.AnalyzedGameAnalysisRuns.Add(new AnalyzedGameAnalysisRunEntity
+        {
+            Id = Guid.NewGuid(),
+            AnalyzedGameId = gameId,
+            Name = "Invalid run JSON",
+            AnalysisJson = "not-json",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await harness.Context.SaveChangesAsync();
+
+        var summaries = await harness.Repository.ListAnalyzedGameAnalysisRuns(gameId);
+
+        Assert.AreEqual(1, summaries.Count);
+        Assert.AreEqual("Invalid run JSON", summaries[0].Name);
+    }
+
     private static int GetMainLineCount(MoveNode root)
     {
         int count = 0;
@@ -140,6 +287,35 @@ public class EfChessBoardRepositoryTests
         }
         return count;
     }
+
+    private static GameAnalysisRunSnapshot CreateRunSnapshot(string engineName, int score)
+        => new()
+        {
+            AnalysisMode = GameAnalysisMode.SelectedEngine,
+            MoveCount = 2,
+            ThinkTimePerMoveMs = 1000,
+            AnalysisThreads = 4,
+            Engines =
+            [
+                new GameAnalysisEngineSnapshot
+                {
+                    EngineId = Guid.NewGuid(),
+                    EngineName = engineName,
+                    EngineType = EngineRunOptions.UciEngineType,
+                    BinaryPath = $"{engineName}.exe",
+                    Evaluations =
+                    [
+                        new GameAnalysisMoveEvaluationSnapshot
+                        {
+                            MoveNumber = 1,
+                            Score = score,
+                            Depth = 16,
+                            PvUciMoves = ["e2e4", "e7e5"]
+                        }
+                    ]
+                }
+            ]
+        };
 
     private sealed class RepositoryHarness : IAsyncDisposable
     {

@@ -1,5 +1,6 @@
 @using pax.BlazorChartJs
 @using System.Globalization
+@using pax.BlazorChess.Board.Storage
 @using pax.chess
 @using pax.chess.Analyze
 @using pax.chess.Extensions
@@ -173,6 +174,7 @@
     private int MoveCount => ChessGame.Moves.Count;
     private int AnalysedMoveCount => analysedMoveCount;
     private bool HasEvaluations => evals.Any(static eval => eval is not null);
+    public bool HasAnalysisResults => engineResults.Any(static result => result.AnalysedMoveCount > 0);
     private string AnalysisProgressText
         => AnalysisMode == GameAnalysisMode.EnabledEngines && engineResults.Count > 1
             ? $"{engineResults.Sum(static r => r.AnalysedMoveCount)} / {Math.Max(1, engineResults.Count) * MoveCount} engine moves"
@@ -253,6 +255,110 @@
         cts.Cancel();
     }
 
+    public GameAnalysisRunSnapshot CreateAnalysisRunSnapshot()
+    {
+        lock (evalLock)
+        {
+            return new GameAnalysisRunSnapshot
+            {
+                AnalysisMode = AnalysisMode,
+                MoveCount = MoveCount,
+                ThinkTimePerMoveMs = ThinkTimePerMoveMs,
+                AnalysisThreads = AnalysisThreads,
+                Engines = engineResults
+                    .Where(static result => result.AnalysedMoveCount > 0)
+                    .Select(static result => new GameAnalysisEngineSnapshot
+                    {
+                        EngineId = result.EngineId,
+                        EngineName = result.EngineName,
+                        EngineType = result.EngineType,
+                        BinaryPath = result.BinaryPath,
+                        Evaluations = result.Evals
+                            .Select(static (eval, index) => eval is null
+                                ? null
+                                : new GameAnalysisMoveEvaluationSnapshot
+                                {
+                                    MoveNumber = index + 1,
+                                    Score = eval.Score,
+                                    Mate = eval.Mate,
+                                    Depth = eval.Depth,
+                                    PvUciMoves = eval.PvInfo.Moves.ToList()
+                                })
+                            .Where(static eval => eval is not null)
+                            .Select(static eval => eval!)
+                            .ToList()
+                    })
+                    .ToList()
+            };
+        }
+    }
+
+    public bool LoadAnalysisRunSnapshot(GameAnalysisRunSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        if (snapshot.MoveCount != MoveCount)
+            return false;
+
+        lock (evalLock)
+        {
+            engineResults.Clear();
+            var fillRawDataset = snapshot.Engines.Count == 1;
+            for (var i = 0; i < snapshot.Engines.Count; i++)
+            {
+                var result = new AnalysisEngineResult(snapshot.Engines[i], MoveCount, EnginePalette[i % EnginePalette.Length], fillRawDataset);
+                foreach (var evaluation in snapshot.Engines[i].Evaluations)
+                {
+                    var index = evaluation.MoveNumber - 1;
+                    if (index < 0 || index >= result.Evals.Length)
+                        continue;
+
+                    result.Evals[index] = new Eval
+                    {
+                        Score = evaluation.Score,
+                        Mate = evaluation.Mate,
+                        Depth = evaluation.Depth,
+                        PvInfo = new pax.uciChessEngine.PvInfo
+                        {
+                            MultiPv = 1,
+                            Depth = evaluation.Depth,
+                            Score = evaluation.Score,
+                            Mate = evaluation.Mate ?? 0,
+                            Moves = evaluation.PvUciMoves.ToList()
+                        }
+                    };
+                    result.AnalysedMoveCount++;
+                }
+
+                engineResults.Add(result);
+            }
+
+            summaryResult = FindSummaryResult() ?? engineResults.FirstOrDefault();
+            evals = summaryResult?.Evals ?? new Eval?[MoveCount];
+            analysedMoveCount = summaryResult?.AnalysedMoveCount ?? 0;
+            ResetData(chartData, tooltipPoints);
+            ResetData(combinedChartData, combinedTooltipPoints);
+            Array.Clear(combinedDisplayScores);
+            foreach (var result in engineResults)
+            {
+                ResetData(result.RawData, result.RawTooltipPoints);
+                ResetData(result.AdjustedData, result.AdjustedTooltipPoints);
+                Array.Clear(result.DisplayScores);
+            }
+
+            whiteSummary = new();
+            blackSummary = new();
+            lastCategoryClicked = null;
+            lastCategoryIndex = 0;
+            chartDirty = true;
+            summaryDirty = true;
+        }
+
+        RefreshChartData(forceSummary: true);
+        StateHasChanged();
+        return true;
+    }
+
     public static IReadOnlyList<EngineRunOptions> SelectAnalysisEnginesForMode(
         GameAnalysisMode mode,
         EngineRunOptions? selectedEngine,
@@ -273,13 +379,16 @@
     {
         try
         {
+            var engine = result.Engine
+                ?? throw new InvalidOperationException("Restored analysis runs cannot be analysed without engine settings.");
+
             SetEngineStatus(result, "Starting");
 
-            var provider = EngineService.GetEngineSessionProvider(result.Engine);
+            var provider = EngineService.GetEngineSessionProvider(engine);
             var requestedThreads = AnalysisThreads > 0
                 ? AnalysisThreads
-                : result.Engine.Threads > 0
-                    ? result.Engine.Threads
+                : engine.Threads > 0
+                    ? engine.Threads
                     : 8;
             var threads = Math.Clamp(requestedThreads, 1, Math.Max(1, Environment.ProcessorCount));
             await using var gameAnalysis = new GameAnalysis(provider, ChessGame, threads, Math.Max(100, ThinkTimePerMoveMs));
@@ -410,7 +519,7 @@
         if (EngineRunOptions is null)
             return null;
 
-        return engineResults.FirstOrDefault(r => r.Engine.Id == EngineRunOptions.Id);
+        return engineResults.FirstOrDefault(r => r.EngineId == EngineRunOptions.Id);
     }
 
     private void RefreshChartData(bool forceSummary)
@@ -1001,9 +1110,46 @@
     private sealed class AnalysisEngineResult
     {
         public AnalysisEngineResult(EngineRunOptions engine, int moveCount, string color, bool fillRawDataset)
+            : this(
+                engine,
+                engine.Id,
+                string.IsNullOrWhiteSpace(engine.Name) ? "Unnamed engine" : engine.Name!,
+                string.IsNullOrWhiteSpace(engine.EngineType) ? EngineRunOptions.UciEngineType : engine.EngineType,
+                engine.BinaryPath,
+                moveCount,
+                color,
+                fillRawDataset)
+        {
+        }
+
+        public AnalysisEngineResult(GameAnalysisEngineSnapshot engine, int moveCount, string color, bool fillRawDataset)
+            : this(
+                null,
+                engine.EngineId,
+                string.IsNullOrWhiteSpace(engine.EngineName) ? "Unnamed engine" : engine.EngineName,
+                engine.EngineType,
+                engine.BinaryPath,
+                moveCount,
+                color,
+                fillRawDataset)
+        {
+        }
+
+        private AnalysisEngineResult(
+            EngineRunOptions? engine,
+            Guid engineId,
+            string engineName,
+            string engineType,
+            string binaryPath,
+            int moveCount,
+            string color,
+            bool fillRawDataset)
         {
             Engine = engine;
-            EngineName = string.IsNullOrWhiteSpace(engine.Name) ? "Unnamed engine" : engine.Name!;
+            EngineId = engineId;
+            EngineName = engineName;
+            EngineType = engineType;
+            BinaryPath = binaryPath;
             Evals = new Eval?[moveCount];
             DisplayScores = new double?[moveCount];
             RawData = CreatePendingChartData(moveCount);
@@ -1011,14 +1157,14 @@
             RawTooltipPoints = CreatePendingTooltipPoints(moveCount);
             AdjustedTooltipPoints = CreatePendingTooltipPoints(moveCount);
             RawDataset = CreateEvaluationDataset(
-                $"game-analysis-{engine.Id:N}-raw",
+                $"game-analysis-{engineId:N}-raw",
                 EngineName,
                 RawData,
                 RawTooltipPoints,
                 color,
                 fillPrimary: fillRawDataset);
             AdjustedDataset = CreateEvaluationDataset(
-                $"game-analysis-{engine.Id:N}-adjusted",
+                $"game-analysis-{engineId:N}-adjusted",
                 $"{EngineName} difference",
                 AdjustedData,
                 AdjustedTooltipPoints,
@@ -1027,8 +1173,11 @@
                 adjusted: true);
         }
 
-        public EngineRunOptions Engine { get; }
+        public EngineRunOptions? Engine { get; }
+        public Guid EngineId { get; }
         public string EngineName { get; }
+        public string EngineType { get; }
+        public string BinaryPath { get; }
         public Eval?[] Evals { get; }
         public double?[] DisplayScores { get; }
         public List<object> RawData { get; }

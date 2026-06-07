@@ -28,6 +28,10 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
 
     public AnalysisBoard AnalysisBoard { get; private set; } = CreateInitialAnalysisBoard();
     public List<EngineRunOptions> EngineRunOptions { get; } = [];
+    public Guid? CurrentAnalyzedGameId { get; private set; }
+    public string GameName { get; private set; } = "New game";
+    public AnalyzedGameMetadata GameMetadata { get; private set; } = AnalyzedGameMetadata.Empty;
+    public bool IsDirty { get; private set; }
     public Guid SelectedEngineId { get; set; }
     public Move? LastMove { get; private set; }
     public int CurrentPly { get; private set; }
@@ -89,6 +93,7 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
         AnalysisBoard.AddVariation(move);
         UpdateCurrentNodeState();
         ImportError = string.Empty;
+        MarkDirty();
     }
 
     public void MoveBackward()
@@ -114,7 +119,11 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
         AnalysisBoard = CreateInitialAnalysisBoard();
         LastMove = null;
         CurrentPly = 0;
+        CurrentAnalyzedGameId = null;
+        GameName = "New game";
+        GameMetadata = AnalyzedGameMetadata.Empty;
         ImportError = string.Empty;
+        MarkDirty();
     }
 
     public bool TryLoadFen(string fen)
@@ -125,7 +134,11 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
             AnalysisBoard = new AnalysisBoard(new ChessGame(position));
             LastMove = null;
             CurrentPly = 0;
+            CurrentAnalyzedGameId = null;
+            GameName = "Position";
+            GameMetadata = AnalyzedGameMetadata.Empty;
             ImportError = string.Empty;
+            MarkDirty();
             return true;
         }
         catch (Exception ex)
@@ -139,10 +152,15 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
     {
         try
         {
-            var game = PgnSerializer.Parse(pgn);
+            var metadata = ExtractPgnMetadata(pgn);
+            var game = PgnSerializer.Parse(RemovePgnTagSection(pgn));
             AnalysisBoard = new AnalysisBoard(game);
             MoveToEnd();
+            CurrentAnalyzedGameId = null;
+            GameMetadata = metadata;
+            GameName = CreateDefaultGameName(metadata);
             ImportError = string.Empty;
+            MarkDirty();
             return true;
         }
         catch (Exception ex)
@@ -193,6 +211,7 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
             MoveToNode(parent);
 
         ImportError = string.Empty;
+        MarkDirty();
         return true;
     }
 
@@ -210,7 +229,83 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
         siblings.Insert(0, node);
         MoveToNode(node);
         ImportError = string.Empty;
+        MarkDirty();
         return true;
+    }
+
+    public void RenameGame(string name)
+    {
+        GameName = NormalizeName(name);
+        MarkDirty();
+    }
+
+    public void UpdateGameMetadata(AnalyzedGameMetadata metadata)
+    {
+        GameMetadata = Normalize(metadata);
+        MarkDirty();
+    }
+
+    public void MarkAnalysisChanged()
+    {
+        MarkDirty();
+    }
+
+    public Task<IReadOnlyList<AnalyzedGameSummary>> ListAnalyzedGamesAsync(CancellationToken cancellationToken = default)
+        => _repository.ListAnalyzedGames(cancellationToken);
+
+    public async Task LoadAnalyzedGameAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var details = await _repository.LoadAnalyzedGameDetails(id, cancellationToken)
+            ?? throw new InvalidOperationException("Selected analysis was not found.");
+
+        AnalysisBoard = details.AnalysisBoard;
+        CurrentAnalyzedGameId = details.Id;
+        GameName = NormalizeName(details.Name);
+        GameMetadata = Normalize(details.Metadata);
+        ImportError = string.Empty;
+        IsDirty = false;
+        UpdateCurrentNodeState();
+    }
+
+    public async Task SaveCurrentAnalysisAsync(bool saveAs = false, CancellationToken cancellationToken = default)
+    {
+        var targetId = saveAs ? null : CurrentAnalyzedGameId;
+        var savedId = await _repository.SaveAnalyzedGame(
+            NormalizeName(GameName),
+            AnalysisBoard,
+            targetId,
+            GameMetadata,
+            cancellationToken);
+
+        CurrentAnalyzedGameId = savedId;
+        IsDirty = false;
+    }
+
+    public Task<IReadOnlyList<AnalyzedGameAnalysisRunSummary>> ListCurrentGameAnalysisRunsAsync(CancellationToken cancellationToken = default)
+        => CurrentAnalyzedGameId is { } id
+            ? _repository.ListAnalyzedGameAnalysisRuns(id, cancellationToken)
+            : Task.FromResult<IReadOnlyList<AnalyzedGameAnalysisRunSummary>>([]);
+
+    public Task<AnalyzedGameAnalysisRunDetails?> LoadGameAnalysisRunAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+        => _repository.LoadAnalyzedGameAnalysisRun(id, cancellationToken);
+
+    public async Task<Guid> SaveCurrentGameAnalysisRunAsync(
+        string name,
+        GameAnalysisRunSnapshot snapshot,
+        Guid? id = default,
+        CancellationToken cancellationToken = default)
+    {
+        if (CurrentAnalyzedGameId is not { } analyzedGameId)
+            throw new InvalidOperationException("Save the game before saving game analysis runs.");
+
+        return await _repository.SaveAnalyzedGameAnalysisRun(
+            analyzedGameId,
+            NormalizeName(name),
+            snapshot,
+            id,
+            cancellationToken);
     }
 
     private void MoveToEnd()
@@ -263,6 +358,132 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
     private static AnalysisBoard CreateInitialAnalysisBoard()
         => new(new ChessGame(FenSerializer.Parse(DefaultFen)));
 
+    private static AnalyzedGameMetadata ExtractPgnMetadata(string pgn)
+    {
+        Dictionary<string, string>? tags = null;
+
+        foreach (var rawLine in pgn.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0)
+            {
+                if (tags is not null)
+                    break;
+
+                continue;
+            }
+
+            if (line[0] != '[')
+                break;
+
+            var close = line.LastIndexOf(']');
+            var quoteStart = line.IndexOf('"');
+            var quoteEnd = line.LastIndexOf('"');
+            if (close < 0 || quoteStart < 2 || quoteEnd <= quoteStart)
+                continue;
+
+            var tagName = line[1..quoteStart].Trim();
+            var value = UnescapePgnTagValue(line[(quoteStart + 1)..quoteEnd]);
+            tags ??= new(StringComparer.OrdinalIgnoreCase);
+            tags[tagName] = value;
+        }
+
+        if (tags is null)
+            return AnalyzedGameMetadata.Empty;
+
+        return Normalize(new AnalyzedGameMetadata
+        {
+            Event = GetTag(tags, "Event"),
+            Site = GetTag(tags, "Site"),
+            Date = GetTag(tags, "Date"),
+            Round = GetTag(tags, "Round"),
+            White = GetTag(tags, "White"),
+            Black = GetTag(tags, "Black"),
+            Result = GetTag(tags, "Result")
+        });
+    }
+
+    private static string RemovePgnTagSection(string pgn)
+    {
+        var lines = pgn.Split('\n');
+        var firstMoveLine = 0;
+        var sawTag = false;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (line.Length == 0)
+            {
+                if (sawTag)
+                {
+                    firstMoveLine = i + 1;
+                    break;
+                }
+
+                continue;
+            }
+
+            if (line[0] == '[')
+            {
+                sawTag = true;
+                firstMoveLine = i + 1;
+                continue;
+            }
+
+            firstMoveLine = sawTag ? i : 0;
+            break;
+        }
+
+        if (!sawTag)
+            return pgn;
+
+        return string.Join('\n', lines.Skip(firstMoveLine));
+    }
+
+    private static string? GetTag(Dictionary<string, string> tags, string name)
+        => tags.TryGetValue(name, out var value) ? value : null;
+
+    private static string UnescapePgnTagValue(string value)
+    {
+        if (!value.Contains('\\'))
+            return value;
+
+        return value.Replace("\\\"", "\"", StringComparison.Ordinal)
+            .Replace("\\\\", "\\", StringComparison.Ordinal);
+    }
+
+    private static string CreateDefaultGameName(AnalyzedGameMetadata metadata)
+    {
+        if (!string.IsNullOrWhiteSpace(metadata.White) && !string.IsNullOrWhiteSpace(metadata.Black))
+            return $"{metadata.White} vs {metadata.Black}";
+
+        if (!string.IsNullOrWhiteSpace(metadata.Event))
+            return metadata.Event!;
+
+        return "Imported game";
+    }
+
+    private static string NormalizeName(string name)
+        => string.IsNullOrWhiteSpace(name) ? "Analysis" : name.Trim();
+
+    private static AnalyzedGameMetadata Normalize(AnalyzedGameMetadata? metadata)
+    {
+        var value = metadata ?? AnalyzedGameMetadata.Empty;
+        return new()
+        {
+            Event = NormalizeTag(value.Event),
+            Site = NormalizeTag(value.Site),
+            Date = NormalizeTag(value.Date),
+            Round = NormalizeTag(value.Round),
+            White = NormalizeTag(value.White),
+            Black = NormalizeTag(value.Black),
+            Result = NormalizeTag(value.Result)
+        };
+    }
+
+    private static string? NormalizeTag(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private static bool IsDescendantOrSelf(MoveNode candidate, MoveNode branchRoot)
     {
         var current = candidate;
@@ -275,6 +496,11 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
         }
 
         return false;
+    }
+
+    private void MarkDirty()
+    {
+        IsDirty = true;
     }
 
     private async Task SaveEngineSettingsWhenQuietAsync(CancellationTokenSource cts)
