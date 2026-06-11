@@ -80,7 +80,7 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
         await _engineSettingsPersistenceGate.WaitAsync(cancellationToken);
         try
         {
-            await _repository.StoreEngineRunOptions(EngineRunOptions.ToList(), cancellationToken);
+            await _repository.StoreEngineRunOptions(EngineRunOptions, cancellationToken);
         }
         finally
         {

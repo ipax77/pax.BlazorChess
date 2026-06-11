@@ -41,7 +41,7 @@ public sealed class InMemoryChessBoardRepository : IChessBoardRepository
         return Task.FromResult(_engineRunOptions.ToList());
     }
 
-    public Task StoreEngineRunOptions(List<EngineRunOptions> engineRunOptions, CancellationToken cancellationToken = default)
+    public Task StoreEngineRunOptions(IReadOnlyList<EngineRunOptions> engineRunOptions, CancellationToken cancellationToken = default)
     {
         _engineRunOptions.Clear();
         _engineRunOptions.AddRange(engineRunOptions);

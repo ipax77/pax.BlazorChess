@@ -7,7 +7,7 @@ namespace pax.BlazorChess.Board.Storage;
 public interface IChessBoardRepository
 {
     Task<List<EngineRunOptions>> GetEngineRunOptions(CancellationToken cancellationToken = default);
-    Task StoreEngineRunOptions(List<EngineRunOptions> engineRunOptions, CancellationToken cancellationToken = default);
+    Task StoreEngineRunOptions(IReadOnlyList<EngineRunOptions> engineRunOptions, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<AnalyzedGameSummary>> ListAnalyzedGames(CancellationToken cancellationToken = default);
     Task<AnalysisBoard?> LoadAnalyzedGame(Guid id, CancellationToken cancellationToken = default);

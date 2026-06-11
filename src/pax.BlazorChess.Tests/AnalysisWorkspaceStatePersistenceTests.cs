@@ -300,7 +300,7 @@ public sealed class AnalysisWorkspaceStatePersistenceTests
         public Task<List<EngineRunOptions>> GetEngineRunOptions(CancellationToken cancellationToken = default)
             => Task.FromResult(_engineRunOptions.ToList());
 
-        public Task StoreEngineRunOptions(List<EngineRunOptions> engineRunOptions, CancellationToken cancellationToken = default)
+        public Task StoreEngineRunOptions(IReadOnlyList<EngineRunOptions> engineRunOptions, CancellationToken cancellationToken = default)
         {
             lock (_gate)
             {

@@ -58,11 +58,13 @@ public sealed class MultiEngineAnalysisCoordinator : IAsyncDisposable
         var sideToMove = basePosition.SideToMove;
         var parallelLimit = Math.Max(1, maxParallelEngines);
 
-        InitializeSnapshots(engines, runId);
+        var engineSnapshot = engines as EngineRunOptions[] ?? engines.ToArray();
+
+        InitializeSnapshots(engineSnapshot, runId);
         await RequestRenderAsync(force: true);
 
         _runTask = RunAllEnginesAsync(
-            engines.ToList(),
+            engineSnapshot,
             baseNode,
             basePosition,
             engineMoves,
@@ -127,9 +129,13 @@ public sealed class MultiEngineAnalysisCoordinator : IAsyncDisposable
         {
             await Task.Delay(RestartDebounce, token);
             using var engineSlots = new SemaphoreSlim(parallelLimit, parallelLimit);
-            var tasks = engines
-                .Where(e => e.IsEnabled && !string.IsNullOrWhiteSpace(e.BinaryPath))
-                .Select(engine => RunOneEngineWhenSlotAvailableAsync(
+            List<Task> tasks = new(engines.Count);
+            foreach (var engine in engines)
+            {
+                if (!engine.IsEnabled || string.IsNullOrWhiteSpace(engine.BinaryPath))
+                    continue;
+
+                tasks.Add(RunOneEngineWhenSlotAvailableAsync(
                     engine,
                     baseNode,
                     basePosition,
@@ -137,8 +143,8 @@ public sealed class MultiEngineAnalysisCoordinator : IAsyncDisposable
                     sideToMove,
                     engineSlots,
                     runId,
-                    token))
-                .ToList();
+                    token));
+            }
 
             await Task.WhenAll(tasks);
         }

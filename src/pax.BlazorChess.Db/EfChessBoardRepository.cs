@@ -32,7 +32,7 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
         return entities.Select(ToDomain).ToList();
     }
 
-    public async Task StoreEngineRunOptions(List<EngineRunOptions> engineRunOptions, CancellationToken cancellationToken = default)
+    public async Task StoreEngineRunOptions(IReadOnlyList<EngineRunOptions> engineRunOptions, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(engineRunOptions);
 
