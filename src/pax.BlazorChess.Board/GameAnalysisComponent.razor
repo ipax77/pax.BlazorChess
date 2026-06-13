@@ -137,6 +137,7 @@
     private readonly object evalLock = new();
     private CancellationTokenSource cts = new();
     private Eval?[] evals = [];
+    private AnalysisMoveQuality?[] moveQualities = [];
     private List<string> chartLabels = [];
     private List<object> chartData = [];
     private List<AnalysisTooltipPoint> tooltipPoints = [];
@@ -255,6 +256,17 @@
         cts.Cancel();
     }
 
+    public AnalysisMoveQuality? GetMoveQuality(int moveNumber)
+    {
+        lock (evalLock)
+        {
+            var index = moveNumber - 1;
+            return index >= 0 && index < moveQualities.Length
+                ? moveQualities[index]
+                : null;
+        }
+    }
+
     public GameAnalysisRunSnapshot CreateAnalysisRunSnapshot()
     {
         lock (evalLock)
@@ -336,6 +348,7 @@
             summaryResult = FindSummaryResult() ?? engineResults.FirstOrDefault();
             evals = summaryResult?.Evals ?? new Eval?[MoveCount];
             analysedMoveCount = summaryResult?.AnalysedMoveCount ?? 0;
+            EnsureMoveQualityStorage();
             ResetData(chartData, tooltipPoints);
             ResetData(combinedChartData, combinedTooltipPoints);
             Array.Clear(combinedDisplayScores);
@@ -348,10 +361,11 @@
 
             whiteSummary = new();
             blackSummary = new();
+            CalculateSummary();
             lastCategoryClicked = null;
             lastCategoryIndex = 0;
             chartDirty = true;
-            summaryDirty = true;
+            summaryDirty = false;
         }
 
         RefreshChartData(forceSummary: true);
@@ -466,6 +480,7 @@
         engineResults.Clear();
         summaryResult = null;
         evals = new Eval?[MoveCount];
+        moveQualities = new AnalysisMoveQuality?[MoveCount];
         analysedMoveCount = 0;
         whiteSummary = new();
         blackSummary = new();
@@ -503,6 +518,8 @@
 
             summaryResult = FindSummaryResult() ?? engineResults.FirstOrDefault();
             evals = summaryResult?.Evals ?? new Eval?[MoveCount];
+            EnsureMoveQualityStorage();
+            Array.Clear(moveQualities);
             ResetChartData();
             analysedMoveCount = 0;
             whiteSummary = new();
@@ -525,7 +542,12 @@
     private void RefreshChartData(bool forceSummary)
     {
         if (!chartReady)
+        {
+            if (forceSummary)
+                RefreshSummaryData();
+
             return;
+        }
 
         EnsureChartStorage();
 
@@ -551,6 +573,15 @@
 
         if (shouldUpdateChart)
             chartJsConfig.SetDatasetsSmooth(GetActiveDatasets(), chartLabels);
+    }
+
+    private void RefreshSummaryData()
+    {
+        lock (evalLock)
+        {
+            CalculateSummary();
+            summaryDirty = false;
+        }
     }
 
     private void UpdateCurrentLine(int moveNumber)
@@ -738,6 +769,8 @@
         var white = new AnalysisSummary();
         var black = new AnalysisSummary();
         double previousWinningChance = 50;
+        EnsureMoveQualityStorage();
+        Array.Clear(moveQualities);
 
         for (var i = 0; i < evals.Length; i++)
         {
@@ -747,17 +780,19 @@
 
             var moveNumber = i + 1;
             var currentWinningChance = AnalysisEvaluationMetrics.GetWinningChance(eval.Score, eval.Mate);
-            double loss;
+            var quality = AnalysisEvaluationMetrics.ClassifyMoveQuality(
+                moveNumber,
+                previousWinningChance,
+                currentWinningChance);
+            moveQualities[i] = quality;
 
             if (moveNumber % 2 != 0)
             {
-                loss = previousWinningChance - currentWinningChance;
-                UpdateSummary(white, loss, moveNumber);
+                UpdateSummary(white, quality, moveNumber);
             }
             else
             {
-                loss = currentWinningChance - previousWinningChance;
-                UpdateSummary(black, loss, moveNumber);
+                UpdateSummary(black, quality, moveNumber);
             }
 
             previousWinningChance = currentWinningChance;
@@ -857,9 +892,15 @@
         return node;
     }
 
-    private static void UpdateSummary(AnalysisSummary summary, double loss, int moveNumber)
+    private void EnsureMoveQualityStorage()
     {
-        switch (AnalysisEvaluationMetrics.ClassifyLoss(loss))
+        if (moveQualities.Length != MoveCount)
+            moveQualities = new AnalysisMoveQuality?[MoveCount];
+    }
+
+    private static void UpdateSummary(AnalysisSummary summary, AnalysisMoveQuality quality, int moveNumber)
+    {
+        switch (quality)
         {
             case AnalysisMoveQuality.Blunder:
                 summary.BlunderMoves.Add(moveNumber);

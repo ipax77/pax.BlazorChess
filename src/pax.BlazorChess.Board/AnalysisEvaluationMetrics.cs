@@ -46,6 +46,18 @@ public static class AnalysisEvaluationMetrics
             : winningChanceLoss >= 3 ? AnalysisMoveQuality.Good
             : AnalysisMoveQuality.Best;
 
+    public static AnalysisMoveQuality ClassifyMoveQuality(
+        int moveNumber,
+        double previousWinningChance,
+        double currentWinningChance)
+    {
+        var loss = moveNumber % 2 != 0
+            ? previousWinningChance - currentWinningChance
+            : currentWinningChance - previousWinningChance;
+
+        return ClassifyLoss(loss);
+    }
+
     public static double?[] BuildAverageDisplayScores(
         IReadOnlyList<IReadOnlyList<double?>> engineDisplayScores,
         int moveCount)

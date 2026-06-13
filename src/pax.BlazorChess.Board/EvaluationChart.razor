@@ -109,6 +109,9 @@
         chart?.StopAnalysis();
     }
 
+    public AnalysisMoveQuality? GetMoveQuality(int moveNumber)
+        => chart?.GetMoveQuality(moveNumber);
+
     public GameAnalysisRunSnapshot? CreateAnalysisRunSnapshot()
         => chart?.CreateAnalysisRunSnapshot();
 

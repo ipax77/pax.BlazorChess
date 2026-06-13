@@ -26,6 +26,13 @@
                             <img src="@GetPieceSvg(piece.Value)" class="piece" alt="@GetPieceAlt(piece.Value)" draggable="false" />
                         }
 
+                        @if (ShouldShowMoveEvaluationAnnotation(square))
+                        {
+                            <span class="@GetMoveEvaluationAnnotationCss()" aria-label="@GetMoveEvaluationAnnotationLabel()">
+                                @GetMoveEvaluationAnnotationText()
+                            </span>
+                        }
+
                         @if (viewFile == 0)
                         {
                             <span class="coordinate rank-label @(isLightSquare ? "dark-text" : "light-text")">
@@ -74,6 +81,9 @@
     public Move? LastMove { get; set; }
 
     [Parameter]
+    public MoveEvaluationAnnotation? MoveEvaluationAnnotation { get; set; }
+
+    [Parameter]
     public EventCallback<Move> OnMovePlayed { get; set; }
 
     public Guid BoardGuid { get; } = Guid.NewGuid();
@@ -114,10 +124,14 @@
         }
     }
 
-    public void Update(BoardPosition boardPosition, Move? lastMove)
+    public void Update(
+        BoardPosition boardPosition,
+        Move? lastMove,
+        MoveEvaluationAnnotation? moveEvaluationAnnotation = null)
     {
         Position = boardPosition;
         LastMove = lastMove;
+        MoveEvaluationAnnotation = moveEvaluationAnnotation;
         selectedSquare = null;
         validDestinations.Clear();
         boardAnnotation.Clear();
@@ -421,6 +435,30 @@
 
         return string.Join(' ', classes);
     }
+
+    private bool ShouldShowMoveEvaluationAnnotation(Square square)
+        => MoveEvaluationAnnotation is { } annotation
+            && annotation.Square == square
+            && annotation.Quality is AnalysisMoveQuality.Blunder
+                or AnalysisMoveQuality.Mistake
+                or AnalysisMoveQuality.Inaccuracy;
+
+    private string GetMoveEvaluationAnnotationCss()
+        => MoveEvaluationAnnotation?.Quality == AnalysisMoveQuality.Inaccuracy
+            ? "move-evaluation-badge inaccuracy"
+            : "move-evaluation-badge critical";
+
+    private string GetMoveEvaluationAnnotationText()
+        => MoveEvaluationAnnotation?.Quality == AnalysisMoveQuality.Blunder ? "??" : "?";
+
+    private string GetMoveEvaluationAnnotationLabel()
+        => MoveEvaluationAnnotation?.Quality switch
+        {
+            AnalysisMoveQuality.Blunder => "Blunder",
+            AnalysisMoveQuality.Mistake => "Mistake",
+            AnalysisMoveQuality.Inaccuracy => "Inaccuracy",
+            _ => "Move evaluation"
+        };
 
     private static string GetPieceSvg(Piece piece)
     {

@@ -97,6 +97,7 @@
             <BoardComponent @ref="board"
                             Position="Workspace.AnalysisBoard.CurrentPosition"
                             LastMove="Workspace.LastMove"
+                            MoveEvaluationAnnotation="CurrentMoveEvaluationAnnotation"
                             OnMovePlayed="ApplyMove" />
         </div>
 
@@ -336,11 +337,13 @@
     private bool analysisRunBusy;
     private bool navigationKeyDefaultsRegistered;
     private bool fullAnalysisRunning;
+    private bool boardMoveEvaluationAvailable;
 
     private int MoveCount => CountMainLineMoves();
     private int MaxAnalysisThreads => Math.Max(1, Environment.ProcessorCount);
     private int ClampedAnalysisThreads => Math.Clamp(analysisThreads, 1, MaxAnalysisThreads);
     private int AnalysisThinkTimeMs => Math.Max(100, (int)Math.Round(Math.Max(0.1, analysisThinkTimeSeconds) * 1000));
+    private MoveEvaluationAnnotation? CurrentMoveEvaluationAnnotation => GetCurrentMoveEvaluationAnnotation();
     private int AvailableAnalysisEngineCount => Workspace.EngineRunOptions.Count(IsEnabledAnalysisEngineAvailable);
     private bool CanAnalyzeGame
         => MoveCount > 0 && (gameAnalysisMode == GameAnalysisMode.EnabledEngines
@@ -446,7 +449,7 @@
     {
         Workspace.ApplyMove(move);
         ResetAnalysisChart();
-        board?.Update(Workspace.AnalysisBoard.CurrentPosition, move);
+        UpdateBoard();
         SyncText();
         if (liveAnalysis is not null)
             await liveAnalysis.NotifyPositionChangedAsync();
@@ -466,7 +469,7 @@
 
     private async Task RefreshPositionAsync()
     {
-        board?.Update(Workspace.AnalysisBoard.CurrentPosition, Workspace.LastMove);
+        UpdateBoard();
         SyncText();
         if (liveAnalysis is not null)
             await liveAnalysis.NotifyPositionChangedAsync();
@@ -474,7 +477,7 @@
 
     private Task RefreshBoard()
     {
-        board?.Update(Workspace.AnalysisBoard.CurrentPosition, Workspace.LastMove);
+        UpdateBoard();
         SyncText();
         StateHasChanged();
         return Task.CompletedTask;
@@ -575,12 +578,16 @@
             return;
 
         ClearAnalysisRunSelection(clearList: false);
+        boardMoveEvaluationAvailable = false;
+        UpdateBoard();
         fullAnalysisRunning = true;
         StateHasChanged();
 
         try
         {
             await evaluationChart.Analyze();
+            boardMoveEvaluationAvailable = evaluationChart.HasAnalysisResults;
+            UpdateBoard();
         }
         finally
         {
@@ -624,6 +631,7 @@
     {
         Workspace.MarkAnalysisChanged();
         annotation?.Update();
+        UpdateBoard();
         StateHasChanged();
         return Task.CompletedTask;
     }
@@ -699,6 +707,31 @@
     {
         fenInput = Workspace.Fen;
         pgnInput = Workspace.Pgn;
+    }
+
+    private void UpdateBoard()
+    {
+        board?.Update(
+            Workspace.AnalysisBoard.CurrentPosition,
+            Workspace.LastMove,
+            GetCurrentMoveEvaluationAnnotation());
+    }
+
+    private MoveEvaluationAnnotation? GetCurrentMoveEvaluationAnnotation()
+    {
+        if (!boardMoveEvaluationAvailable
+            || Workspace.LastMove is not { } lastMove
+            || evaluationChart is null)
+        {
+            return null;
+        }
+
+        var quality = evaluationChart.GetMoveQuality(Workspace.CurrentPly);
+        return quality is AnalysisMoveQuality.Blunder
+            or AnalysisMoveQuality.Mistake
+            or AnalysisMoveQuality.Inaccuracy
+            ? new MoveEvaluationAnnotation(lastMove.To, quality.Value)
+            : null;
     }
 
     private void SyncGameDetails()
@@ -910,6 +943,8 @@
         analysisRunName = details.Name;
         selectedAnalysisRunIdText = details.Id.ToString("D");
         analysisRunError = null;
+        boardMoveEvaluationAvailable = evaluationChart.HasAnalysisResults;
+        UpdateBoard();
     }
 
     private async Task RunAnalysisRunActionAsync(Func<Task> action)
@@ -963,6 +998,7 @@
     private void ResetAnalysisChart()
     {
         analysisChartVersion++;
+        boardMoveEvaluationAvailable = false;
         ClearAnalysisRunSelection(clearList: false);
     }
 

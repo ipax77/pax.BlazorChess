@@ -112,6 +112,35 @@
     z-index: 6;
 }
 
+.move-evaluation-badge {
+    position: absolute;
+    right: 8%;
+    bottom: 7%;
+    min-width: 1.35em;
+    height: 1.35em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.18em;
+    border-radius: 999px;
+    color: #ffffff;
+    font-size: clamp(12px, 2.2vw, 22px);
+    font-weight: 800;
+    line-height: 1;
+    pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    z-index: 7;
+}
+
+.move-evaluation-badge.critical {
+    background: #d92828;
+}
+
+.move-evaluation-badge.inaccuracy {
+    background: #2077d4;
+}
+
 .coordinate {
     position: absolute;
     font-size: clamp(8px, 1.5vw, 12px);

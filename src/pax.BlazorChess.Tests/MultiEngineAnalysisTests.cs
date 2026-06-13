@@ -59,6 +59,16 @@ public sealed class MultiEngineAnalysisTests
     }
 
     [TestMethod]
+    public void Analysis_move_quality_uses_side_to_move_winning_chance_loss()
+    {
+        Assert.AreEqual(AnalysisMoveQuality.Blunder, AnalysisEvaluationMetrics.ClassifyMoveQuality(1, 80, 50));
+        Assert.AreEqual(AnalysisMoveQuality.Mistake, AnalysisEvaluationMetrics.ClassifyMoveQuality(2, 50, 70));
+        Assert.AreEqual(AnalysisMoveQuality.Inaccuracy, AnalysisEvaluationMetrics.ClassifyMoveQuality(3, 60, 50));
+        Assert.AreEqual(AnalysisMoveQuality.Good, AnalysisEvaluationMetrics.ClassifyMoveQuality(4, 50, 53));
+        Assert.AreEqual(AnalysisMoveQuality.Best, AnalysisEvaluationMetrics.ClassifyMoveQuality(5, 52.99, 50));
+    }
+
+    [TestMethod]
     public void Analysis_mate_regression_does_not_emit_exploding_chart_score()
     {
         var mateDisplayScore = AnalysisEvaluationMetrics.GetDisplayScore(0, -2);
