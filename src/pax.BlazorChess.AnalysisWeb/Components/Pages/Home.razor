@@ -767,13 +767,43 @@
     private async Task SaveGameAsync(bool saveAs)
     {
         CommitGameDetails();
+        var analysisRunSnapshot = evaluationChart?.HasAnalysisResults == true
+            ? evaluationChart.CreateAnalysisRunSnapshot()
+            : null;
+
         await RunPersistenceActionAsync(async () =>
         {
             await Workspace.SaveCurrentAnalysisAsync(saveAs);
             SyncGameDetails();
+            if (saveAs)
+                currentAnalysisRunId = null;
+
+            await SaveVisibleAnalysisRunSnapshotAsync(analysisRunSnapshot, saveAs);
             await RefreshSavedGamesAsync();
             await RefreshAnalysisRunsAsync();
         });
+    }
+
+    private async Task SaveVisibleAnalysisRunSnapshotAsync(GameAnalysisRunSnapshot? snapshot, bool saveAs)
+    {
+        if (snapshot is null || snapshot.Engines.Count == 0)
+            return;
+
+        try
+        {
+            analysisRunError = null;
+            var savedId = await Workspace.SaveCurrentGameAnalysisRunAsync(
+                analysisRunName,
+                snapshot,
+                saveAs ? null : currentAnalysisRunId);
+
+            currentAnalysisRunId = savedId;
+            selectedAnalysisRunIdText = savedId.ToString("D");
+        }
+        catch (Exception ex)
+        {
+            analysisRunError = ex.Message;
+        }
     }
 
     private async Task RefreshAnalysisRunsAsync()

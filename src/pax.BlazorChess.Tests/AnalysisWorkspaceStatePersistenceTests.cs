@@ -141,6 +141,37 @@ public sealed class AnalysisWorkspaceStatePersistenceTests
     }
 
     [TestMethod]
+    public async Task Save_as_game_can_receive_copied_analysis_run_without_moving_original_run()
+    {
+        var repository = new RecordingChessBoardRepository([]);
+        await using var state = CreateState(repository);
+
+        Assert.IsTrue(state.TryLoadPgn("1. d4 d5"));
+        state.RenameGame("Original");
+        await state.SaveCurrentAnalysisAsync();
+        var originalGameId = state.CurrentAnalyzedGameId;
+        var originalRunId = await state.SaveCurrentGameAnalysisRunAsync("Original run", CreateAnalysisRunSnapshot());
+
+        state.RenameGame("Copy");
+        await state.SaveCurrentAnalysisAsync(saveAs: true);
+        var copyGameId = state.CurrentAnalyzedGameId;
+        var copyRunId = await state.SaveCurrentGameAnalysisRunAsync("Copied run", CreateAnalysisRunSnapshot());
+
+        var originalRuns = await repository.ListAnalyzedGameAnalysisRuns(originalGameId!.Value);
+        var copyRuns = await state.ListCurrentGameAnalysisRunsAsync();
+        var originalRun = await state.LoadGameAnalysisRunAsync(originalRunId);
+        var copyRun = await state.LoadGameAnalysisRunAsync(copyRunId);
+
+        Assert.AreNotEqual(originalGameId, copyGameId);
+        Assert.AreEqual(1, originalRuns.Count);
+        Assert.AreEqual(originalRunId, originalRuns[0].Id);
+        Assert.AreEqual(1, copyRuns.Count);
+        Assert.AreEqual(copyRunId, copyRuns[0].Id);
+        Assert.AreEqual(originalGameId, originalRun?.AnalyzedGameId);
+        Assert.AreEqual(copyGameId, copyRun?.AnalyzedGameId);
+    }
+
+    [TestMethod]
     public async Task Load_saved_analysis_restores_board_metadata_id_and_clean_state()
     {
         var repository = new RecordingChessBoardRepository([]);
