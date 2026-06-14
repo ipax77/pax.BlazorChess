@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using pax.chess;
 using pax.chess.Analyze;
 using pax.chess.Extensions;
@@ -12,19 +11,24 @@ public static class AnalysisSerializer
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false,
-        MaxDepth = 256,
-        ReferenceHandler = ReferenceHandler.IgnoreCycles
+        MaxDepth = 256
     };
 
-    public static AnalysisSnapshot CreateSnapshot(AnalysisBoard board)
+    private static readonly JsonDocumentOptions JsonDocumentOptions = new()
+    {
+        MaxDepth = 256
+    };
+
+    public static FlatAnalysisSnapshot CreateSnapshot(AnalysisBoard board)
     {
         ArgumentNullException.ThrowIfNull(board);
 
         var initialFen = FenSerializer.Serialize(board.ChessGame.InitialPosition);
         var pgn = PgnSerializer.Serialize(board.ChessGame);
-        var root = ToDto(board.Root);
+        var rootId = Guid.NewGuid();
+        var nodes = ToFlatNodes(board.Root, rootId);
 
-        return new AnalysisSnapshot(initialFen, pgn, root);
+        return new FlatAnalysisSnapshot(initialFen, pgn, rootId, nodes);
     }
 
     public static string Serialize(AnalysisBoard board)
@@ -35,10 +39,33 @@ public static class AnalysisSerializer
 
     public static AnalysisBoard Restore(string json)
     {
-        var snapshot = JsonSerializer.Deserialize<AnalysisSnapshot>(json, JsonOptions)
-            ?? throw new InvalidOperationException("Failed to deserialize analysis snapshot.");
+        using var document = JsonDocument.Parse(json, JsonDocumentOptions);
+        var root = document.RootElement;
+        if (root.TryGetProperty("nodes", out _))
+        {
+            var flatSnapshot = root.Deserialize<FlatAnalysisSnapshot>(JsonOptions)
+                ?? throw new InvalidOperationException("Failed to deserialize analysis snapshot.");
 
-        return Restore(snapshot);
+            return Restore(flatSnapshot);
+        }
+
+        var legacySnapshot = root.Deserialize<AnalysisSnapshot>(JsonOptions)
+            ?? throw new InvalidOperationException("Failed to deserialize legacy analysis snapshot.");
+
+        return Restore(legacySnapshot);
+    }
+
+    public static AnalysisBoard Restore(FlatAnalysisSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var initialPosition = FenSerializer.Parse(snapshot.InitialFen ?? string.Empty);
+        var root = BuildLegacyTree(snapshot);
+        var board = new AnalysisBoard(new ChessGame(initialPosition));
+        MergeTree(board, board.Root, root);
+        board.MoveToNode(board.Root);
+
+        return board;
     }
 
     public static AnalysisBoard Restore(AnalysisSnapshot snapshot)
@@ -46,55 +73,115 @@ public static class AnalysisSerializer
         ArgumentNullException.ThrowIfNull(snapshot);
 
         var initialPosition = FenSerializer.Parse(snapshot.InitialFen ?? string.Empty);
-        var game = BuildGameFromSnapshot(snapshot, initialPosition);
-
-        var board = new AnalysisBoard(game);
+        var board = new AnalysisBoard(new ChessGame(initialPosition));
         MergeTree(board, board.Root, snapshot.Root);
         board.MoveToNode(board.Root);
 
         return board;
     }
 
-    private static ChessGame BuildGameFromSnapshot(AnalysisSnapshot snapshot, BoardPosition initialPosition)
+    private static List<FlatAnalysisNodeDto> ToFlatNodes(MoveNode root, Guid rootId)
     {
-        var game = new ChessGame(initialPosition);
-        var currentPosition = initialPosition;
-
-        foreach (var move in EnumerateMainLineMoves(snapshot.Root, initialPosition))
+        var nodes = new List<FlatAnalysisNodeDto>(CountNodes(root));
+        var nodeIds = new Dictionary<MoveNode, Guid>(ReferenceEqualityComparer.Instance)
         {
-            var san = PgnSerializer.ToSan(move, currentPosition);
-            game.ApplyMove(move, san);
-            currentPosition = currentPosition.MakeMove(move);
-        }
-
-        return game;
-    }
-
-    private static IEnumerable<Move> EnumerateMainLineMoves(AnalysisNodeDto root, BoardPosition start)
-    {
-        var current = root.Children.FirstOrDefault();
-        var position = start;
-
-        while (current is not null)
-        {
-            var move = CreateMove(current, position);
-            yield return move;
-            position = position.MakeMove(move);
-            current = current.Children.FirstOrDefault();
-        }
-    }
-
-    private static AnalysisNodeDto ToDto(MoveNode node)
-    {
-        return new AnalysisNodeDto
-        {
-            Uci = node.Move is null ? null : Uci.GetUci(node.Move),
-            San = node.San,
-            Note = node.Note,
-            Evaluation = node.Evaluation,
-            Depth = node.Depth,
-            Children = node.Children.Select(ToDto).ToList()
+            [root] = rootId
         };
+        var visited = new HashSet<MoveNode>(ReferenceEqualityComparer.Instance);
+        var stack = new Stack<(MoveNode Node, Guid Id, Guid? ParentId, int Order)>();
+        stack.Push((root, rootId, null, 0));
+
+        while (stack.Count > 0)
+        {
+            var (node, nodeId, parentId, order) = stack.Pop();
+            if (!visited.Add(node))
+                throw new InvalidOperationException("Analysis tree contains a cycle or shared node reference.");
+
+            nodes.Add(new FlatAnalysisNodeDto
+            {
+                Id = nodeId,
+                ParentId = parentId,
+                Order = order,
+                Uci = node.Move is null ? null : Uci.GetUci(node.Move),
+                San = node.San,
+                Note = node.Note,
+                Evaluation = node.Evaluation,
+                Depth = node.Depth
+            });
+
+            for (var childIndex = node.Children.Count - 1; childIndex >= 0; childIndex--)
+            {
+                var child = node.Children[childIndex];
+                var childId = Guid.NewGuid();
+                if (!nodeIds.TryAdd(child, childId))
+                    throw new InvalidOperationException("Analysis tree contains a cycle or shared node reference.");
+
+                stack.Push((child, childId, nodeId, childIndex));
+            }
+        }
+
+        return nodes;
+    }
+
+    private static int CountNodes(MoveNode root)
+    {
+        var count = 0;
+        var visited = new HashSet<MoveNode>(ReferenceEqualityComparer.Instance);
+        var stack = new Stack<MoveNode>();
+        stack.Push(root);
+
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (!visited.Add(node))
+                throw new InvalidOperationException("Analysis tree contains a cycle or shared node reference.");
+
+            count++;
+            for (var i = 0; i < node.Children.Count; i++)
+                stack.Push(node.Children[i]);
+        }
+
+        return count;
+    }
+
+    private static AnalysisNodeDto BuildLegacyTree(FlatAnalysisSnapshot snapshot)
+    {
+        if (snapshot.Nodes.Count == 0)
+            throw new InvalidOperationException("Analysis snapshot does not contain any nodes.");
+
+        var byId = new Dictionary<Guid, AnalysisNodeDto>(snapshot.Nodes.Count);
+        foreach (var flatNode in snapshot.Nodes)
+        {
+            if (!byId.TryAdd(flatNode.Id, new AnalysisNodeDto
+                {
+                    Uci = flatNode.Uci,
+                    San = flatNode.San,
+                    Note = flatNode.Note,
+                    Evaluation = flatNode.Evaluation,
+                    Depth = flatNode.Depth
+                }))
+            {
+                throw new InvalidOperationException($"Analysis snapshot contains duplicate node id '{flatNode.Id}'.");
+            }
+        }
+
+        var orderedNodes = snapshot.Nodes.OrderBy(n => n.Order).ToList();
+        foreach (var flatNode in orderedNodes)
+        {
+            if (flatNode.ParentId is null)
+                continue;
+
+            if (!byId.TryGetValue(flatNode.ParentId.Value, out var parent))
+                throw new InvalidOperationException($"Analysis snapshot node '{flatNode.Id}' references missing parent '{flatNode.ParentId}'.");
+
+            parent.Children.Add(byId[flatNode.Id]);
+        }
+
+        var rootNodes = snapshot.Nodes.Where(n => n.ParentId is null).ToList();
+        if (rootNodes.Count != 1 || rootNodes[0].Id != snapshot.RootId)
+            throw new InvalidOperationException("Analysis snapshot must contain exactly one root node.");
+
+        return byId[snapshot.RootId];
     }
 
     private static void MergeTree(AnalysisBoard board, MoveNode actualNode, AnalysisNodeDto snapshotNode)
@@ -152,6 +239,24 @@ public static class AnalysisSerializer
 }
 
 public sealed record AnalysisSnapshot(string InitialFen, string? Pgn, AnalysisNodeDto Root);
+
+public sealed record FlatAnalysisSnapshot(
+    string InitialFen,
+    string? Pgn,
+    Guid RootId,
+    IReadOnlyList<FlatAnalysisNodeDto> Nodes);
+
+public sealed class FlatAnalysisNodeDto
+{
+    public Guid Id { get; set; }
+    public Guid? ParentId { get; set; }
+    public int Order { get; set; }
+    public string? Uci { get; set; }
+    public string? San { get; set; }
+    public string? Note { get; set; }
+    public int? Evaluation { get; set; }
+    public int? Depth { get; set; }
+}
 
 public sealed class AnalysisNodeDto
 {

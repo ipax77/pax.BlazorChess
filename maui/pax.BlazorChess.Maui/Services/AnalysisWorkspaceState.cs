@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using System.Text;
 using pax.BlazorChess.Board.Storage;
 using pax.chess;
 using pax.chess.Analyze;
@@ -339,20 +340,26 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
 
     private string BuildMainLinePgn()
     {
-        List<string> parts = [];
+        var builder = new StringBuilder();
         var current = AnalysisBoard.Root.MainLine;
         var ply = 0;
         while (current is not null)
         {
-            if (ply % 2 == 0)
-                parts.Add($"{(ply / 2) + 1}.");
+            if (builder.Length > 0)
+                builder.Append(' ');
 
-            parts.Add(current.San);
+            if (ply % 2 == 0)
+                builder.Append((ply / 2) + 1).Append('.');
+
+            if (ply % 2 == 0)
+                builder.Append(' ');
+
+            builder.Append(current.San);
             current = current.MainLine;
             ply++;
         }
 
-        return parts.Count == 0 ? string.Empty : string.Join(' ', parts);
+        return builder.ToString();
     }
 
     private static AnalysisBoard CreateInitialAnalysisBoard()

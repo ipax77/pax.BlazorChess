@@ -25,7 +25,7 @@ namespace pax.BlazorChess.Maui
     		builder.Services.AddBlazorWebViewDeveloperTools();
     		builder.Logging.AddDebug();
 #endif
-            var sqliteDirectory = "/data/chess";
+            var sqliteDirectory = Path.Combine(FileSystem.AppDataDirectory, "chess");
             Directory.CreateDirectory(sqliteDirectory);
             var sqliteConnectionString = $"Data Source={Path.Combine(sqliteDirectory, "blazorChess.db")}";
             builder.Services.AddDbContext<ChessContext>(options => options
@@ -39,7 +39,14 @@ namespace pax.BlazorChess.Maui
             builder.Services.AddChessBoard();
             builder.Services.AddScoped<AnalysisWorkspaceState>();
 
-            return builder.Build();
+            var app = builder.Build();
+            using (var scope = app.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ChessContext>();
+                context.Database.Migrate();
+            }
+
+            return app;
         }
     }
 }

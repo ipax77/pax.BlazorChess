@@ -7,6 +7,7 @@ using pax.BlazorChess.Db.Entities;
 using pax.BlazorChess.Board.Storage;
 using pax.chess;
 using pax.chess.Analyze;
+using pax.chess.Extensions;
 using pax.uciChessEngine.EngineServices;
 
 namespace pax.BlazorChess.Tests;
@@ -26,6 +27,23 @@ public class EfChessBoardRepositoryTests
         var id = await repo.SaveAnalyzedGame("Queen's Gambit", board);
         var loaded = await repo.LoadAnalyzedGame(id);
 
+        Assert.IsNotNull(loaded, "Loaded analysis should not be null.");
+        Assert.AreEqual(originalLength, GetMainLineCount(loaded!.Root), "Main line length changed after roundtrip.");
+    }
+
+    [TestMethod]
+    public async Task Save_and_load_long_main_line_exceeding_recursive_json_depth()
+    {
+        await using var harness = await RepositoryHarness.Create();
+        var repo = harness.Repository;
+
+        var board = CreateRepeatedKnightBoard(fullMoves: 140);
+        var originalLength = GetMainLineCount(board.Root);
+
+        var id = await repo.SaveAnalyzedGame("Long knight shuffle", board);
+        var loaded = await repo.LoadAnalyzedGame(id);
+
+        Assert.AreEqual(280, originalLength);
         Assert.IsNotNull(loaded, "Loaded analysis should not be null.");
         Assert.AreEqual(originalLength, GetMainLineCount(loaded!.Root), "Main line length changed after roundtrip.");
     }
@@ -316,6 +334,34 @@ public class EfChessBoardRepositoryTests
                 }
             ]
         };
+
+    private static AnalysisBoard CreateRepeatedKnightBoard(int fullMoves)
+    {
+        var board = new AnalysisBoard(new ChessGame(BoardPosition.CreateInitial()));
+        for (var moveNumber = 1; moveNumber <= fullMoves; moveNumber++)
+        {
+            if (moveNumber % 2 == 1)
+            {
+                AddMove(board, "g1f3");
+                AddMove(board, "g8f6");
+            }
+            else
+            {
+                AddMove(board, "f3g1");
+                AddMove(board, "f6g8");
+            }
+        }
+
+        return board;
+    }
+
+    private static void AddMove(AnalysisBoard board, string uci)
+    {
+        var move = Uci.CreateMove(uci, board.CurrentPosition)
+            ?? throw new InvalidOperationException($"Could not create move '{uci}'.");
+
+        board.AddVariation(move);
+    }
 
     private sealed class RepositoryHarness : IAsyncDisposable
     {
