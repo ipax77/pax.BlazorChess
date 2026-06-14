@@ -992,6 +992,11 @@ textarea.text-input {
     margin: 10vh auto 0;
 }
 
+.saved-games-dialog {
+    width: min(860px, calc(100vw - 24px));
+    margin-top: 6vh;
+}
+
 .modal-content {
     background: #26231f;
     border: 1px solid #514a40;
@@ -1021,6 +1026,100 @@ textarea.text-input {
 .modal-title {
     margin: 0;
     font-size: 1rem;
+}
+
+.saved-games-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: min(70vh, 640px);
+    min-height: 0;
+}
+
+.saved-games-tools {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(150px, 220px);
+    gap: 10px;
+}
+
+.saved-games-count {
+    color: #aaa196;
+    font-size: 0.8rem;
+}
+
+.saved-games-empty {
+    border: 1px dashed #514a40;
+    border-radius: 4px;
+    color: #aaa196;
+    padding: 18px;
+    text-align: center;
+}
+
+.saved-games-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.saved-game-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #514a40;
+    border-radius: 4px;
+    background: #1f1d19;
+    padding: 7px;
+}
+
+    .saved-game-row.current {
+        border-color: #8ab94a;
+        background: #29321f;
+    }
+
+.saved-game-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    text-align: left;
+}
+
+.saved-game-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.saved-game-date,
+.saved-game-current {
+    color: #aaa196;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.saved-game-current {
+    color: #bdda8a;
+}
+
+.saved-game-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.command-button.danger {
+    border-color: #8d4a42;
+    background: #4b2b25;
+    color: #ffd1c7;
 }
 
 .btn,
@@ -1133,6 +1232,20 @@ textarea.text-input {
     .full-analysis-runbar {
         grid-template-columns: 1fr;
     }
+
+    .saved-games-tools,
+    .saved-game-row,
+    .saved-game-main {
+        grid-template-columns: 1fr;
+    }
+
+    .saved-game-actions {
+        justify-content: stretch;
+    }
+
+        .saved-game-actions .command-button {
+            flex: 1 1 110px;
+        }
 
     .full-analysis-actions {
         align-items: stretch;

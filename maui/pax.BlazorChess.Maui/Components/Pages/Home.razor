@@ -25,7 +25,7 @@
                         @bind="selectedSavedGameIdText"
                         @onkeydown:stopPropagation="true">
                     <option value="">Select saved game</option>
-                    @foreach (var saved in savedAnalyses)
+                    @foreach (var saved in RecentSavedAnalyses)
                     {
                         <option value="@saved.Id.ToString("D")">@saved.Name (@saved.UpdatedAt.LocalDateTime.ToString("g"))</option>
                     }
@@ -35,6 +35,10 @@
                 <button type="button" class="command-button" disabled="@(!CanLoadSavedGame)" @onclick="LoadSelectedSavedGame">
                     <span class="bi bi-folder2-open" aria-hidden="true"></span>
                     <span>Load</span>
+                </button>
+                <button type="button" class="command-button" disabled="@persistenceBusy" @onclick="OpenSavedGamesModal">
+                    <span class="bi bi-search" aria-hidden="true"></span>
+                    <span>Manage</span>
                 </button>
                 <button type="button" class="command-button" disabled="@(!CanSaveGame)" @onclick="SaveGame">
                     <span class="bi bi-save" aria-hidden="true"></span>
@@ -316,6 +320,16 @@
                      OnEngineDeleted="EngineDeleted"
                      OnChanged="EngineChanged" />
 
+@if (savedGamesModalVisible)
+{
+    <SavedGamesModal Games="savedAnalyses"
+                     CurrentGameId="Workspace.CurrentAnalyzedGameId"
+                     IsBusy="persistenceBusy"
+                     OnLoad="LoadSavedGameFromModal"
+                     OnDelete="DeleteSavedGameFromModal"
+                     OnClose="CloseSavedGamesModal" />
+}
+
 @code {
     private BoardComponent? board;
     private LiveAnalysisPanel? liveAnalysis;
@@ -352,8 +366,29 @@
     private bool navigationKeyDefaultsRegistered;
     private bool fullAnalysisRunning;
     private bool boardMoveEvaluationAvailable;
+    private bool savedGamesModalVisible;
 
     private int MoveCount => CountMainLineMoves();
+    private IEnumerable<AnalyzedGameSummary> RecentSavedAnalyses
+    {
+        get
+        {
+            var currentId = Workspace.CurrentAnalyzedGameId;
+            var currentIncluded = false;
+            foreach (var saved in savedAnalyses.Take(8))
+            {
+                currentIncluded |= saved.Id == currentId;
+                yield return saved;
+            }
+
+            if (!currentIncluded && currentId is { } id)
+            {
+                var current = savedAnalyses.FirstOrDefault(saved => saved.Id == id);
+                if (current is not null)
+                    yield return current;
+            }
+        }
+    }
     private int MaxAnalysisThreads => Math.Max(1, Environment.ProcessorCount);
     private int ClampedAnalysisThreads => Math.Clamp(analysisThreads, 1, MaxAnalysisThreads);
     private int AnalysisThinkTimeMs => Math.Max(100, (int)Math.Round(Math.Max(0.1, analysisThinkTimeSeconds) * 1000));
@@ -814,18 +849,55 @@
         if (!Guid.TryParse(selectedSavedGameIdText, out var id))
             return;
 
-        await RunPersistenceActionAsync(async () =>
+        await LoadSavedGameByIdAsync(id, closeModal: false);
+    }
+
+    private Task LoadSavedGameFromModal(Guid id)
+        => LoadSavedGameByIdAsync(id, closeModal: true);
+
+    private async Task LoadSavedGameByIdAsync(Guid id, bool closeModal)
     {
-        await Workspace.LoadAnalyzedGameAsync(id);
-        ResetAnalysisChart();
-        SyncText();
-        SyncGameDetails();
-        currentAnalysisRunId = null;
-        analysisRunName = "Analysis";
-        await RefreshAnalysisRunsAsync();
-        ScheduleLatestAnalysisRunAutoLoad();
-        await RefreshPositionAsync();
-    });
+        await RunPersistenceActionAsync(async () =>
+        {
+            await Workspace.LoadAnalyzedGameAsync(id);
+            ResetAnalysisChart();
+            SyncText();
+            SyncGameDetails();
+            currentAnalysisRunId = null;
+            analysisRunName = "Analysis";
+            await RefreshAnalysisRunsAsync();
+            ScheduleLatestAnalysisRunAutoLoad();
+            await RefreshPositionAsync();
+            if (closeModal)
+                savedGamesModalVisible = false;
+        });
+    }
+
+    private async Task DeleteSavedGameFromModal(Guid id)
+    {
+        await RunPersistenceActionAsync(async () =>
+        {
+            var deletedCurrentGame = Workspace.CurrentAnalyzedGameId == id;
+            await Workspace.DeleteAnalyzedGameAsync(id);
+            if (deletedCurrentGame)
+            {
+                ClearAnalysisRunSelection(clearList: true);
+                SyncGameDetails();
+                UpdateBoard();
+            }
+
+            await RefreshSavedGamesAsync();
+        });
+    }
+
+    private void OpenSavedGamesModal()
+    {
+        savedGamesModalVisible = true;
+    }
+
+    private void CloseSavedGamesModal()
+    {
+        savedGamesModalVisible = false;
     }
 
     private Task SaveGame()

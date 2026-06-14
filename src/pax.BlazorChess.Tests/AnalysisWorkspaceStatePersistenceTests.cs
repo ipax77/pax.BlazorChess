@@ -243,6 +243,54 @@ public sealed class AnalysisWorkspaceStatePersistenceTests
     }
 
     [TestMethod]
+    public async Task Delete_non_current_saved_analysis_removes_it_without_changing_workspace()
+    {
+        var repository = new RecordingChessBoardRepository([]);
+        await using var state = CreateState(repository);
+
+        Assert.IsTrue(state.TryLoadPgn("1. e4 e5"));
+        state.RenameGame("Current game");
+        await state.SaveCurrentAnalysisAsync();
+        var currentId = state.CurrentAnalyzedGameId!.Value;
+
+        var otherBoard = new AnalysisBoard(pax.chess.PgnSerializer.Parse("1. d4 d5"));
+        var otherId = await repository.SaveAnalyzedGame("Other game", otherBoard);
+
+        await state.DeleteAnalyzedGameAsync(otherId);
+
+        var summaries = await state.ListAnalyzedGamesAsync();
+        Assert.AreEqual(currentId, state.CurrentAnalyzedGameId);
+        Assert.IsFalse(state.IsDirty);
+        Assert.AreEqual("Current game", state.GameName);
+        Assert.AreEqual(1, summaries.Count);
+        Assert.AreEqual(currentId, summaries[0].Id);
+    }
+
+    [TestMethod]
+    public async Task Delete_current_saved_analysis_keeps_game_as_dirty_unsaved_copy()
+    {
+        var repository = new RecordingChessBoardRepository([]);
+        await using var state = CreateState(repository);
+
+        Assert.IsTrue(state.TryLoadPgn("1. c4 e5 2. Nc3"));
+        state.RenameGame("English");
+        await state.SaveCurrentAnalysisAsync();
+        var savedId = state.CurrentAnalyzedGameId!.Value;
+        await state.SaveCurrentGameAnalysisRunAsync("Run", CreateAnalysisRunSnapshot());
+
+        await state.DeleteAnalyzedGameAsync(savedId);
+
+        var summaries = await state.ListAnalyzedGamesAsync();
+        var runs = await repository.ListAnalyzedGameAnalysisRuns(savedId);
+        Assert.IsNull(state.CurrentAnalyzedGameId);
+        Assert.IsTrue(state.IsDirty);
+        Assert.AreEqual("English", state.GameName);
+        Assert.AreEqual(3, GetMainLineCount(state.AnalysisBoard.Root));
+        Assert.AreEqual(0, summaries.Count);
+        Assert.AreEqual(0, runs.Count);
+    }
+
+    [TestMethod]
     public async Task Pgn_tag_import_prefills_game_metadata()
     {
         var repository = new RecordingChessBoardRepository([]);
@@ -419,7 +467,18 @@ public sealed class AnalysisWorkspaceStatePersistenceTests
         }
 
         public Task DeleteAnalyzedGame(Guid id, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            _analyses.Remove(id);
+            foreach (var runId in _analysisRuns
+                .Where(r => r.Value.AnalyzedGameId == id)
+                .Select(r => r.Key)
+                .ToList())
+            {
+                _analysisRuns.Remove(runId);
+            }
+
+            return Task.CompletedTask;
+        }
 
         public Task<IReadOnlyList<AnalyzedGameAnalysisRunSummary>> ListAnalyzedGameAnalysisRuns(
             Guid analyzedGameId,

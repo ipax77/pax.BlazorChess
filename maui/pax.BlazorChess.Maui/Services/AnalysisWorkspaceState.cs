@@ -282,6 +282,16 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
         IsDirty = false;
     }
 
+    public async Task DeleteAnalyzedGameAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        await _repository.DeleteAnalyzedGame(id, cancellationToken);
+        if (CurrentAnalyzedGameId != id)
+            return;
+
+        CurrentAnalyzedGameId = null;
+        MarkDirty();
+    }
+
     public Task<IReadOnlyList<AnalyzedGameAnalysisRunSummary>> ListCurrentGameAnalysisRunsAsync(CancellationToken cancellationToken = default)
         => CurrentAnalyzedGameId is { } id
             ? _repository.ListAnalyzedGameAnalysisRuns(id, cancellationToken)

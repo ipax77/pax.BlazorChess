@@ -1,0 +1,225 @@
+@using System.Globalization
+@using pax.BlazorChess.Board.Storage
+
+<div class="modal fade show d-block saved-games-modal"
+     tabindex="-1"
+     style="background-color: rgba(0, 0, 0, 0.5);"
+     aria-modal="true"
+     role="dialog"
+     @onkeydown:stopPropagation="true">
+    <div class="modal-dialog saved-games-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Saved games</h5>
+                <button type="button" class="btn-close" @onclick="Close" aria-label="Close"></button>
+            </div>
+            <div class="modal-body saved-games-body">
+                @{
+                    var filteredGames = FilteredGames;
+                }
+                <div class="saved-games-tools">
+                    <label class="toolbar-field">
+                        <span>Search</span>
+                        <input class="text-input"
+                               value="@searchText"
+                               @oninput="SearchChanged"
+                               placeholder="Name or date"
+                               @onkeydown:stopPropagation="true" />
+                    </label>
+                    <label class="toolbar-field">
+                        <span>Sort</span>
+                        <select class="text-input"
+                                value="@sortMode"
+                                @onchange="SortChanged"
+                                @onkeydown:stopPropagation="true">
+                            <option value="@SavedGameSortMode.Newest">Newest first</option>
+                            <option value="@SavedGameSortMode.Oldest">Oldest first</option>
+                            <option value="@SavedGameSortMode.NameAsc">Name A-Z</option>
+                            <option value="@SavedGameSortMode.NameDesc">Name Z-A</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="saved-games-count">@filteredGames.Count game(s)</div>
+
+                @if (Games.Count == 0)
+                {
+                    <div class="saved-games-empty">No saved games yet.</div>
+                }
+                else if (filteredGames.Count == 0)
+                {
+                    <div class="saved-games-empty">No saved games match the search.</div>
+                }
+                else
+                {
+                    <div class="saved-games-list" role="list">
+                        @foreach (var game in filteredGames)
+                        {
+                            var isCurrent = game.Id == CurrentGameId;
+                            var isConfirmingDelete = confirmingDeleteId == game.Id;
+                            <div class="saved-game-row @(isCurrent ? "current" : "")" role="listitem">
+                                <button type="button"
+                                        class="saved-game-main"
+                                        title="Select saved game"
+                                        @onclick="() => Load(game.Id)"
+                                        disabled="@IsBusy">
+                                    <span class="saved-game-name">@game.Name</span>
+                                    <span class="saved-game-date">@FormatDate(game.UpdatedAt)</span>
+                                </button>
+                                @if (isCurrent)
+                                {
+                                    <span class="saved-game-current">Current</span>
+                                }
+                                <div class="saved-game-actions">
+                                    <button type="button"
+                                            class="command-button"
+                                            disabled="@IsBusy"
+                                            @onclick="() => Load(game.Id)">
+                                        <span class="bi bi-folder2-open" aria-hidden="true"></span>
+                                        <span>Load</span>
+                                    </button>
+                                    @if (isConfirmingDelete)
+                                    {
+                                        <button type="button"
+                                                class="command-button danger"
+                                                disabled="@IsBusy"
+                                                @onclick="() => Delete(game.Id)">
+                                            <span class="bi bi-trash" aria-hidden="true"></span>
+                                            <span>Confirm</span>
+                                        </button>
+                                        <button type="button"
+                                                class="command-button"
+                                                disabled="@IsBusy"
+                                                @onclick="CancelDelete">
+                                            Cancel
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button"
+                                                class="command-button"
+                                                disabled="@IsBusy"
+                                                @onclick="() => ArmDelete(game.Id)">
+                                            <span class="bi bi-trash" aria-hidden="true"></span>
+                                            <span>Delete</span>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" @onclick="Close">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string searchText = string.Empty;
+    private SavedGameSortMode sortMode = SavedGameSortMode.Newest;
+    private Guid? confirmingDeleteId;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<AnalyzedGameSummary> Games { get; set; } = [];
+
+    [Parameter]
+    public Guid? CurrentGameId { get; set; }
+
+    [Parameter]
+    public bool IsBusy { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<Guid> OnLoad { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<Guid> OnDelete { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback OnClose { get; set; }
+
+    private List<AnalyzedGameSummary> FilteredGames
+    {
+        get
+        {
+            IEnumerable<AnalyzedGameSummary> query = Games;
+            var search = searchText.Trim();
+            if (search.Length > 0)
+            {
+                query = query.Where(game =>
+                    Contains(game.Name, search)
+                    || Contains(FormatDate(game.UpdatedAt), search));
+            }
+
+            query = sortMode switch
+            {
+                SavedGameSortMode.Oldest => query.OrderBy(game => game.UpdatedAt),
+                SavedGameSortMode.NameAsc => query.OrderBy(game => game.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ThenByDescending(game => game.UpdatedAt),
+                SavedGameSortMode.NameDesc => query.OrderByDescending(game => game.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ThenByDescending(game => game.UpdatedAt),
+                _ => query.OrderByDescending(game => game.UpdatedAt)
+            };
+
+            return query.ToList();
+        }
+    }
+
+    private void SearchChanged(ChangeEventArgs args)
+    {
+        searchText = args.Value?.ToString() ?? string.Empty;
+        confirmingDeleteId = null;
+    }
+
+    private void SortChanged(ChangeEventArgs args)
+    {
+        if (Enum.TryParse<SavedGameSortMode>(args.Value?.ToString(), out var parsed))
+            sortMode = parsed;
+
+        confirmingDeleteId = null;
+    }
+
+    private async Task Load(Guid id)
+    {
+        confirmingDeleteId = null;
+        await OnLoad.InvokeAsync(id);
+    }
+
+    private void ArmDelete(Guid id)
+    {
+        confirmingDeleteId = id;
+    }
+
+    private void CancelDelete()
+    {
+        confirmingDeleteId = null;
+    }
+
+    private async Task Delete(Guid id)
+    {
+        confirmingDeleteId = null;
+        await OnDelete.InvokeAsync(id);
+    }
+
+    private Task Close()
+    {
+        confirmingDeleteId = null;
+        return OnClose.InvokeAsync();
+    }
+
+    private static bool Contains(string value, string search)
+        => value.Contains(search, StringComparison.CurrentCultureIgnoreCase);
+
+    private static string FormatDate(DateTimeOffset updatedAt)
+        => updatedAt.LocalDateTime.ToString("g", CultureInfo.CurrentCulture);
+
+    private enum SavedGameSortMode
+    {
+        Newest,
+        Oldest,
+        NameAsc,
+        NameDesc
+    }
+}
