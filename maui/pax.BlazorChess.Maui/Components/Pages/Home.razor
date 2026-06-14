@@ -111,6 +111,10 @@
             <textarea id="pgnInput" class="text-input mono" @bind="pgnInput" @onkeydown:stopPropagation="true"></textarea>
         </div>
 
+        <div>
+            <button type="button" class="btn btn-outline-light" @onclick="OpenNewWindow">New Window</button>
+        </div>
+
         @if (!string.IsNullOrWhiteSpace(Workspace.ImportError))
         {
             <div class="engine-error">@Workspace.ImportError</div>
@@ -777,18 +781,18 @@
         if (!Guid.TryParse(selectedSavedGameIdText, out var id))
             return;
 
-            await RunPersistenceActionAsync(async () =>
-        {
-            await Workspace.LoadAnalyzedGameAsync(id);
-            ResetAnalysisChart();
-            SyncText();
-            SyncGameDetails();
-            currentAnalysisRunId = null;
-            analysisRunName = "Analysis";
-            await RefreshAnalysisRunsAsync();
-            ScheduleLatestAnalysisRunAutoLoad();
-            await RefreshPositionAsync();
-        });
+        await RunPersistenceActionAsync(async () =>
+    {
+        await Workspace.LoadAnalyzedGameAsync(id);
+        ResetAnalysisChart();
+        SyncText();
+        SyncGameDetails();
+        currentAnalysisRunId = null;
+        analysisRunName = "Analysis";
+        await RefreshAnalysisRunsAsync();
+        ScheduleLatestAnalysisRunAutoLoad();
+        await RefreshPositionAsync();
+    });
     }
 
     private Task SaveGame()
@@ -1039,4 +1043,10 @@
     private static bool HasEngineBinary(EngineRunOptions engine)
         => !string.IsNullOrWhiteSpace(engine.BinaryPath)
             && File.Exists(engine.BinaryPath);
+
+    private void OpenNewWindow()
+    {
+        var secondWindow = new Window(new MainPage());
+        Application.Current?.OpenWindow(secondWindow);
+    }
 }
