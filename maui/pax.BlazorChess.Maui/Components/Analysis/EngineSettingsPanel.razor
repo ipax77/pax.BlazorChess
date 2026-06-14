@@ -1,0 +1,290 @@
+@using pax.uciChessEngine.EngineServices
+
+@if (IsOpen)
+{
+    <div class="settings-scrim" @onclick="Close">
+        <section class="settings-panel" @onclick:stopPropagation="true" aria-label="Engine settings">
+            <header class="panel-title">
+                <h2>Engine manager</h2>
+                <button type="button" class="icon-button" title="Close" aria-label="Close" @onclick="Close">
+                    <span class="bi bi-x-lg" aria-hidden="true"></span>
+                </button>
+            </header>
+
+            <div class="engine-manager-actions">
+                <button type="button" class="command-button" @onclick="Add">
+                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                    <span>Add Engine</span>
+                </button>
+                <button type="button" class="command-button" disabled="@(SelectedEngine is null)" @onclick="TestSelected">
+                    <span class="bi bi-speedometer2" aria-hidden="true"></span>
+                    <span>Test Engine</span>
+                </button>
+                <button type="button" class="command-button" disabled="@(SelectedEngine is null)" @onclick="EditSelected">
+                    <span class="bi bi-pencil-square" aria-hidden="true"></span>
+                    <span>Edit</span>
+                </button>
+                <button type="button" class="danger-button" disabled="@(SelectedEngine is null)" @onclick="DeleteSelected">
+                    <span class="bi bi-trash3" aria-hidden="true"></span>
+                    <span>Remove</span>
+                </button>
+            </div>
+
+            <div class="engine-settings-grid">
+                <div class="engine-list">
+                    <table class="candidate-table engine-manager-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Path</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var engine in Engines)
+                            {
+                                <tr class="engine-manager-row @(SelectedEngine == engine ? "active" : "")" @onclick="() => Select(engine)">
+                                    <th>@GetName(engine)</th>
+                                    <td>@GetType(engine)</td>
+                                    <td>@GetPathStatus(engine)</td>
+                                    <td>@GetTestStatus(engine)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (SelectedEngine is not null)
+                {
+                    <div class="engine-form">
+                        <label class="inline-check">
+                            <input type="checkbox" @bind="SelectedEngine.IsEnabled" @bind:after="NotifyChanged" />
+                            <span>Loaded for live analysis</span>
+                        </label>
+                        <label>
+                            <span>Name</span>
+                            <input class="text-input" @bind="SelectedEngine.Name" @bind:after="NotifyChanged" />
+                        </label>
+                        <label>
+                            <span>Type</span>
+                            <select class="text-input" @bind="SelectedEngine.EngineType" @bind:after="NotifyChanged">
+                                <option value="@EngineRunOptions.UciEngineType">UCI</option>
+                                <option value="@EngineRunOptions.UciWithWeightsEngineType">UCI + weights</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>Binary path</span>
+                            <input class="text-input" @bind="SelectedEngine.BinaryPath" @bind:after="NotifyChanged" placeholder="C:\path\to\stockfish.exe" />
+                        </label>
+                        <label>
+                            <span>Weights path</span>
+                            <input class="text-input" @bind="SelectedEngine.WeightsPath" @bind:after="NotifyChanged" placeholder="Optional LCZero weights file" />
+                        </label>
+                        <div class="field-grid">
+                            <label>
+                                <span>Threads</span>
+                                <input class="text-input" type="number" min="0" max="256" @bind="SelectedEngine.Threads" @bind:after="NotifyChanged" />
+                            </label>
+                            <label>
+                                <span>MultiPV</span>
+                                <input class="text-input" type="number" min="1" max="50" @bind="SelectedEngine.Pvs" @bind:after="NotifyChanged" />
+                            </label>
+                            <label>
+                                <span>Hash MB</span>
+                                <input class="text-input" type="number" min="0" max="65536" @bind="SelectedEngine.HashMb" @bind:after="NotifyChanged" />
+                            </label>
+                            <label>
+                                <span>Pool size</span>
+                                <input class="text-input" type="number" min="1" max="32" @bind="SelectedEngine.PoolSize" @bind:after="NotifyChanged" />
+                            </label>
+                        </div>
+                        <label>
+                            <span>Extra UCI options</span>
+                            <textarea class="text-input mono" @bind="SelectedEngine.ExtraOptions" @bind:after="NotifyChanged" placeholder="OptionName=value"></textarea>
+                        </label>
+                        @if (!string.IsNullOrWhiteSpace(SelectedTestStatus))
+                        {
+                            <div class="engine-test-result">@SelectedTestStatus</div>
+                        }
+                        <div class="settings-actions">
+                            <button type="button" class="command-button" @onclick="ApplyStockfishDefaults">
+                                <span class="bi bi-wrench-adjustable" aria-hidden="true"></span>
+                                <span>Stockfish defaults</span>
+                            </button>
+                            <button type="button" class="command-button" @onclick="ApplyLc0Defaults">
+                                <span class="bi bi-cpu" aria-hidden="true"></span>
+                                <span>LCZero defaults</span>
+                            </button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-panel">Add a UCI engine to enable live analysis.</div>
+                }
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public required List<EngineRunOptions> Engines { get; set; }
+
+    [Parameter]
+    public EngineRunOptions? SelectedEngine { get; set; }
+
+    [Parameter]
+    public EventCallback<EngineRunOptions?> SelectedEngineChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<EngineRunOptions> OnEngineAdded { get; set; }
+
+    [Parameter]
+    public EventCallback<EngineRunOptions> OnEngineDeleted { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private readonly Dictionary<Guid, string> testResults = [];
+    private bool IsOpen { get; set; }
+    private string SelectedTestStatus => SelectedEngine is null ? string.Empty : GetTestStatus(SelectedEngine);
+
+    public void Open()
+    {
+        IsOpen = true;
+        StateHasChanged();
+    }
+
+    private void Close()
+    {
+        IsOpen = false;
+    }
+
+    private async Task Select(EngineRunOptions engine)
+    {
+        SelectedEngine = engine;
+        await SelectedEngineChanged.InvokeAsync(engine);
+    }
+
+    private async Task Add()
+    {
+        var engine = new EngineRunOptions
+        {
+            Name = Engines.Count == 0 ? "Stockfish" : $"Engine {Engines.Count + 1}",
+            EngineType = EngineRunOptions.UciEngineType,
+            IsEnabled = true,
+            Threads = Math.Max(1, Environment.ProcessorCount / 4),
+            Pvs = 3,
+            HashMb = 16,
+            PoolSize = 1,
+            IdelTimeoutMs = 5000
+        };
+
+        Engines.Add(engine);
+        testResults[engine.Id] = "Not tested";
+        await OnEngineAdded.InvokeAsync(engine);
+        await Select(engine);
+    }
+
+    private Task EditSelected()
+        => SelectedEngine is null ? Task.CompletedTask : Select(SelectedEngine);
+
+    private async Task DeleteSelected()
+    {
+        if (SelectedEngine is null)
+            return;
+
+        var deleted = SelectedEngine;
+        Engines.Remove(deleted);
+        testResults.Remove(deleted.Id);
+        SelectedEngine = Engines.FirstOrDefault();
+        await OnEngineDeleted.InvokeAsync(deleted);
+        await SelectedEngineChanged.InvokeAsync(SelectedEngine);
+    }
+
+    private async Task TestSelected()
+    {
+        if (SelectedEngine is null)
+            return;
+
+        var engine = SelectedEngine;
+        testResults[engine.Id] = "Starting";
+        StateHasChanged();
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(engine.BinaryPath) || !File.Exists(engine.BinaryPath))
+            {
+                testResults[engine.Id] = "Error: missing";
+                return;
+            }
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await using var session = new EngineSession(engine);
+            await session.EnsureStartedAsync(timeout.Token);
+            testResults[engine.Id] = "Ready";
+        }
+        catch (Exception ex)
+        {
+            testResults[engine.Id] = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task ApplyStockfishDefaults()
+    {
+        if (SelectedEngine is null)
+            return;
+
+        SelectedEngine.EngineType = EngineRunOptions.UciEngineType;
+        SelectedEngine.WeightsPath = null;
+        SelectedEngine.Name = string.IsNullOrWhiteSpace(SelectedEngine.Name) ? "Stockfish" : SelectedEngine.Name;
+        SelectedEngine.Threads = Math.Max(1, Environment.ProcessorCount / 4);
+        SelectedEngine.Pvs = Math.Clamp(SelectedEngine.Pvs == 0 ? 3 : SelectedEngine.Pvs, 1, 8);
+        SelectedEngine.HashMb = SelectedEngine.HashMb == 0 ? 16 : SelectedEngine.HashMb;
+        SelectedEngine.PoolSize = 1;
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task ApplyLc0Defaults()
+    {
+        if (SelectedEngine is null)
+            return;
+
+        SelectedEngine.EngineType = EngineRunOptions.UciWithWeightsEngineType;
+        SelectedEngine.Name = string.IsNullOrWhiteSpace(SelectedEngine.Name) ? "LCZero" : SelectedEngine.Name;
+        SelectedEngine.Threads = Math.Clamp(SelectedEngine.Threads == 0 ? 2 : SelectedEngine.Threads, 1, 16);
+        SelectedEngine.Pvs = Math.Clamp(SelectedEngine.Pvs == 0 ? 2 : SelectedEngine.Pvs, 1, 8);
+        SelectedEngine.HashMb = 0;
+        SelectedEngine.PoolSize = 1;
+        await OnChanged.InvokeAsync();
+    }
+
+    private Task NotifyChanged()
+        => OnChanged.InvokeAsync();
+
+    private static string GetName(EngineRunOptions engine)
+        => string.IsNullOrWhiteSpace(engine.Name) ? "Unnamed engine" : engine.Name!;
+
+    private static string GetType(EngineRunOptions engine)
+        => string.IsNullOrWhiteSpace(engine.EngineType) ? EngineRunOptions.UciEngineType : engine.EngineType;
+
+    private static string GetPathStatus(EngineRunOptions engine)
+        => string.IsNullOrWhiteSpace(engine.BinaryPath) || !File.Exists(engine.BinaryPath) ? "missing" : "local";
+
+    private string GetTestStatus(EngineRunOptions engine)
+    {
+        if (testResults.TryGetValue(engine.Id, out var result))
+            return result;
+
+        if (!engine.IsEnabled)
+            return "Disabled";
+
+        return GetPathStatus(engine) == "missing" ? "Error" : "Not tested";
+    }
+}

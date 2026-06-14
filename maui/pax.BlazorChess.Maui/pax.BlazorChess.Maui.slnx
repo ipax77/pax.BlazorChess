@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="../../src/pax.BlazorChess.Board/pax.BlazorChess.Board.csproj" />
+  <Project Path="../../src/pax.BlazorChess.Db/pax.BlazorChess.Db.csproj" />
+  <Project Path="pax.BlazorChess.Maui.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
+</Solution>

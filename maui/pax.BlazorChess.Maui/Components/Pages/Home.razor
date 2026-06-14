@@ -1,0 +1,1042 @@
+﻿@page "/"
+@using pax.BlazorChess.Board
+@using pax.BlazorChess.Board.Storage
+@using pax.chess
+@using pax.chess.Analyze
+@using pax.uciChessEngine.EngineServices
+@using pax.BlazorChess.Maui.Services
+@using pax.BlazorChess.Maui.Components.Analysis
+
+@inject AnalysisWorkspaceState Workspace
+@inject IBoardJsInterop BoardJsInterop
+@implements IAsyncDisposable
+
+<PageTitle>BlazorChess Analysis</PageTitle>
+
+<main id="@analysisShellId"
+      class="analysis-shell"
+      tabindex="0"
+      @onkeydown="OnKeyDown">
+    <section class="game-toolbar">
+        <div class="game-toolbar-row">
+            <label class="toolbar-field saved-game-field">
+                <span>Saved</span>
+                <select class="text-input"
+                        @bind="selectedSavedGameIdText"
+                        @onkeydown:stopPropagation="true">
+                    <option value="">Select saved game</option>
+                    @foreach (var saved in savedAnalyses)
+                    {
+                        <option value="@saved.Id.ToString("D")">@saved.Name (@saved.UpdatedAt.LocalDateTime.ToString("g"))</option>
+                    }
+                </select>
+            </label>
+            <div class="toolbar-actions">
+                <button type="button" class="command-button" disabled="@(!CanLoadSavedGame)" @onclick="LoadSelectedSavedGame">
+                    <span class="bi bi-folder2-open" aria-hidden="true"></span>
+                    <span>Load</span>
+                </button>
+                <button type="button" class="command-button" disabled="@(!CanSaveGame)" @onclick="SaveGame">
+                    <span class="bi bi-save" aria-hidden="true"></span>
+                    <span>Save</span>
+                </button>
+                <button type="button" class="command-button" disabled="@(!CanSaveGame)" @onclick="SaveGameAs">
+                    <span class="bi bi-files" aria-hidden="true"></span>
+                    <span>Save As</span>
+                </button>
+            </div>
+            <div class="save-status @(Workspace.IsDirty ? "dirty" : "clean")">@PersistenceStatus</div>
+        </div>
+
+        <div class="metadata-grid">
+            <label class="toolbar-field name-field">
+                <span>Name</span>
+                <input class="text-input"
+                       @bind="gameName"
+                       @bind:after="CommitGameDetails"
+                       @onkeydown:stopPropagation="true" />
+            </label>
+            <label class="toolbar-field">
+                <span>Event</span>
+                <input class="text-input" @bind="metadataEvent" @bind:after="CommitGameDetails" @onkeydown:stopPropagation="true" />
+            </label>
+            <label class="toolbar-field">
+                <span>Site</span>
+                <input class="text-input" @bind="metadataSite" @bind:after="CommitGameDetails" @onkeydown:stopPropagation="true" />
+            </label>
+            <label class="toolbar-field compact">
+                <span>Date</span>
+                <input class="text-input" @bind="metadataDate" @bind:after="CommitGameDetails" @onkeydown:stopPropagation="true" />
+            </label>
+            <label class="toolbar-field compact">
+                <span>Round</span>
+                <input class="text-input" @bind="metadataRound" @bind:after="CommitGameDetails" @onkeydown:stopPropagation="true" />
+            </label>
+            <label class="toolbar-field">
+                <span>White</span>
+                <input class="text-input" @bind="metadataWhite" @bind:after="CommitGameDetails" @onkeydown:stopPropagation="true" />
+            </label>
+            <label class="toolbar-field">
+                <span>Black</span>
+                <input class="text-input" @bind="metadataBlack" @bind:after="CommitGameDetails" @onkeydown:stopPropagation="true" />
+            </label>
+            <label class="toolbar-field compact">
+                <span>Result</span>
+                <input class="text-input" @bind="metadataResult" @bind:after="CommitGameDetails" @onkeydown:stopPropagation="true" />
+            </label>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(persistenceError))
+        {
+            <div class="persistence-error">@persistenceError</div>
+        }
+    </section>
+
+    <section class="board-column">
+        <div class="board-input-surface" @onwheel="OnBoardWheel" @onwheel:preventDefault="true">
+            <BoardComponent @ref="board"
+                            Position="Workspace.AnalysisBoard.CurrentPosition"
+                            LastMove="Workspace.LastMove"
+                            MoveEvaluationAnnotation="CurrentMoveEvaluationAnnotation"
+                            OnMovePlayed="ApplyMove" />
+        </div>
+
+        <div class="position-bar">
+            <label for="fenInput">FEN</label>
+            <input id="fenInput" class="text-input mono" @bind="fenInput" @onkeydown:stopPropagation="true" />
+        </div>
+
+        <div class="position-bar pgn-bar">
+            <label for="pgnInput">PGN</label>
+            <textarea id="pgnInput" class="text-input mono" @bind="pgnInput" @onkeydown:stopPropagation="true"></textarea>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Workspace.ImportError))
+        {
+            <div class="engine-error">@Workspace.ImportError</div>
+        }
+    </section>
+
+    <aside class="side-panel">
+        <LiveAnalysisPanel @ref="liveAnalysis"
+                           AnalysisBoard="Workspace.AnalysisBoard"
+                           Engines="Workspace.EngineRunOptions"
+                           SelectedEngine="Workspace.SelectedEngine"
+                           SelectedEngineChanged="EngineSelected"
+                           OnBestMovesReady="BestMovesReady"
+                           OnNodeSelected="NodeSelected"
+                           OnAnalysisChanged="RefreshBoard"
+                           OnEngineSettingsChanged="EngineChanged"
+                           OnSettingsClicked="OpenEngineSettings" />
+
+        <section class="moves-panel">
+            <header class="panel-title">
+                <h2>Moves</h2>
+                <span>@MoveCount ply</span>
+            </header>
+            <AnalysisAnnotationComponent @ref="annotation"
+                                         AnalysisBoard="Workspace.AnalysisBoard"
+                                         OnNodeClicked="NodeClicked"
+                                         OnNodeContextAction="HandleMoveContextAction" />
+        </section>
+
+        <section class="controls-panel">
+            <div class="nav-buttons">
+                <button type="button" class="icon-button" title="Start" aria-label="Start" @onclick="GoStart">
+                    <span class="bi bi-skip-backward-fill" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="icon-button" title="Back" aria-label="Back" @onclick="GoBack">
+                    <span class="bi bi-caret-left-fill" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="icon-button" title="Forward" aria-label="Forward" @onclick="GoForward">
+                    <span class="bi bi-caret-right-fill" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="icon-button" title="End" aria-label="End" @onclick="GoEnd">
+                    <span class="bi bi-skip-forward-fill" aria-hidden="true"></span>
+                </button>
+            </div>
+            <div class="command-row">
+                <button type="button" class="command-button" @onclick="LoadFen">Load FEN</button>
+                <button type="button" class="command-button" @onclick="LoadPgn">Load PGN</button>
+                <button type="button" class="command-button" @onclick="ResetBoard">Reset</button>
+            </div>
+        </section>
+    </aside>
+
+    <section class="full-analysis-panel">
+        <header class="full-analysis-header">
+            <div>
+                <h2>Game analysis</h2>
+                <span>@FullAnalysisStatus</span>
+            </div>
+            <div class="full-analysis-actions">
+                <button type="button"
+                        class="analyse-button"
+                        disabled="@(!CanAnalyzeGame || fullAnalysisRunning)"
+                        @onclick="AnalyzeGame">
+                    <span class="bi bi-activity" aria-hidden="true"></span>
+                    <span>Analyse</span>
+                </button>
+                @if (fullAnalysisRunning)
+                {
+                    <button type="button"
+                            class="stop-analysis-button"
+                            @onclick="StopFullAnalysis">
+                        <span class="bi bi-stop-fill" aria-hidden="true"></span>
+                        <span>Stop</span>
+                    </button>
+                }
+            </div>
+        </header>
+
+        <div class="full-analysis-runbar">
+            <label class="toolbar-field analysis-run-select">
+                <span>Saved analysis</span>
+                <select class="text-input"
+                        @bind="selectedAnalysisRunIdText"
+                        @onkeydown:stopPropagation="true">
+                    <option value="">Select analysis run</option>
+                    @foreach (var run in savedAnalysisRuns)
+                    {
+                        <option value="@run.Id.ToString("D")">@run.Name (@run.UpdatedAt.LocalDateTime.ToString("g"))</option>
+                    }
+                </select>
+            </label>
+            <label class="toolbar-field analysis-run-name">
+                <span>Run name</span>
+                <input class="text-input"
+                       @bind="analysisRunName"
+                       @onkeydown:stopPropagation="true" />
+            </label>
+            <div class="toolbar-actions">
+                <button type="button" class="command-button" disabled="@(!CanLoadAnalysisRun)" @onclick="LoadSelectedAnalysisRun">
+                    <span class="bi bi-folder2-open" aria-hidden="true"></span>
+                    <span>Load</span>
+                </button>
+                <button type="button" class="command-button" disabled="@(!CanSaveAnalysisRun)" @onclick="SaveAnalysisRun">
+                    <span class="bi bi-save" aria-hidden="true"></span>
+                    <span>Save analysis</span>
+                </button>
+                <button type="button" class="command-button" disabled="@(!CanSaveAnalysisRun)" @onclick="SaveAnalysisRunAs">
+                    <span class="bi bi-files" aria-hidden="true"></span>
+                    <span>Save As</span>
+                </button>
+            </div>
+            <div class="save-status @(currentAnalysisRunId.HasValue ? "clean" : "dirty")">@AnalysisRunStatus</div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(analysisRunError))
+        {
+            <div class="persistence-error">@analysisRunError</div>
+        }
+
+        <div class="full-analysis-settings">
+            <label>
+                <span>Scope</span>
+                <div class="segmented-control" role="group" aria-label="Game analysis scope">
+                    <button type="button"
+                            class="@(gameAnalysisMode == GameAnalysisMode.SelectedEngine ? "active" : "")"
+                            disabled="@fullAnalysisRunning"
+                            @onclick="() => SetGameAnalysisMode(GameAnalysisMode.SelectedEngine)">
+                        Selected engine
+                    </button>
+                    <button type="button"
+                            class="@(gameAnalysisMode == GameAnalysisMode.EnabledEngines ? "active" : "")"
+                            disabled="@fullAnalysisRunning"
+                            @onclick="() => SetGameAnalysisMode(GameAnalysisMode.EnabledEngines)">
+                        Enabled engines
+                    </button>
+                </div>
+            </label>
+            <label>
+                <span>Time</span>
+                <div class="number-field">
+                    <input class="text-input"
+                           type="number"
+                           min="0.1"
+                           step="0.1"
+                           @bind="analysisThinkTimeSeconds"
+                           @bind:after="ClampAnalysisSettings"
+                           @onkeydown:stopPropagation="true" />
+                    <small>s</small>
+                </div>
+            </label>
+            <label>
+                <span>Threads</span>
+                <div class="number-field">
+                    <input class="text-input"
+                           type="number"
+                           min="1"
+                           max="@MaxAnalysisThreads"
+                           step="1"
+                           @bind="analysisThreads"
+                           @bind:after="ClampAnalysisSettings"
+                           @onkeydown:stopPropagation="true" />
+                    <small>/ @MaxAnalysisThreads</small>
+                </div>
+            </label>
+        </div>
+
+        <pax.BlazorChess.Board.EvaluationChart @key="analysisChartVersion"
+                                               @ref="evaluationChart"
+                                               ChessGame="Workspace.AnalysisBoard.ChessGame"
+                                               AnalysisBoard="Workspace.AnalysisBoard"
+                                               EngineRunOptions="Workspace.SelectedEngine"
+                                               EngineRunOptionsList="Workspace.EngineRunOptions"
+                                               AnalysisMode="gameAnalysisMode"
+                                               CurrentMoveNumber="Workspace.CurrentPly"
+                                               ThinkTimePerMoveMs="AnalysisThinkTimeMs"
+                                               AnalysisThreads="ClampedAnalysisThreads"
+                                               Title="Evaluation"
+                                               Subtitle="Main-line full-game engine analysis"
+                                               ShowAnalyzeButton="false"
+                                               OnMoveClicked="AnalysisMoveClicked"
+                                               OnAnnotationsChanged="AnalysisAnnotationsChanged" />
+    </section>
+</main>
+
+<EngineSettingsPanel @ref="engineSettings"
+                     Engines="Workspace.EngineRunOptions"
+                     SelectedEngine="Workspace.SelectedEngine"
+                     SelectedEngineChanged="EngineSelected"
+                     OnEngineAdded="EngineAdded"
+                     OnEngineDeleted="EngineDeleted"
+                     OnChanged="EngineChanged" />
+
+@code {
+    private BoardComponent? board;
+    private LiveAnalysisPanel? liveAnalysis;
+    private EngineSettingsPanel? engineSettings;
+    private AnalysisAnnotationComponent? annotation;
+    private pax.BlazorChess.Board.EvaluationChart? evaluationChart;
+    private string fenInput = string.Empty;
+    private string pgnInput = string.Empty;
+    private double analysisThinkTimeSeconds = 1;
+    private int analysisThreads = 8;
+    private int analysisChartVersion;
+    private readonly string analysisShellId = $"analysis_shell_{Guid.NewGuid():N}";
+    private GameAnalysisMode gameAnalysisMode = GameAnalysisMode.SelectedEngine;
+    private readonly List<AnalyzedGameSummary> savedAnalyses = [];
+    private readonly List<AnalyzedGameAnalysisRunSummary> savedAnalysisRuns = [];
+    private string selectedSavedGameIdText = string.Empty;
+    private string selectedAnalysisRunIdText = string.Empty;
+    private string gameName = string.Empty;
+    private string analysisRunName = "Analysis";
+    private string metadataEvent = string.Empty;
+    private string metadataSite = string.Empty;
+    private string metadataDate = string.Empty;
+    private string metadataRound = string.Empty;
+    private string metadataWhite = string.Empty;
+    private string metadataBlack = string.Empty;
+    private string metadataResult = string.Empty;
+    private string? persistenceError;
+    private string? analysisRunError;
+    private Guid? currentAnalysisRunId;
+    private Guid? pendingAnalysisRunAutoLoadId;
+    private bool persistenceBusy;
+    private bool analysisRunBusy;
+    private bool navigationKeyDefaultsRegistered;
+    private bool fullAnalysisRunning;
+    private bool boardMoveEvaluationAvailable;
+
+    private int MoveCount => CountMainLineMoves();
+    private int MaxAnalysisThreads => Math.Max(1, Environment.ProcessorCount);
+    private int ClampedAnalysisThreads => Math.Clamp(analysisThreads, 1, MaxAnalysisThreads);
+    private int AnalysisThinkTimeMs => Math.Max(100, (int)Math.Round(Math.Max(0.1, analysisThinkTimeSeconds) * 1000));
+    private MoveEvaluationAnnotation? CurrentMoveEvaluationAnnotation => GetCurrentMoveEvaluationAnnotation();
+    private int AvailableAnalysisEngineCount => Workspace.EngineRunOptions.Count(IsEnabledAnalysisEngineAvailable);
+    private bool CanAnalyzeGame
+        => MoveCount > 0 && (gameAnalysisMode == GameAnalysisMode.EnabledEngines
+            ? AvailableAnalysisEngineCount > 0
+            : Workspace.SelectedEngine is not null && HasEngineBinary(Workspace.SelectedEngine));
+    private string FullAnalysisStatus
+        => fullAnalysisRunning
+            ? $"Analysing {MoveCount} ply / {AnalysisThinkTimeMs} ms / {ClampedAnalysisThreads} threads / {AnalysisScopeText}"
+            : gameAnalysisMode == GameAnalysisMode.EnabledEngines
+            ? MoveCount == 0
+                ? "Load or play a game to analyse the main line."
+                : AvailableAnalysisEngineCount == 0
+                    ? "Enable at least one engine with a valid binary before analysing the game."
+                    : $"{MoveCount} ply / {AnalysisThinkTimeMs} ms / {ClampedAnalysisThreads} threads / {AvailableAnalysisEngineCount} engines"
+            : Workspace.SelectedEngine is null
+            ? "Select an engine before analysing the game."
+            : MoveCount == 0
+                ? "Load or play a game to analyse the main line."
+                : !HasEngineBinary(Workspace.SelectedEngine)
+                    ? "Selected engine binary is missing."
+                    : $"{MoveCount} ply / {AnalysisThinkTimeMs} ms / {ClampedAnalysisThreads} threads";
+    private string AnalysisScopeText
+        => gameAnalysisMode == GameAnalysisMode.EnabledEngines
+            ? $"{AvailableAnalysisEngineCount} engines"
+            : Workspace.SelectedEngine?.Name ?? "selected engine";
+    private bool CanLoadSavedGame
+        => !persistenceBusy
+            && Guid.TryParse(selectedSavedGameIdText, out _);
+    private bool CanSaveGame
+        => !persistenceBusy
+            && !string.IsNullOrWhiteSpace(gameName);
+    private bool CanLoadAnalysisRun
+        => !analysisRunBusy
+            && Guid.TryParse(selectedAnalysisRunIdText, out _);
+    private bool CanSaveAnalysisRun
+        => !analysisRunBusy
+            && !fullAnalysisRunning
+            && !string.IsNullOrWhiteSpace(analysisRunName)
+            && evaluationChart?.HasAnalysisResults == true;
+    private string PersistenceStatus
+        => persistenceBusy
+            ? "Working..."
+            : !string.IsNullOrWhiteSpace(persistenceError)
+                ? "Persistence error"
+                : Workspace.CurrentAnalyzedGameId.HasValue
+                    ? Workspace.IsDirty
+                        ? "Unsaved changes"
+                        : "Saved"
+                    : Workspace.IsDirty
+                        ? "Unsaved game"
+                        : "New game";
+    private string AnalysisRunStatus
+        => analysisRunBusy
+            ? "Working..."
+            : !string.IsNullOrWhiteSpace(analysisRunError)
+                ? "Analysis persistence error"
+                : currentAnalysisRunId.HasValue
+                    ? "Analysis saved"
+                    : Workspace.CurrentAnalyzedGameId.HasValue
+                        ? $"{savedAnalysisRuns.Count} saved runs"
+                        : "Save game to keep runs";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Workspace.LoadEngineSettingsAsync();
+        await RefreshSavedGamesAsync();
+        await RefreshAnalysisRunsAsync();
+        SyncText();
+        SyncGameDetails();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await BoardJsInterop.PreventNavigationKeyDefaults(analysisShellId);
+            navigationKeyDefaultsRegistered = true;
+        }
+
+        if (pendingAnalysisRunAutoLoadId is { } runId && evaluationChart is not null)
+        {
+            pendingAnalysisRunAutoLoadId = null;
+            await LoadAnalysisRunByIdAsync(runId, autoLoad: true);
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (!navigationKeyDefaultsRegistered)
+            return;
+
+        try
+        {
+            await BoardJsInterop.ReleaseNavigationKeyDefaults(analysisShellId);
+        }
+        catch (Microsoft.JSInterop.JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task ApplyMove(Move move)
+    {
+        Workspace.ApplyMove(move);
+        ResetAnalysisChart();
+        UpdateBoard();
+        SyncText();
+        if (liveAnalysis is not null)
+            await liveAnalysis.NotifyPositionChangedAsync();
+    }
+
+    private async Task NodeClicked(MoveNode node)
+    {
+        Workspace.MoveToNode(node);
+        await RefreshPositionAsync();
+    }
+
+    private async Task NodeSelected(MoveNode node)
+    {
+        Workspace.MoveToNode(node);
+        await RefreshPositionAsync();
+    }
+
+    private async Task RefreshPositionAsync()
+    {
+        UpdateBoard();
+        SyncText();
+        if (liveAnalysis is not null)
+            await liveAnalysis.NotifyPositionChangedAsync();
+    }
+
+    private Task RefreshBoard()
+    {
+        UpdateBoard();
+        SyncText();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void BestMovesReady(List<Move> moves)
+    {
+        board?.AddBestMoveAnnotations(moves);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "ArrowLeft")
+            await GoBack();
+        else if (args.Key == "ArrowRight")
+            await GoForward();
+        else if (args.Key is " " or "Space" or "Spacebar")
+            await ApplyCurrentBestMove();
+        else if (args.Key == "Escape")
+            annotation?.CloseContextMenu();
+    }
+
+    private async Task OnBoardWheel(WheelEventArgs args)
+    {
+        if (args.DeltaY > 0)
+            await GoForward();
+        else if (args.DeltaY < 0)
+            await GoBack();
+    }
+
+    private async Task GoBack()
+    {
+        Workspace.MoveBackward();
+        await RefreshPositionAsync();
+    }
+
+    private async Task GoForward()
+    {
+        Workspace.MoveForward();
+        await RefreshPositionAsync();
+    }
+
+    private async Task GoStart()
+    {
+        while (!Workspace.AnalysisBoard.CurrentNode.IsRoot)
+            Workspace.MoveBackward();
+
+        await RefreshPositionAsync();
+    }
+
+    private async Task GoEnd()
+    {
+        while (Workspace.AnalysisBoard.CurrentNode.MainLine is not null)
+            Workspace.MoveForward();
+
+        await RefreshPositionAsync();
+    }
+
+    private async Task LoadFen()
+    {
+        if (Workspace.TryLoadFen(fenInput))
+        {
+            ResetAnalysisChart();
+            SyncGameDetails();
+            ClearAnalysisRunSelection(clearList: true);
+            await RefreshPositionAsync();
+        }
+        else
+            StateHasChanged();
+    }
+
+    private async Task LoadPgn()
+    {
+        if (Workspace.TryLoadPgn(pgnInput))
+        {
+            ResetAnalysisChart();
+            SyncGameDetails();
+            ClearAnalysisRunSelection(clearList: true);
+            await RefreshPositionAsync();
+        }
+        else
+            StateHasChanged();
+    }
+
+    private async Task ResetBoard()
+    {
+        Workspace.Reset();
+        ResetAnalysisChart();
+        SyncGameDetails();
+        ClearAnalysisRunSelection(clearList: true);
+        await RefreshPositionAsync();
+    }
+
+    private async Task AnalyzeGame()
+    {
+        ClampAnalysisSettings();
+        if (evaluationChart is null || !CanAnalyzeGame || fullAnalysisRunning)
+            return;
+
+        ClearAnalysisRunSelection(clearList: false);
+        boardMoveEvaluationAvailable = false;
+        UpdateBoard();
+        fullAnalysisRunning = true;
+        StateHasChanged();
+
+        try
+        {
+            await evaluationChart.Analyze();
+            boardMoveEvaluationAvailable = evaluationChart.HasAnalysisResults;
+            UpdateBoard();
+        }
+        finally
+        {
+            fullAnalysisRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    private void StopFullAnalysis()
+    {
+        evaluationChart?.StopAnalysis();
+    }
+
+    private void SetGameAnalysisMode(GameAnalysisMode mode)
+    {
+        if (fullAnalysisRunning || gameAnalysisMode == mode)
+            return;
+
+        gameAnalysisMode = mode;
+        ResetAnalysisChart();
+    }
+
+    private async Task AnalysisMoveClicked(int moveNumber)
+    {
+        if (MoveCount == 0)
+            return;
+
+        var targetPly = Math.Clamp(moveNumber <= 0 ? 1 : moveNumber, 1, MoveCount);
+        var node = Workspace.AnalysisBoard.Root.MainLine;
+        for (var i = 1; i < targetPly && node is not null; i++)
+            node = node.MainLine;
+
+        if (node is null)
+            return;
+
+        Workspace.MoveToNode(node);
+        await RefreshPositionAsync();
+    }
+
+    private Task AnalysisAnnotationsChanged()
+    {
+        Workspace.MarkAnalysisChanged();
+        annotation?.Update();
+        UpdateBoard();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task ApplyCurrentBestMove()
+    {
+        var move = liveAnalysis?.GetCurrentBestMove();
+        if (move is null)
+            return;
+
+        await ApplyMove(move);
+    }
+
+    private async Task HandleMoveContextAction(MoveContextActionRequest request)
+    {
+        var changed = request.Action switch
+        {
+            MoveContextAction.DeleteFromHere => Workspace.DeleteFromNode(request.Node),
+            MoveContextAction.MakeMainVariation => Workspace.MakeMainVariation(request.Node),
+            _ => false
+        };
+
+        if (!changed)
+            return;
+
+        ResetAnalysisChart();
+        annotation?.Update();
+        await RefreshPositionAsync();
+    }
+
+    private void OpenEngineSettings()
+    {
+        engineSettings?.Open();
+    }
+
+    private async Task EngineSelected(EngineRunOptions? engine)
+    {
+        Workspace.SelectedEngineId = engine?.Id ?? Guid.Empty;
+        await Task.CompletedTask;
+    }
+
+    private async Task EngineAdded(EngineRunOptions engine)
+    {
+        Workspace.SelectedEngineId = engine.Id;
+        Workspace.ScheduleEngineSettingsSave();
+        await NotifyEngineChangedAsync();
+    }
+
+    private async Task EngineDeleted(EngineRunOptions engine)
+    {
+        if (Workspace.SelectedEngineId == engine.Id)
+            Workspace.SelectedEngineId = Workspace.EngineRunOptions.FirstOrDefault()?.Id ?? Guid.Empty;
+
+        Workspace.ScheduleEngineSettingsSave();
+        await NotifyEngineChangedAsync();
+    }
+
+    private async Task EngineChanged()
+    {
+        Workspace.ScheduleEngineSettingsSave();
+        await NotifyEngineChangedAsync();
+    }
+
+    private async Task NotifyEngineChangedAsync()
+    {
+        if (liveAnalysis is not null)
+            await liveAnalysis.NotifyEngineChangedAsync();
+
+        StateHasChanged();
+    }
+
+    private void SyncText()
+    {
+        fenInput = Workspace.Fen;
+        pgnInput = Workspace.Pgn;
+    }
+
+    private void UpdateBoard()
+    {
+        board?.Update(
+            Workspace.AnalysisBoard.CurrentPosition,
+            Workspace.LastMove,
+            GetCurrentMoveEvaluationAnnotation());
+    }
+
+    private MoveEvaluationAnnotation? GetCurrentMoveEvaluationAnnotation()
+    {
+        if (!boardMoveEvaluationAvailable
+            || Workspace.LastMove is not { } lastMove
+            || evaluationChart is null)
+        {
+            return null;
+        }
+
+        var quality = evaluationChart.GetMoveQuality(Workspace.CurrentPly);
+        return quality is AnalysisMoveQuality.Blunder
+            or AnalysisMoveQuality.Mistake
+            or AnalysisMoveQuality.Inaccuracy
+            ? new MoveEvaluationAnnotation(lastMove.To, quality.Value)
+            : null;
+    }
+
+    private void SyncGameDetails()
+    {
+        gameName = Workspace.GameName;
+        metadataEvent = Workspace.GameMetadata.Event ?? string.Empty;
+        metadataSite = Workspace.GameMetadata.Site ?? string.Empty;
+        metadataDate = Workspace.GameMetadata.Date ?? string.Empty;
+        metadataRound = Workspace.GameMetadata.Round ?? string.Empty;
+        metadataWhite = Workspace.GameMetadata.White ?? string.Empty;
+        metadataBlack = Workspace.GameMetadata.Black ?? string.Empty;
+        metadataResult = Workspace.GameMetadata.Result ?? string.Empty;
+        selectedSavedGameIdText = Workspace.CurrentAnalyzedGameId?.ToString("D") ?? string.Empty;
+    }
+
+    private void CommitGameDetails()
+    {
+        Workspace.RenameGame(gameName);
+        Workspace.UpdateGameMetadata(new AnalyzedGameMetadata
+        {
+            Event = metadataEvent,
+            Site = metadataSite,
+            Date = metadataDate,
+            Round = metadataRound,
+            White = metadataWhite,
+            Black = metadataBlack,
+            Result = metadataResult
+        });
+    }
+
+    private async Task RefreshSavedGamesAsync()
+    {
+        var currentSelection = selectedSavedGameIdText;
+        savedAnalyses.Clear();
+        savedAnalyses.AddRange(await Workspace.ListAnalyzedGamesAsync());
+        selectedSavedGameIdText = savedAnalyses.Any(a => string.Equals(a.Id.ToString("D"), currentSelection, StringComparison.OrdinalIgnoreCase))
+            ? currentSelection
+            : Workspace.CurrentAnalyzedGameId?.ToString("D") ?? string.Empty;
+    }
+
+    private async Task LoadSelectedSavedGame()
+    {
+        if (!Guid.TryParse(selectedSavedGameIdText, out var id))
+            return;
+
+            await RunPersistenceActionAsync(async () =>
+        {
+            await Workspace.LoadAnalyzedGameAsync(id);
+            ResetAnalysisChart();
+            SyncText();
+            SyncGameDetails();
+            currentAnalysisRunId = null;
+            analysisRunName = "Analysis";
+            await RefreshAnalysisRunsAsync();
+            ScheduleLatestAnalysisRunAutoLoad();
+            await RefreshPositionAsync();
+        });
+    }
+
+    private Task SaveGame()
+        => SaveGameAsync(saveAs: false);
+
+    private Task SaveGameAs()
+        => SaveGameAsync(saveAs: true);
+
+    private async Task SaveGameAsync(bool saveAs)
+    {
+        CommitGameDetails();
+        var analysisRunSnapshot = evaluationChart?.HasAnalysisResults == true
+            ? evaluationChart.CreateAnalysisRunSnapshot()
+            : null;
+
+        await RunPersistenceActionAsync(async () =>
+        {
+            await Workspace.SaveCurrentAnalysisAsync(saveAs);
+            SyncGameDetails();
+            if (saveAs)
+                currentAnalysisRunId = null;
+
+            await SaveVisibleAnalysisRunSnapshotAsync(analysisRunSnapshot, saveAs);
+            await RefreshSavedGamesAsync();
+            await RefreshAnalysisRunsAsync();
+        });
+    }
+
+    private async Task SaveVisibleAnalysisRunSnapshotAsync(GameAnalysisRunSnapshot? snapshot, bool saveAs)
+    {
+        if (snapshot is null || snapshot.Engines.Count == 0)
+            return;
+
+        try
+        {
+            analysisRunError = null;
+            var savedId = await Workspace.SaveCurrentGameAnalysisRunAsync(
+                analysisRunName,
+                snapshot,
+                saveAs ? null : currentAnalysisRunId);
+
+            currentAnalysisRunId = savedId;
+            selectedAnalysisRunIdText = savedId.ToString("D");
+        }
+        catch (Exception ex)
+        {
+            analysisRunError = ex.Message;
+        }
+    }
+
+    private async Task RefreshAnalysisRunsAsync()
+    {
+        var currentSelection = selectedAnalysisRunIdText;
+        savedAnalysisRuns.Clear();
+        savedAnalysisRuns.AddRange(await Workspace.ListCurrentGameAnalysisRunsAsync());
+        selectedAnalysisRunIdText = savedAnalysisRuns.Any(a => string.Equals(a.Id.ToString("D"), currentSelection, StringComparison.OrdinalIgnoreCase))
+            ? currentSelection
+            : currentAnalysisRunId?.ToString("D") ?? string.Empty;
+    }
+
+    private void ScheduleLatestAnalysisRunAutoLoad()
+    {
+        var latest = savedAnalysisRuns.FirstOrDefault();
+        if (latest is null)
+        {
+            currentAnalysisRunId = null;
+            selectedAnalysisRunIdText = string.Empty;
+            analysisRunName = "Analysis";
+            pendingAnalysisRunAutoLoadId = null;
+            return;
+        }
+
+        currentAnalysisRunId = null;
+        selectedAnalysisRunIdText = latest.Id.ToString("D");
+        analysisRunName = latest.Name;
+        pendingAnalysisRunAutoLoadId = latest.Id;
+    }
+
+    private Task SaveAnalysisRun()
+        => SaveAnalysisRunAsync(saveAs: false);
+
+    private Task SaveAnalysisRunAs()
+        => SaveAnalysisRunAsync(saveAs: true);
+
+    private async Task SaveAnalysisRunAsync(bool saveAs)
+    {
+        await RunAnalysisRunActionAsync(async () =>
+        {
+            var snapshot = evaluationChart?.CreateAnalysisRunSnapshot();
+            if (snapshot is null || snapshot.Engines.Count == 0)
+            {
+                analysisRunError = "Run game analysis before saving an analysis run.";
+                return;
+            }
+
+            CommitGameDetails();
+            if (!Workspace.CurrentAnalyzedGameId.HasValue || Workspace.IsDirty)
+            {
+                await Workspace.SaveCurrentAnalysisAsync();
+                SyncGameDetails();
+                await RefreshSavedGamesAsync();
+            }
+
+            var savedId = await Workspace.SaveCurrentGameAnalysisRunAsync(
+                analysisRunName,
+                snapshot,
+                saveAs ? null : currentAnalysisRunId);
+
+            currentAnalysisRunId = savedId;
+            selectedAnalysisRunIdText = savedId.ToString("D");
+            await RefreshAnalysisRunsAsync();
+        });
+    }
+
+    private async Task LoadSelectedAnalysisRun()
+    {
+        if (!Guid.TryParse(selectedAnalysisRunIdText, out var id))
+            return;
+
+        await RunAnalysisRunActionAsync(async () =>
+            await LoadAnalysisRunByIdAsync(id, autoLoad: false));
+    }
+
+    private async Task LoadAnalysisRunByIdAsync(Guid id, bool autoLoad)
+    {
+        var details = await Workspace.LoadGameAnalysisRunAsync(id);
+        if (details is null)
+        {
+            analysisRunError = autoLoad
+                ? "Latest analysis run was not found."
+                : "Selected analysis run was not found.";
+            return;
+        }
+
+        if (details.AnalyzedGameId != Workspace.CurrentAnalyzedGameId)
+        {
+            analysisRunError = autoLoad
+                ? "Latest analysis run belongs to a different saved game."
+                : "Selected analysis run belongs to a different saved game.";
+            return;
+        }
+
+        if (evaluationChart is null || !evaluationChart.LoadAnalysisRunSnapshot(details.Snapshot))
+        {
+            analysisRunError = autoLoad
+                ? "Latest analysis run does not match the current game move list."
+                : "Saved analysis run does not match the current game move list.";
+            return;
+        }
+
+        currentAnalysisRunId = details.Id;
+        analysisRunName = details.Name;
+        selectedAnalysisRunIdText = details.Id.ToString("D");
+        analysisRunError = null;
+        boardMoveEvaluationAvailable = evaluationChart.HasAnalysisResults;
+        UpdateBoard();
+    }
+
+    private async Task RunAnalysisRunActionAsync(Func<Task> action)
+    {
+        if (analysisRunBusy)
+            return;
+
+        analysisRunBusy = true;
+        analysisRunError = null;
+        StateHasChanged();
+
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            analysisRunError = ex.Message;
+        }
+        finally
+        {
+            analysisRunBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RunPersistenceActionAsync(Func<Task> action)
+    {
+        if (persistenceBusy)
+            return;
+
+        persistenceBusy = true;
+        persistenceError = null;
+        StateHasChanged();
+
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            persistenceError = ex.Message;
+        }
+        finally
+        {
+            persistenceBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ResetAnalysisChart()
+    {
+        analysisChartVersion++;
+        boardMoveEvaluationAvailable = false;
+        ClearAnalysisRunSelection(clearList: false);
+    }
+
+    private void ClearAnalysisRunSelection(bool clearList)
+    {
+        currentAnalysisRunId = null;
+        selectedAnalysisRunIdText = string.Empty;
+        analysisRunName = "Analysis";
+        analysisRunError = null;
+        pendingAnalysisRunAutoLoadId = null;
+        if (clearList)
+            savedAnalysisRuns.Clear();
+    }
+
+    private void ClampAnalysisSettings()
+    {
+        analysisThinkTimeSeconds = Math.Max(0.1, analysisThinkTimeSeconds);
+        analysisThreads = ClampedAnalysisThreads;
+    }
+
+    private int CountMainLineMoves()
+    {
+        var count = 0;
+        var current = Workspace.AnalysisBoard.Root.MainLine;
+        while (current is not null)
+        {
+            count++;
+            current = current.MainLine;
+        }
+
+        return count;
+    }
+
+    private static bool IsEnabledAnalysisEngineAvailable(EngineRunOptions engine)
+        => engine.IsEnabled
+            && HasEngineBinary(engine);
+
+    private static bool HasEngineBinary(EngineRunOptions engine)
+        => !string.IsNullOrWhiteSpace(engine.BinaryPath)
+            && File.Exists(engine.BinaryPath);
+}
