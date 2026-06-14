@@ -272,6 +272,27 @@ public class EfChessBoardRepositoryTests
     }
 
     [TestMethod]
+    public async Task Delete_game_analysis_run_removes_only_selected_row()
+    {
+        await using var harness = await RepositoryHarness.Create();
+        var repo = harness.Repository;
+        var gameId = await repo.SaveAnalyzedGame("Game", new AnalysisBoard(PgnSerializer.Parse("1. e4 e5")));
+        var firstRunId = await repo.SaveAnalyzedGameAnalysisRun(gameId, "First", CreateRunSnapshot("Stockfish", 10));
+        var secondRunId = await repo.SaveAnalyzedGameAnalysisRun(gameId, "Second", CreateRunSnapshot("LC0", -10));
+
+        await repo.DeleteAnalyzedGameAnalysisRun(firstRunId);
+
+        var summaries = await repo.ListAnalyzedGameAnalysisRuns(gameId);
+        var deleted = await repo.LoadAnalyzedGameAnalysisRun(firstRunId);
+        var remaining = await repo.LoadAnalyzedGameAnalysisRun(secondRunId);
+
+        Assert.AreEqual(1, summaries.Count);
+        Assert.AreEqual(secondRunId, summaries[0].Id);
+        Assert.IsNull(deleted);
+        Assert.IsNotNull(remaining);
+    }
+
+    [TestMethod]
     public async Task List_game_analysis_runs_does_not_deserialize_analysis_json()
     {
         await using var harness = await RepositoryHarness.Create();

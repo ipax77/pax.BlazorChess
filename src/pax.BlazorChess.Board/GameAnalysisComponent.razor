@@ -176,6 +176,7 @@
     private int AnalysedMoveCount => analysedMoveCount;
     private bool HasEvaluations => evals.Any(static eval => eval is not null);
     public bool HasAnalysisResults => engineResults.Any(static result => result.AnalysedMoveCount > 0);
+    public bool LastAnalysisCompletedNaturally { get; private set; }
     private string AnalysisProgressText
         => AnalysisMode == GameAnalysisMode.EnabledEngines && engineResults.Count > 1
             ? $"{engineResults.Sum(static r => r.AnalysedMoveCount)} / {Math.Max(1, engineResults.Count) * MoveCount} engine moves"
@@ -211,6 +212,7 @@
         if (engines.Count == 0)
             return;
 
+        LastAnalysisCompletedNaturally = false;
         ResetAnalysisState(engines);
         isAnalysing = true;
         var completedNaturally = false;
@@ -239,6 +241,7 @@
         finally
         {
             isAnalysing = false;
+            LastAnalysisCompletedNaturally = completedNaturally;
             RefreshChartData(forceSummary: true);
 
             if (completedNaturally && !cts.IsCancellationRequested && AddCategoryVariations())
@@ -275,6 +278,7 @@
             {
                 AnalysisMode = AnalysisMode,
                 MoveCount = MoveCount,
+                MoveListFingerprint = GameAnalysisRunFingerprint.Create(ChessGame),
                 ThinkTimePerMoveMs = ThinkTimePerMoveMs,
                 AnalysisThreads = AnalysisThreads,
                 Engines = engineResults
@@ -309,7 +313,7 @@
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        if (snapshot.MoveCount != MoveCount)
+        if (!GameAnalysisRunFingerprint.Matches(snapshot, ChessGame))
             return false;
 
         lock (evalLock)

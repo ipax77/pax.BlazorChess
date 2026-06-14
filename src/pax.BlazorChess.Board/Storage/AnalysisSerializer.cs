@@ -61,7 +61,7 @@ public static class AnalysisSerializer
 
         var initialPosition = FenSerializer.Parse(snapshot.InitialFen ?? string.Empty);
         var root = BuildLegacyTree(snapshot);
-        var board = new AnalysisBoard(new ChessGame(initialPosition));
+        var board = new AnalysisBoard(CreateMainLineGame(initialPosition, root));
         MergeTree(board, board.Root, root);
         board.MoveToNode(board.Root);
 
@@ -73,11 +73,30 @@ public static class AnalysisSerializer
         ArgumentNullException.ThrowIfNull(snapshot);
 
         var initialPosition = FenSerializer.Parse(snapshot.InitialFen ?? string.Empty);
-        var board = new AnalysisBoard(new ChessGame(initialPosition));
+        var board = new AnalysisBoard(CreateMainLineGame(initialPosition, snapshot.Root));
         MergeTree(board, board.Root, snapshot.Root);
         board.MoveToNode(board.Root);
 
         return board;
+    }
+
+    private static ChessGame CreateMainLineGame(BoardPosition initialPosition, AnalysisNodeDto root)
+    {
+        var game = new ChessGame(initialPosition, new() { SkipEvaluation = true });
+        var current = root.Children.FirstOrDefault();
+
+        while (current is not null)
+        {
+            var move = Uci.CreateMove(current.Uci ?? string.Empty, game.CurrentPosition)
+                ?? throw new InvalidOperationException($"Invalid UCI move '{current.Uci}'.");
+            var state = game.ApplyMove(move, current.San ?? string.Empty);
+            if (state != MoveState.Ok)
+                throw new InvalidOperationException($"Invalid main-line move '{current.Uci}' ({state}).");
+
+            current = current.Children.FirstOrDefault();
+        }
+
+        return game;
     }
 
     private static List<FlatAnalysisNodeDto> ToFlatNodes(MoveNode root, Guid rootId)

@@ -86,6 +86,7 @@
 
     private GameAnalysisComponent? chart;
     public bool HasAnalysisResults => chart?.HasAnalysisResults ?? false;
+    public bool LastAnalysisCompletedNaturally => chart?.LastAnalysisCompletedNaturally ?? false;
     private bool HasAnalysisEngines
         => AnalysisMode == GameAnalysisMode.EnabledEngines
             ? EngineRunOptionsList.Any(IsEngineAvailable)

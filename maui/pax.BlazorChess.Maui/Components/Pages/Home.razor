@@ -225,9 +225,18 @@
                     <span class="bi bi-files" aria-hidden="true"></span>
                     <span>Save As</span>
                 </button>
+                <button type="button" class="command-button" disabled="@(!CanDeleteAnalysisRun)" @onclick="DeleteSelectedAnalysisRun">
+                    <span class="bi bi-trash" aria-hidden="true"></span>
+                    <span>Delete</span>
+                </button>
             </div>
             <div class="save-status @(currentAnalysisRunId.HasValue ? "clean" : "dirty")">@AnalysisRunStatus</div>
         </div>
+
+        @if (!string.IsNullOrWhiteSpace(analysisRunNotice))
+        {
+            <div class="save-status clean">@analysisRunNotice</div>
+        }
 
         @if (!string.IsNullOrWhiteSpace(analysisRunError))
         {
@@ -335,6 +344,7 @@
     private string metadataResult = string.Empty;
     private string? persistenceError;
     private string? analysisRunError;
+    private string? analysisRunNotice;
     private Guid? currentAnalysisRunId;
     private Guid? pendingAnalysisRunAutoLoadId;
     private bool persistenceBusy;
@@ -387,6 +397,10 @@
             && !fullAnalysisRunning
             && !string.IsNullOrWhiteSpace(analysisRunName)
             && evaluationChart?.HasAnalysisResults == true;
+    private bool CanDeleteAnalysisRun
+        => !analysisRunBusy
+            && !fullAnalysisRunning
+            && Guid.TryParse(selectedAnalysisRunIdText, out _);
     private string PersistenceStatus
         => persistenceBusy
             ? "Working..."
@@ -404,6 +418,8 @@
             ? "Working..."
             : !string.IsNullOrWhiteSpace(analysisRunError)
                 ? "Analysis persistence error"
+                : !string.IsNullOrWhiteSpace(analysisRunNotice)
+                    ? "Analysis needs reanalyse"
                 : currentAnalysisRunId.HasValue
                     ? "Analysis saved"
                     : Workspace.CurrentAnalyzedGameId.HasValue
@@ -581,7 +597,13 @@
         if (evaluationChart is null || !CanAnalyzeGame || fullAnalysisRunning)
             return;
 
-        ClearAnalysisRunSelection(clearList: false);
+        var reanalyseRunId = GetSelectedAnalysisRunId();
+        var reanalyseRunName = reanalyseRunId.HasValue
+            ? GetAnalysisRunName(reanalyseRunId.Value)
+            : analysisRunName;
+
+        analysisRunError = null;
+        analysisRunNotice = null;
         boardMoveEvaluationAvailable = false;
         UpdateBoard();
         fullAnalysisRunning = true;
@@ -592,6 +614,17 @@
             await evaluationChart.Analyze();
             boardMoveEvaluationAvailable = evaluationChart.HasAnalysisResults;
             UpdateBoard();
+
+            if (reanalyseRunId.HasValue
+                && evaluationChart.LastAnalysisCompletedNaturally
+                && evaluationChart.HasAnalysisResults)
+            {
+                await SaveReanalysedAnalysisRunAsync(reanalyseRunId.Value, reanalyseRunName);
+            }
+        }
+        catch (Exception ex)
+        {
+            analysisRunError = ex.Message;
         }
         finally
         {
@@ -916,6 +949,20 @@
             await LoadAnalysisRunByIdAsync(id, autoLoad: false));
     }
 
+    private async Task DeleteSelectedAnalysisRun()
+    {
+        if (!Guid.TryParse(selectedAnalysisRunIdText, out var id))
+            return;
+
+        await RunAnalysisRunActionAsync(async () =>
+        {
+            await Workspace.DeleteGameAnalysisRunAsync(id);
+            ResetAnalysisChart();
+            await RefreshAnalysisRunsAsync();
+            UpdateBoard();
+        });
+    }
+
     private async Task LoadAnalysisRunByIdAsync(Guid id, bool autoLoad)
     {
         var details = await Workspace.LoadGameAnalysisRunAsync(id);
@@ -937,9 +984,15 @@
 
         if (evaluationChart is null || !evaluationChart.LoadAnalysisRunSnapshot(details.Snapshot))
         {
-            analysisRunError = autoLoad
-                ? "Latest analysis run does not match the current game move list."
-                : "Saved analysis run does not match the current game move list.";
+            currentAnalysisRunId = details.Id;
+            analysisRunName = details.Name;
+            selectedAnalysisRunIdText = details.Id.ToString("D");
+            analysisRunError = null;
+            analysisRunNotice = autoLoad
+                ? "Saved analysis no longer matches; Analyse will replace it."
+                : "Saved analysis does not match the current game move list; Analyse will replace it.";
+            boardMoveEvaluationAvailable = false;
+            UpdateBoard();
             return;
         }
 
@@ -947,8 +1000,39 @@
         analysisRunName = details.Name;
         selectedAnalysisRunIdText = details.Id.ToString("D");
         analysisRunError = null;
+        analysisRunNotice = null;
         boardMoveEvaluationAvailable = evaluationChart.HasAnalysisResults;
         UpdateBoard();
+    }
+
+    private async Task SaveReanalysedAnalysisRunAsync(Guid runId, string runName)
+    {
+        var snapshot = evaluationChart?.CreateAnalysisRunSnapshot();
+        if (snapshot is null || snapshot.Engines.Count == 0)
+            return;
+
+        analysisRunBusy = true;
+        try
+        {
+            CommitGameDetails();
+            if (!Workspace.CurrentAnalyzedGameId.HasValue || Workspace.IsDirty)
+            {
+                await Workspace.SaveCurrentAnalysisAsync();
+                SyncGameDetails();
+                await RefreshSavedGamesAsync();
+            }
+
+            var savedId = await Workspace.SaveCurrentGameAnalysisRunAsync(runName, snapshot, runId);
+            currentAnalysisRunId = savedId;
+            selectedAnalysisRunIdText = savedId.ToString("D");
+            analysisRunName = runName;
+            analysisRunNotice = null;
+            await RefreshAnalysisRunsAsync();
+        }
+        finally
+        {
+            analysisRunBusy = false;
+        }
     }
 
     private async Task RunAnalysisRunActionAsync(Func<Task> action)
@@ -962,6 +1046,7 @@
 
         try
         {
+            analysisRunNotice = null;
             await action();
         }
         catch (Exception ex)
@@ -1012,10 +1097,19 @@
         selectedAnalysisRunIdText = string.Empty;
         analysisRunName = "Analysis";
         analysisRunError = null;
+        analysisRunNotice = null;
         pendingAnalysisRunAutoLoadId = null;
         if (clearList)
             savedAnalysisRuns.Clear();
     }
+
+    private Guid? GetSelectedAnalysisRunId()
+        => Guid.TryParse(selectedAnalysisRunIdText, out var selectedId)
+            ? selectedId
+            : currentAnalysisRunId;
+
+    private string GetAnalysisRunName(Guid id)
+        => savedAnalysisRuns.FirstOrDefault(run => run.Id == id)?.Name ?? analysisRunName;
 
     private void ClampAnalysisSettings()
     {

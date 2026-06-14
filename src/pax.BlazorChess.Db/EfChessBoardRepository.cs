@@ -233,6 +233,11 @@ public sealed class EfChessBoardRepository : IChessBoardRepository
         return entity.Id;
     }
 
+    public Task DeleteAnalyzedGameAnalysisRun(Guid id, CancellationToken cancellationToken = default)
+        => _context.AnalyzedGameAnalysisRuns
+            .Where(a => a.Id == id)
+            .ExecuteDeleteAsync(cancellationToken);
+
     private static AnalyzedGameMetadata ToMetadata(AnalyzedGameEntity entity)
         => new()
         {

@@ -219,6 +219,30 @@ public sealed class AnalysisWorkspaceStatePersistenceTests
     }
 
     [TestMethod]
+    public async Task Delete_game_analysis_run_removes_only_selected_run()
+    {
+        var repository = new RecordingChessBoardRepository([]);
+        await using var state = CreateState(repository);
+
+        Assert.IsTrue(state.TryLoadPgn("1. e4 e5"));
+        await state.SaveCurrentAnalysisAsync();
+
+        var firstRunId = await state.SaveCurrentGameAnalysisRunAsync("First run", CreateAnalysisRunSnapshot());
+        var secondRunId = await state.SaveCurrentGameAnalysisRunAsync("Second run", CreateAnalysisRunSnapshot());
+
+        await state.DeleteGameAnalysisRunAsync(firstRunId);
+
+        var summaries = await state.ListCurrentGameAnalysisRunsAsync();
+        var deleted = await state.LoadGameAnalysisRunAsync(firstRunId);
+        var remaining = await state.LoadGameAnalysisRunAsync(secondRunId);
+
+        Assert.AreEqual(1, summaries.Count);
+        Assert.AreEqual(secondRunId, summaries[0].Id);
+        Assert.IsNull(deleted);
+        Assert.IsNotNull(remaining);
+    }
+
+    [TestMethod]
     public async Task Pgn_tag_import_prefills_game_metadata()
     {
         var repository = new RecordingChessBoardRepository([]);
@@ -437,6 +461,12 @@ public sealed class AnalysisWorkspaceStatePersistenceTests
             var targetId = id ?? Guid.NewGuid();
             _analysisRuns[targetId] = (analyzedGameId, name, GameAnalysisRunSerializer.Serialize(snapshot), DateTimeOffset.UtcNow);
             return Task.FromResult(targetId);
+        }
+
+        public Task DeleteAnalyzedGameAnalysisRun(Guid id, CancellationToken cancellationToken = default)
+        {
+            _analysisRuns.Remove(id);
+            return Task.CompletedTask;
         }
     }
 }

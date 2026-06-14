@@ -309,6 +309,9 @@ public sealed class AnalysisWorkspaceState : IAsyncDisposable
             cancellationToken);
     }
 
+    public Task DeleteGameAnalysisRunAsync(Guid id, CancellationToken cancellationToken = default)
+        => _repository.DeleteAnalyzedGameAnalysisRun(id, cancellationToken);
+
     private void MoveToEnd()
     {
         var current = AnalysisBoard.Root;

@@ -20,6 +20,7 @@ public class AnalysisSerializerTests
         var restored = AnalysisSerializer.Restore(json);
 
         Assert.AreEqual(GetMainLineCount(board.Root), GetMainLineCount(restored.Root));
+        Assert.AreEqual(game.Moves.Count, restored.ChessGame.Moves.Count);
     }
 
     [TestMethod]
@@ -46,6 +47,7 @@ public class AnalysisSerializerTests
 
         Assert.AreEqual(280, GetMainLineCount(board.Root));
         Assert.AreEqual(GetMainLineCount(board.Root), GetMainLineCount(restored.Root));
+        Assert.AreEqual(GetMainLineCount(board.Root), restored.ChessGame.Moves.Count);
     }
 
     [TestMethod]
@@ -108,9 +110,49 @@ public class AnalysisSerializerTests
         var secondMove = restored.Root.MainLine?.MainLine;
 
         Assert.AreEqual(2, GetMainLineCount(restored.Root));
+        Assert.AreEqual(2, restored.ChessGame.Moves.Count);
         Assert.AreEqual("Legacy note", secondMove?.Note);
         Assert.AreEqual(-8, secondMove?.Evaluation);
         Assert.AreEqual(10, secondMove?.Depth);
+    }
+
+    [TestMethod]
+    public void Analysis_run_fingerprint_matches_same_move_list()
+    {
+        var game = PgnSerializer.Parse("1. e4 e5 2. Nf3 Nc6");
+        var snapshot = new GameAnalysisRunSnapshot
+        {
+            MoveCount = game.Moves.Count,
+            MoveListFingerprint = GameAnalysisRunFingerprint.Create(game)
+        };
+
+        Assert.IsTrue(GameAnalysisRunFingerprint.Matches(snapshot, game));
+    }
+
+    [TestMethod]
+    public void Analysis_run_fingerprint_rejects_different_move_list()
+    {
+        var original = PgnSerializer.Parse("1. e4 e5 2. Nf3 Nc6");
+        var changed = PgnSerializer.Parse("1. e4 c5 2. Nf3 Nc6");
+        var snapshot = new GameAnalysisRunSnapshot
+        {
+            MoveCount = changed.Moves.Count,
+            MoveListFingerprint = GameAnalysisRunFingerprint.Create(original)
+        };
+
+        Assert.IsFalse(GameAnalysisRunFingerprint.Matches(snapshot, changed));
+    }
+
+    [TestMethod]
+    public void Analysis_run_fingerprint_allows_legacy_snapshot_by_move_count()
+    {
+        var game = PgnSerializer.Parse("1. d4 d5");
+        var snapshot = new GameAnalysisRunSnapshot
+        {
+            MoveCount = game.Moves.Count
+        };
+
+        Assert.IsTrue(GameAnalysisRunFingerprint.Matches(snapshot, game));
     }
 
     private static int GetMainLineCount(MoveNode root)

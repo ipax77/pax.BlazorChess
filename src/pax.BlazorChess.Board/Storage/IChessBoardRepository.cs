@@ -1,6 +1,10 @@
 using pax.BlazorChess.Board;
+using pax.chess;
 using pax.chess.Analyze;
+using pax.chess.Extensions;
 using pax.uciChessEngine.EngineServices;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace pax.BlazorChess.Board.Storage;
 
@@ -32,6 +36,7 @@ public interface IChessBoardRepository
         GameAnalysisRunSnapshot snapshot,
         Guid? id = default,
         CancellationToken cancellationToken = default);
+    Task DeleteAnalyzedGameAnalysisRun(Guid id, CancellationToken cancellationToken = default);
 }
 
 public sealed record AnalyzedGameSummary(Guid Id, string Name, DateTimeOffset UpdatedAt);
@@ -73,9 +78,39 @@ public sealed record GameAnalysisRunSnapshot
 {
     public GameAnalysisMode AnalysisMode { get; init; } = GameAnalysisMode.SelectedEngine;
     public int MoveCount { get; init; }
+    public string? MoveListFingerprint { get; init; }
     public int ThinkTimePerMoveMs { get; init; }
     public int AnalysisThreads { get; init; }
     public IReadOnlyList<GameAnalysisEngineSnapshot> Engines { get; init; } = [];
+}
+
+public static class GameAnalysisRunFingerprint
+{
+    public static string Create(ChessGame game)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+
+        var builder = new StringBuilder();
+        builder.Append(FenSerializer.Serialize(game.InitialPosition));
+        foreach (var moveInfo in game.Moves)
+        {
+            builder.Append('|');
+            if (moveInfo.Move is not null)
+                builder.Append(Uci.GetUci(moveInfo.Move));
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
+    }
+
+    public static bool Matches(GameAnalysisRunSnapshot snapshot, ChessGame game)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(game);
+
+        return string.IsNullOrWhiteSpace(snapshot.MoveListFingerprint)
+            ? snapshot.MoveCount == game.Moves.Count
+            : string.Equals(snapshot.MoveListFingerprint, Create(game), StringComparison.Ordinal);
+    }
 }
 
 public sealed record GameAnalysisEngineSnapshot

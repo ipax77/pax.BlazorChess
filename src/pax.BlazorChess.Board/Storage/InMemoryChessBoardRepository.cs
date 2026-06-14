@@ -159,6 +159,12 @@ public sealed class InMemoryChessBoardRepository : IChessBoardRepository
         return Task.FromResult(targetId);
     }
 
+    public Task DeleteAnalyzedGameAnalysisRun(Guid id, CancellationToken cancellationToken = default)
+    {
+        _analysisRuns.Remove(id);
+        return Task.CompletedTask;
+    }
+
     private static AnalyzedGameMetadata Normalize(AnalyzedGameMetadata? metadata)
     {
         var value = metadata ?? AnalyzedGameMetadata.Empty;
