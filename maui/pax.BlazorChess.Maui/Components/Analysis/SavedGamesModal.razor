@@ -78,6 +78,14 @@
                                         <span class="bi bi-folder2-open" aria-hidden="true"></span>
                                         <span>Load</span>
                                     </button>
+                                    <button type="button"
+                                            class="command-button"
+                                            title="Open this game in new window"
+                                            disabled="@IsBusy"
+                                            @onclick="() => OpenInNewWindow(game.Id)">
+                                        <span class="bi bi-box-arrow-up-right" aria-hidden="true"></span>
+                                        <span>New window</span>
+                                    </button>
                                     @if (isConfirmingDelete)
                                     {
                                         <button type="button"
@@ -136,6 +144,9 @@
 
     [Parameter, EditorRequired]
     public EventCallback<Guid> OnDelete { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<Guid> OnOpenInNewWindow { get; set; }
 
     [Parameter, EditorRequired]
     public EventCallback OnClose { get; set; }
@@ -201,6 +212,12 @@
     {
         confirmingDeleteId = null;
         await OnDelete.InvokeAsync(id);
+    }
+
+    private async Task OpenInNewWindow(Guid id)
+    {
+        confirmingDeleteId = null;
+        await OnOpenInNewWindow.InvokeAsync(id);
     }
 
     private Task Close()

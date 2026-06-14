@@ -115,10 +115,6 @@
             <textarea id="pgnInput" class="text-input mono" @bind="pgnInput" @onkeydown:stopPropagation="true"></textarea>
         </div>
 
-        <div>
-            <button type="button" class="btn btn-outline-light" @onclick="OpenNewWindow">New Window</button>
-        </div>
-
         @if (!string.IsNullOrWhiteSpace(Workspace.ImportError))
         {
             <div class="engine-error">@Workspace.ImportError</div>
@@ -327,6 +323,7 @@
                      IsBusy="persistenceBusy"
                      OnLoad="LoadSavedGameFromModal"
                      OnDelete="DeleteSavedGameFromModal"
+                     OnOpenInNewWindow="OpenSavedGameInNewWindow"
                      OnClose="CloseSavedGamesModal" />
 }
 
@@ -367,6 +364,9 @@
     private bool fullAnalysisRunning;
     private bool boardMoveEvaluationAvailable;
     private bool savedGamesModalVisible;
+
+    [SupplyParameterFromQuery(Name = "gameId")]
+    public Guid? StartGameId { get; set; }
 
     private int MoveCount => CountMainLineMoves();
     private IEnumerable<AnalyzedGameSummary> RecentSavedAnalyses
@@ -465,9 +465,16 @@
     {
         await Workspace.LoadEngineSettingsAsync();
         await RefreshSavedGamesAsync();
-        await RefreshAnalysisRunsAsync();
-        SyncText();
-        SyncGameDetails();
+        if (StartGameId is { } startGameId)
+        {
+            await LoadSavedGameByIdAsync(startGameId, closeModal: false);
+        }
+        else
+        {
+            await RefreshAnalysisRunsAsync();
+            SyncText();
+            SyncGameDetails();
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -860,6 +867,7 @@
         await RunPersistenceActionAsync(async () =>
         {
             await Workspace.LoadAnalyzedGameAsync(id);
+            selectedSavedGameIdText = id.ToString("D");
             ResetAnalysisChart();
             SyncText();
             SyncGameDetails();
@@ -899,6 +907,15 @@
     {
         savedGamesModalVisible = false;
     }
+
+    private void OpenSavedGameInNewWindow(Guid id)
+    {
+        var secondWindow = new Window(new MainPage(BuildSavedGameStartPath(id)));
+        Application.Current?.OpenWindow(secondWindow);
+    }
+
+    private static string BuildSavedGameStartPath(Guid id)
+        => $"/?gameId={id:D}";
 
     private Task SaveGame()
         => SaveGameAsync(saveAs: false);
@@ -1210,9 +1227,4 @@
         => !string.IsNullOrWhiteSpace(engine.BinaryPath)
             && File.Exists(engine.BinaryPath);
 
-    private void OpenNewWindow()
-    {
-        var secondWindow = new Window(new MainPage());
-        Application.Current?.OpenWindow(secondWindow);
-    }
 }
