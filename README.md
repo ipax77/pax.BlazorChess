@@ -1,5 +1,8 @@
 # Introduction
 
+> [!WARNING]
+> This .NET 6/Electron version is deprecated and receives security maintenance only. The application is being redesigned for .NET 10 and .NET MAUI.
+
 Blazor Server Electron app for analyzing chess games with UCI chess engines on local hardware
 
 !Beta version!
